@@ -12,6 +12,15 @@
   <idea-version since-build="141.0"/>
 
   <extensions defaultExtensionNs="com.intellij">
+
+    <projectService serviceImplementation="idea.bear.sunday.Settings"/>
+
+    <projectConfigurable instance="idea.bear.sunday.SettingsForm"
+                         displayName="BEAR.Sunday Plugin"
+                         id="BEAR.Sunday.SettingsForm"
+    />
+
+
     <gotoDeclarationHandler implementation="idea.bear.sunday.ResourceGotoDeclarationHandler"/>
   </extensions>
 
