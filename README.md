@@ -13,3 +13,5 @@ IDEA PHP BEAR.Sunday Plugin
 ## TODO
 
  * Highlight resource URI.
+ * Resource URI Completion
+ * Resource With Query Completion
