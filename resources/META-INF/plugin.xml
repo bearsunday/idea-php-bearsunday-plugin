@@ -21,7 +21,7 @@
     />
 
 
-    <gotoDeclarationHandler implementation="idea.bear.sunday.ResourceGotoDeclarationHandler"/>
+    <gotoDeclarationHandler implementation="idea.bear.sunday.resource.ResourceGotoDeclarationHandler"/>
   </extensions>
 
   <depends>com.jetbrains.php</depends>

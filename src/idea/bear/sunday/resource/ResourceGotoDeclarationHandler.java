@@ -1,4 +1,4 @@
-package idea.bear.sunday;
+package idea.bear.sunday.resource;
 
 import com.intellij.codeInsight.navigation.actions.GotoDeclarationHandler;
 import com.intellij.openapi.actionSystem.DataContext;
@@ -53,7 +53,7 @@ public class ResourceGotoDeclarationHandler implements GotoDeclarationHandler {
     @Nullable
     @Override
     public String getActionText(DataContext dataContext) {
-        return null;
+        return "Go to Resource class";
     }
 
 }
