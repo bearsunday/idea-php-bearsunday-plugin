@@ -3,6 +3,7 @@ package idea.bear.sunday;
 import com.intellij.openapi.components.ProjectComponent;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
+import com.intellij.psi.PsiElement;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -40,4 +41,9 @@ public class BearSundayProjectComponent implements ProjectComponent {
     public static boolean isEnabled(@Nullable Project project) {
         return project != null && Settings.getInstance(project).pluginEnabled;
     }
+
+    public static boolean isEnabled(@Nullable PsiElement psiElement) {
+        return psiElement != null && isEnabled(psiElement.getProject());
+    }
+
 }
