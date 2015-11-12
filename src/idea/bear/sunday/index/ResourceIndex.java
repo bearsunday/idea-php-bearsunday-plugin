@@ -16,6 +16,7 @@ import com.jetbrains.php.lang.PhpFileType;
 import com.jetbrains.php.lang.psi.elements.PhpClass;
 import gnu.trove.THashMap;
 import gnu.trove.THashSet;
+import idea.bear.sunday.BearSundayProjectComponent;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -94,8 +95,11 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
         @Override
         public Map<String, Resource> map(FileContent inputData) {
             final Map<String, Resource> map = new THashMap<String, Resource>();
-
             PsiFile psiFile = inputData.getPsiFile();
+
+            if(!BearSundayProjectComponent.isEnabled(psiFile.getProject())) {
+                return map;
+            }
 
             if(!isValidForIndex(inputData, psiFile)) {
                 return map;
