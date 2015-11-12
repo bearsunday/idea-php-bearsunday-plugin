@@ -8,6 +8,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
+import idea.bear.sunday.BearSundayProjectComponent;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -18,6 +19,11 @@ public class ResourceGotoDeclarationHandler implements GotoDeclarationHandler {
     @Nullable
     @Override
     public PsiElement[] getGotoDeclarationTargets(PsiElement psiElement, int i, Editor editor) {
+
+        if(!BearSundayProjectComponent.isEnabled(psiElement.getProject())) {
+            return new PsiElement[0];
+        }
+
         String resourceName = psiElement.getText();
         if(!resourceName.startsWith("app://") || resourceName.startsWith("page://")) {
             return new PsiElement[0];
