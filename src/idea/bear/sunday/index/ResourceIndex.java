@@ -1,15 +1,19 @@
 package idea.bear.sunday.index;
 
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiFile;
 import com.intellij.util.indexing.*;
 import com.intellij.util.io.DataExternalizer;
 import com.intellij.util.io.EnumeratorStringDescriptor;
 import com.intellij.util.io.KeyDescriptor;
 import com.jetbrains.php.lang.PhpFileType;
+import gnu.trove.THashMap;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Map;
 
 public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
 
@@ -69,8 +73,31 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
         @NotNull
         @Override
         public Map<String, Resource> map(FileContent inputData) {
+            final Map<String, Resource> map = new THashMap<String, Resource>();
+
+            PsiFile psiFile = inputData.getPsiFile();
+
+            if(!isValidForIndex(inputData, psiFile)) {
+                return map;
+            }
+
             return ResourceIndexUtil.indexFile(inputData).getUriMap();
         }
+    }
+
+    public static boolean isValidForIndex(FileContent inputData, PsiFile psiFile) {
+
+        String fileName = psiFile.getName();
+        if(fileName.startsWith(".") || fileName.contains("Test")) {
+            return false;
+        }
+
+        String relativePath = VfsUtil.getRelativePath(inputData.getFile(), psiFile.getProject().getBaseDir(), '/');
+        if(relativePath != null && (relativePath.contains("/tests/") )) {
+            return false;
+        }
+
+        return true;
     }
 
 }
