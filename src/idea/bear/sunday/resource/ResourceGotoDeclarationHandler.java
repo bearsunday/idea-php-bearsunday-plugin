@@ -29,7 +29,7 @@ public class ResourceGotoDeclarationHandler implements GotoDeclarationHandler {
         }
 
         String resourceName = psiElement.getText();
-        if(!resourceName.startsWith("app://") || resourceName.startsWith("page://")) {
+        if(!resourceName.startsWith("app://") && !resourceName.startsWith("page://")) {
             return new PsiElement[0];
         }
 
