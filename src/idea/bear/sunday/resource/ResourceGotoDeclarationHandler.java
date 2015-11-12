@@ -8,10 +8,13 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
+import com.intellij.psi.search.GlobalSearchScope;
 import idea.bear.sunday.BearSundayProjectComponent;
+import idea.bear.sunday.index.ResourceIndex;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 public class ResourceGotoDeclarationHandler implements GotoDeclarationHandler {
@@ -20,7 +23,8 @@ public class ResourceGotoDeclarationHandler implements GotoDeclarationHandler {
     @Override
     public PsiElement[] getGotoDeclarationTargets(PsiElement psiElement, int i, Editor editor) {
 
-        if(!BearSundayProjectComponent.isEnabled(psiElement.getProject())) {
+        Project project = psiElement.getProject();
+        if(!BearSundayProjectComponent.isEnabled(project)) {
             return new PsiElement[0];
         }
 
@@ -29,31 +33,7 @@ public class ResourceGotoDeclarationHandler implements GotoDeclarationHandler {
             return new PsiElement[0];
         }
 
-        String roDir = "/src/Resource/App/";
-        String roClass = resourceName.replace("app://self/", "");
-
-        if(resourceName.startsWith("page://")) {
-            roDir = "/src/Resource/Page/";
-            roClass = resourceName.replace("page://self/", "");
-        }
-
-        String[] roArray = roClass.split("/");
-        StringBuffer stringBuffer = new StringBuffer();
-        for (i = 0; i < roArray.length; i++) {
-            stringBuffer.append(Character.toUpperCase(roArray[i].charAt(0))).append(roArray[i].substring(1));
-            if (i + 1 != roArray.length) {
-                stringBuffer.append("/");
-            }
-        }
-        roClass = stringBuffer.toString() + ".php";
-
-        Project project = psiElement.getProject();
-        VirtualFile targetFile = project.getBaseDir().findFileByRelativePath(roDir + roClass);
-        PsiFile psiFile = PsiManager.getInstance(psiElement.getProject()).findFile(targetFile);
-        List<PsiElement> psiElements = new ArrayList<PsiElement>();
-        psiElements.add(psiFile.getFirstChild());
-
-        return psiElements.toArray(new PsiElement[psiElements.size()]);
+        return ResourceIndex.getFileByUri(resourceName, psiElement.getProject(), GlobalSearchScope.projectScope(project));
     }
 
     @Nullable

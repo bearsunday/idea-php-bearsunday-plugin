@@ -3,16 +3,24 @@ package idea.bear.sunday.index;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
+import com.intellij.psi.PsiManager;
+import com.intellij.psi.search.GlobalSearchScope;
+import com.intellij.util.containers.hash.HashSet;
 import com.intellij.util.indexing.*;
 import com.intellij.util.io.DataExternalizer;
 import com.intellij.util.io.EnumeratorStringDescriptor;
 import com.intellij.util.io.KeyDescriptor;
 import com.jetbrains.php.lang.PhpFileType;
+import com.jetbrains.php.lang.psi.elements.PhpClass;
 import gnu.trove.THashMap;
+import gnu.trove.THashSet;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
@@ -64,9 +72,21 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
         return INDEX_VERSION;
     }
 
-    public static Collection<String> getNames(Project project)
-    {
+    public static Collection<String> getNames(Project project) {
         return FileBasedIndex.getInstance().getAllKeys(RESOURCE_URI_INDEX, project);
+    }
+
+    public static PsiElement[] getFileByUri(String uri, Project project, GlobalSearchScope searchScope)
+    {
+        final Collection<VirtualFile> files = FileBasedIndex.getInstance().getContainingFiles(RESOURCE_URI_INDEX, uri, searchScope);
+        Collection<PsiElement> psiElements = new HashSet<PsiElement>();
+
+        for(VirtualFile vFile : files) {
+            final PsiElement psiElement = PsiManager.getInstance(project).findFile(vFile);
+            psiElements.add(psiElement);
+        }
+
+        return psiElements.toArray(new PsiElement[psiElements.size()]);
     }
 
     private static class MyDataIndexer implements DataIndexer<String, Resource, FileContent> {
