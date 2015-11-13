@@ -9,9 +9,9 @@ IDEA PHP BEAR.Sunday Plugin
 ## Current Features
 
  * BEAR.Resource goto (app://self/user will be pointed to src/Resource/App/User.php)
+ * BEAR.Resource URI completion
 
 ## TODO
 
  * Highlight resource URI.
- * Resource URI Completion
  * Resource With Query Completion
