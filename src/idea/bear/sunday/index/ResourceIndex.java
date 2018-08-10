@@ -7,22 +7,23 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
 import com.intellij.psi.search.GlobalSearchScope;
-import com.intellij.util.containers.hash.HashSet;
 import com.intellij.util.indexing.*;
 import com.intellij.util.io.DataExternalizer;
 import com.intellij.util.io.EnumeratorStringDescriptor;
 import com.intellij.util.io.KeyDescriptor;
 import com.jetbrains.php.lang.PhpFileType;
-import com.jetbrains.php.lang.psi.elements.PhpClass;
 import gnu.trove.THashMap;
-import gnu.trove.THashSet;
 import idea.bear.sunday.BearSundayProjectComponent;
 import org.jetbrains.annotations.NotNull;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.WordUtils;
 
 public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
 
@@ -73,21 +74,28 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
         return INDEX_VERSION;
     }
 
-    public static Collection<String> getNames(Project project) {
-        return FileBasedIndex.getInstance().getAllKeys(RESOURCE_URI_INDEX, project);
-    }
-
     public static PsiElement[] getFileByUri(String uri, Project project, GlobalSearchScope searchScope)
     {
-        final Collection<VirtualFile> files = FileBasedIndex.getInstance().getContainingFiles(RESOURCE_URI_INDEX, uri, searchScope);
-        Collection<PsiElement> psiElements = new HashSet<PsiElement>();
+        try {
+            URI u = new URI(uri);
+            String relPath = "src/Resource/"
+                    + WordUtils.capitalize(u.getScheme())
+                    + StringUtils.remove(WordUtils.capitalizeFully(u.getPath(), new char[]{'/', '-'}), "-")
+                    + ".php";
+            VirtualFile targetFile = project.getBaseDir().findFileByRelativePath(relPath);
 
-        for(VirtualFile vFile : files) {
-            final PsiElement psiElement = PsiManager.getInstance(project).findFile(vFile);
-            psiElements.add(psiElement);
+            if(targetFile == null){
+                return new PsiElement[0];
+            }
+
+            PsiFile psiFile = PsiManager.getInstance(project).findFile(targetFile);
+            List<PsiElement> psiElements = new ArrayList();
+            psiElements.add(psiFile);
+
+            return psiElements.toArray(new PsiElement[psiElements.size()]);
+        } catch (URISyntaxException e) {
+            return new PsiElement[0];
         }
-
-        return psiElements.toArray(new PsiElement[psiElements.size()]);
     }
 
     private static class MyDataIndexer implements DataIndexer<String, Resource, FileContent> {
