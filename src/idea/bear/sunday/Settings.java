@@ -6,7 +6,10 @@ import com.intellij.util.xmlb.XmlSerializerUtil;
 import org.jetbrains.annotations.Nullable;
 
 @State(
-        name = "BEAR.SundayPluginSettings"
+        name = "BEAR.SundayPluginSettings",
+        storages = {
+                @Storage("bear-sunday.xml")
+        }
 )
 
 public class Settings implements PersistentStateComponent<Settings> {
