@@ -8,8 +8,7 @@ import org.jetbrains.annotations.Nullable;
 @State(
         name = "BEAR.SundayPluginSettings",
         storages = {
-                @Storage(id = "default", file = StoragePathMacros.PROJECT_FILE),
-                @Storage(id = "dir", file = StoragePathMacros.PROJECT_CONFIG_DIR + "/bear-sunday.xml", scheme = StorageScheme.DIRECTORY_BASED)
+                @Storage("bear-sunday.xml")
         }
 )
 
