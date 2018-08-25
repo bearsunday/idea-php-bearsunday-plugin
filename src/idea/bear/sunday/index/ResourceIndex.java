@@ -1,12 +1,13 @@
 package idea.bear.sunday.index;
 
+import com.intellij.openapi.editor.Editor;
+import com.intellij.openapi.editor.impl.EditorImpl;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
-import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.util.indexing.*;
 import com.intellij.util.io.DataExternalizer;
 import com.intellij.util.io.EnumeratorStringDescriptor;
@@ -74,14 +75,28 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
         return INDEX_VERSION;
     }
 
-    public static PsiElement[] getFileByUri(String uri, Project project, GlobalSearchScope searchScope)
+    public static PsiElement[] getFileByUri(String uri, Project project, Editor editor)
     {
         try {
             URI u = new URI(uri);
-            String relPath = "src/Resource/"
-                    + WordUtils.capitalize(u.getScheme())
-                    + StringUtils.remove(WordUtils.capitalizeFully(u.getPath(), new char[]{'/', '-'}), "-")
-                    + ".php";
+            String relPath = "src/Resource/";
+            if (u.getScheme() == null) {
+                String editFile = ((EditorImpl) editor).getVirtualFile().getPath();
+                if (editFile.startsWith(project.getBasePath() + "/src/Resource/Page")){
+                    relPath += "Page";
+                } else {
+                    relPath += "App";
+                }
+                relPath += StringUtils.remove(WordUtils.capitalizeFully(u.getPath(), new char[]{'/', '-'}), "-");
+            } else {
+                relPath += WordUtils.capitalize(u.getScheme())
+                        + StringUtils.remove(WordUtils.capitalizeFully(u.getPath(), new char[]{'/', '-'}), "-");
+            }
+            if (relPath.endsWith("/")) {
+                relPath += "index.php";
+            } else {
+                relPath += ".php";
+            }
             VirtualFile targetFile = project.getBaseDir().findFileByRelativePath(relPath);
 
             if(targetFile == null){
