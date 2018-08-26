@@ -8,21 +8,19 @@ import com.intellij.openapi.extensions.PluginId;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.IconLoader;
 import com.intellij.psi.PsiElement;
+import com.intellij.psi.impl.source.tree.LeafPsiElement;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.ProcessingContext;
 import com.jetbrains.php.PhpIndex;
-import com.jetbrains.php.lang.documentation.phpdoc.psi.tags.PhpDocTag;
+import com.jetbrains.php.lang.documentation.phpdoc.parser.PhpDocElementTypes;
 import com.jetbrains.php.lang.psi.elements.*;
 
 import gnu.trove.THashSet;
-import org.apache.commons.lang.ArrayUtils;
-import org.apache.commons.lang.StringUtils;
 import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 import java.util.Collection;
-import java.util.Collections;
 
 public class AttributeCompletionProvider extends CompletionProvider<CompletionParameters> {
 
@@ -43,7 +41,15 @@ public class AttributeCompletionProvider extends CompletionProvider<CompletionPa
             return;
         }
 
-        final String annotation = psiElement.getParent().getParent().getFirstChild().getText();
+        String annotation;
+        if (((LeafPsiElement) psiElement).getElementType().equals(PhpDocElementTypes.WHITE_SPACE)){
+            annotation = psiElement.getPrevSibling().getFirstChild().getText();
+        } else if (((LeafPsiElement) psiElement).getElementType().equals(PhpDocElementTypes.DOC_RPAREN)){
+            annotation = psiElement.getParent().getParent().getFirstChild().getText();
+        } else {
+            return;
+        }
+
         final Project project = psiElement.getProject();
         final PhpIndex phpIndex = PhpIndex.getInstance(project);
         final Icon icon = IconLoader.getIcon("/idea/bear/sunday/icons/bearsunday.png");

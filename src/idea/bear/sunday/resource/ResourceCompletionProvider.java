@@ -9,9 +9,7 @@ import com.intellij.openapi.editor.impl.EditorImpl;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.IconLoader;
 import com.intellij.psi.PsiElement;
-import com.intellij.psi.impl.source.tree.LeafPsiElement;
 import com.intellij.util.ProcessingContext;
-import com.jetbrains.php.lang.documentation.phpdoc.parser.PhpDocElementTypes;
 import idea.bear.sunday.BearSundayProjectComponent;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.WordUtils;
@@ -25,15 +23,15 @@ import java.util.ArrayList;
 
 public class ResourceCompletionProvider extends CompletionProvider<CompletionParameters> {
 
-    ArrayList<String> filePathList;
-    int targetCnt = -1;
-    ArrayList<String> uriList;
+    private ArrayList<String> filePathList;
+    private int targetCnt = -1;
+    private ArrayList<LookupElementBuilder> lookupElementBuilders;
 
     public void addCompletions(@NotNull CompletionParameters parameters,
                                ProcessingContext context,
                                @NotNull CompletionResultSet resultSet) {
 
-        if(!BearSundayProjectComponent.isEnabled(parameters.getPosition())) {
+        if (!BearSundayProjectComponent.isEnabled(parameters.getPosition())) {
             return;
         }
 
@@ -49,7 +47,7 @@ public class ResourceCompletionProvider extends CompletionProvider<CompletionPar
         String baseDir = project.getBasePath() + "/src/Resource/";
         final Icon icon = IconLoader.getIcon("/idea/bear/sunday/icons/bearsunday.png");
 
-        filePathList = new ArrayList();
+        filePathList = new ArrayList<>();
 
         String[] schemeList = {"App", "Page"};
         for (String scheme : schemeList) {
@@ -71,23 +69,21 @@ public class ResourceCompletionProvider extends CompletionProvider<CompletionPar
             }
         }
 
+        // when initialized
         if (targetCnt < 0) {
             targetCnt = filePathList.size();
         }
 
         if (targetCnt == filePathList.size()
-            && uriList != null
+            && lookupElementBuilders != null
+            && lookupElementBuilders.size() > 0
         ){
-            for (String uri : uriList) {
-                LookupElementBuilder lookupElementBuilder =
-                    LookupElementBuilder.create(uri).withIcon(icon);
-                resultSet.addElement(lookupElementBuilder);
-            }
+            resultSet.addAllElements(lookupElementBuilders);
             return;
         }
 
         targetCnt = filePathList.size();
-        uriList = new ArrayList();
+        lookupElementBuilders = new ArrayList<>();
 
         for (String file : filePathList) {
             String uri = file.replace(baseDir, "").replace(".php", "");
@@ -107,17 +103,18 @@ public class ResourceCompletionProvider extends CompletionProvider<CompletionPar
 
             if (editFile.startsWith(baseDir + "App") && scheme.equals("app")
                 || editFile.startsWith(baseDir + "Page") && scheme.equals("page")){
-                uriList.add(uri);
+                LookupElementBuilder lookupElementBuilder =
+                    LookupElementBuilder.create(uri).withIcon(icon).withTypeText(
+                        StringUtils.replace(file, project.getBasePath() + "/", ""), true);
+                lookupElementBuilders.add(lookupElementBuilder);
             }
             uri = scheme + "://self" + uri;
-            uriList.add(uri);
-        }
-
-        for (String uri : uriList) {
             LookupElementBuilder lookupElementBuilder =
-                LookupElementBuilder.create(uri).withIcon(icon);
-            resultSet.addElement(lookupElementBuilder);
+                LookupElementBuilder.create(uri).withIcon(icon).withTypeText(
+                    StringUtils.replace(file, project.getBasePath() + "/", ""), true);
+            lookupElementBuilders.add(lookupElementBuilder);
         }
+        resultSet.addAllElements(lookupElementBuilders);
     }
 
 }

@@ -13,8 +13,14 @@ public class AnnotationCompletionContributor extends CompletionContributor {
         if(!BearSundayProjectComponent.isEnabled(project)) {
             return;
         }
+        // @<caret>
+        // * @<caret>
+        extend(CompletionType.BASIC, AnnotationPatternHelper.getDocBlockTag(), new AnnotationCompletionProvider());
 
+        // @Foo(<caret>)
         extend(CompletionType.BASIC, AnnotationPatternHelper.getDocAttribute(), new AttributeCompletionProvider());
+
+        // @Foo(bar="<caret">)
         extend(CompletionType.BASIC, AnnotationPatternHelper.getTextIdentifier(), new AttributeTextCompletionProvider());
     }
 

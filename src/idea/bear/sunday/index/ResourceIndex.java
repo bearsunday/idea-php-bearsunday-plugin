@@ -45,16 +45,19 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
         return myIndexer;
     }
 
+    @NotNull
     @Override
     public KeyDescriptor<String> getKeyDescriptor() {
         return new EnumeratorStringDescriptor();
     }
 
+    @NotNull
     @Override
     public DataExternalizer<Resource> getValueExternalizer() {
         return myExternalizer;
     }
 
+    @NotNull
     @Override
     public FileBasedIndex.InputFilter getInputFilter() {
         return new FileBasedIndex.InputFilter() {
@@ -104,7 +107,7 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
             }
 
             PsiFile psiFile = PsiManager.getInstance(project).findFile(targetFile);
-            List<PsiElement> psiElements = new ArrayList();
+            List<PsiElement> psiElements = new ArrayList<>();
             psiElements.add(psiFile);
 
             return psiElements.toArray(new PsiElement[psiElements.size()]);
@@ -116,7 +119,7 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
     private static class MyDataIndexer implements DataIndexer<String, Resource, FileContent> {
         @NotNull
         @Override
-        public Map<String, Resource> map(FileContent inputData) {
+        public Map<String, Resource> map(@NotNull FileContent inputData) {
             final Map<String, Resource> map = new THashMap<String, Resource>();
             PsiFile psiFile = inputData.getPsiFile();
 

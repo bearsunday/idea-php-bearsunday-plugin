@@ -8,11 +8,11 @@ import com.jetbrains.php.lang.parser.PhpElementTypes;
 import com.jetbrains.php.lang.patterns.PhpPatterns;
 import com.jetbrains.php.lang.psi.elements.StringLiteralExpression;
 
-public class UriElementPatternHelper {
+class UriElementPatternHelper {
 
-    public static ElementPattern<PsiElement> getUriDefinition() {
+    static ElementPattern<PsiElement> getUriDefinition() {
 
-        ElementPattern<PsiElement> pattern =  PlatformPatterns.or(
+        return PlatformPatterns.or(
             PlatformPatterns.psiElement(PsiElement.class)
                 .withParent(
                 PlatformPatterns.psiElement(StringLiteralExpression.class).withParent(
@@ -41,7 +41,6 @@ public class UriElementPatternHelper {
                 )
             )
         );
-        return pattern;
     }
 
 }
