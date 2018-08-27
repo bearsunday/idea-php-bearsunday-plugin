@@ -3,7 +3,6 @@ package idea.bear.sunday.annotation;
 import com.intellij.codeInsight.completion.*;
 import com.intellij.codeInsight.lookup.LookupElementBuilder;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.IconLoader;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.ArrayUtil;
@@ -17,7 +16,6 @@ import gnu.trove.THashSet;
 import idea.bear.sunday.resource.ResourceCompletionProvider;
 import org.jetbrains.annotations.NotNull;
 
-import javax.swing.*;
 import java.util.Collection;
 
 public class AttributeTextCompletionProvider extends CompletionProvider<CompletionParameters> {
@@ -46,7 +44,6 @@ public class AttributeTextCompletionProvider extends CompletionProvider<Completi
         final String annotation = psiElement.getParent().getParent().getParent().getFirstChild().getText();
         final Project project = psiElement.getProject();
         final PhpIndex phpIndex = PhpIndex.getInstance(project);
-        final Icon icon = IconLoader.getIcon("/idea/bear/sunday/icons/bearsunday.png");
 
         Collection<PhpClass> phpClasses = new THashSet<>();
         Collection<PhpNamespace> namespaces = phpIndex.getNamespacesByName("\\bear\\resource\\annotation");
@@ -91,7 +88,6 @@ public class AttributeTextCompletionProvider extends CompletionProvider<Completi
                                 LookupElementBuilder
                                 .create(((StringLiteralExpressionImpl) option).getContents())
                                 .withTypeText("string", true)
-                                .withIcon(icon)
                             );
                         }
                         break;

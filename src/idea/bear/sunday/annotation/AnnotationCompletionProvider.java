@@ -4,7 +4,6 @@ import com.intellij.codeInsight.completion.*;
 import com.intellij.codeInsight.lookup.LookupElement;
 import com.intellij.codeInsight.lookup.LookupElementBuilder;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.IconLoader;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.util.PsiUtilCore;
@@ -16,7 +15,6 @@ import com.jetbrains.php.refactoring.PhpAliasImporter;
 import gnu.trove.THashSet;
 import org.jetbrains.annotations.NotNull;
 
-import javax.swing.*;
 import java.util.Collection;
 
 public class AnnotationCompletionProvider extends CompletionProvider<CompletionParameters> {
@@ -33,7 +31,6 @@ public class AnnotationCompletionProvider extends CompletionProvider<CompletionP
 
         final Project project = psiElement.getProject();
         final PhpIndex phpIndex = PhpIndex.getInstance(project);
-        final Icon icon = IconLoader.getIcon("/idea/bear/sunday/icons/bearsunday.png");
 
         Collection<PhpClass> phpClasses = new THashSet<>();
         Collection<PhpNamespace> namespaces = phpIndex.getNamespacesByName("\\bear\\resource\\annotation");
@@ -67,7 +64,7 @@ public class AnnotationCompletionProvider extends CompletionProvider<CompletionP
                             PhpAliasImporter.insertUseStatement(insertPhpUse, scope);
                         }
                     }
-                }).withIcon(icon);
+                });
             completionResultSet.addElement(lookupElement);
         }
     }

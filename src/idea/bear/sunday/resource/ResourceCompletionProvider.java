@@ -7,7 +7,6 @@ import com.intellij.codeInsight.lookup.LookupElementBuilder;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.impl.EditorImpl;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.IconLoader;
 import com.intellij.psi.PsiElement;
 import com.intellij.util.ProcessingContext;
 import idea.bear.sunday.BearSundayProjectComponent;
@@ -15,7 +14,6 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.WordUtils;
 import org.jetbrains.annotations.NotNull;
 
-import javax.swing.*;
 import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -45,7 +43,6 @@ public class ResourceCompletionProvider extends CompletionProvider<CompletionPar
         Project project = element.getProject();
         String editFile = ((EditorImpl) editor).getVirtualFile().getPath();
         String baseDir = project.getBasePath() + "/src/Resource/";
-        final Icon icon = IconLoader.getIcon("/idea/bear/sunday/icons/bearsunday.png");
 
         filePathList = new ArrayList<>();
 
@@ -104,14 +101,15 @@ public class ResourceCompletionProvider extends CompletionProvider<CompletionPar
             if (editFile.startsWith(baseDir + "App") && scheme.equals("app")
                 || editFile.startsWith(baseDir + "Page") && scheme.equals("page")){
                 LookupElementBuilder lookupElementBuilder =
-                    LookupElementBuilder.create(uri).withIcon(icon).withTypeText(
-                        StringUtils.replace(file, project.getBasePath() + "/", ""), true);
+                    LookupElementBuilder.create(uri)
+                        .withTypeText(StringUtils.replace(file, project.getBasePath() + "/", ""), true);
                 lookupElementBuilders.add(lookupElementBuilder);
             }
             uri = scheme + "://self" + uri;
             LookupElementBuilder lookupElementBuilder =
-                LookupElementBuilder.create(uri).withIcon(icon).withTypeText(
-                    StringUtils.replace(file, project.getBasePath() + "/", ""), true);
+                LookupElementBuilder.create(uri)
+                    .withTypeText(
+                        StringUtils.replace(file, project.getBasePath() + "/", ""), true);
             lookupElementBuilders.add(lookupElementBuilder);
         }
         resultSet.addAllElements(lookupElementBuilders);

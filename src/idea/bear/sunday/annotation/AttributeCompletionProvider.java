@@ -6,7 +6,6 @@ import com.intellij.codeInsight.lookup.LookupElementBuilder;
 import com.intellij.ide.plugins.PluginManager;
 import com.intellij.openapi.extensions.PluginId;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.IconLoader;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.impl.source.tree.LeafPsiElement;
 import com.intellij.psi.util.PsiTreeUtil;
@@ -19,7 +18,6 @@ import com.jetbrains.php.lang.psi.elements.*;
 import gnu.trove.THashSet;
 import org.jetbrains.annotations.NotNull;
 
-import javax.swing.*;
 import java.util.Collection;
 
 public class AttributeCompletionProvider extends CompletionProvider<CompletionParameters> {
@@ -52,7 +50,6 @@ public class AttributeCompletionProvider extends CompletionProvider<CompletionPa
 
         final Project project = psiElement.getProject();
         final PhpIndex phpIndex = PhpIndex.getInstance(project);
-        final Icon icon = IconLoader.getIcon("/idea/bear/sunday/icons/bearsunday.png");
 
         Collection<PhpClass> phpClasses = new THashSet<>();
         Collection<PhpNamespace> namespaces = phpIndex.getNamespacesByName("\\bear\\resource\\annotation");
@@ -87,7 +84,7 @@ public class AttributeCompletionProvider extends CompletionProvider<CompletionPa
                                 // caret move into quotation after insert completion
                                 insertionContext.getEditor().getCaretModel().moveCaretRelatively(-1, 0, false, false, true);
                             }
-                        }).withIcon(icon);
+                        });
                     completionResultSet.addElement(lookupElement);
                 }
                 break;
