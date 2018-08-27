@@ -27,8 +27,9 @@ public class ResourceGotoDeclarationHandler implements GotoDeclarationHandler {
         }
 
         String resourceName = psiElement.getText();
-        if(((LeafPsiElement) psiElement).getElementType().toString().equals("single quoted string")
-                && !resourceName.startsWith("app://") && !resourceName.startsWith("page://")) {
+        if((((LeafPsiElement) psiElement).getElementType().toString().equals("single quoted string")
+            || ((LeafPsiElement) psiElement).getElementType().toString().equals("double quoted string")
+            ) && !resourceName.startsWith("app://") && !resourceName.startsWith("page://")) {
             return new PsiElement[0];
         } else if (((LeafPsiElement) psiElement).getElementType().equals(PhpDocTokenTypes.DOC_STRING)) {
             resourceName = resourceName.replaceAll("\"", "");
