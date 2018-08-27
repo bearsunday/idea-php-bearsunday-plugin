@@ -75,9 +75,11 @@ public class AttributeTextCompletionProvider extends CompletionProvider<Completi
                     if (field.getName().equals(attribute)) {
 
                         PhpDocComment phpDocComment = field.getDocComment();
+                        if (phpDocComment == null) {
+                            break;
+                        }
                         PhpDocTag[] phpDocTags = phpDocComment.getTagElementsByName("@Enum");
-                        if (phpDocTags == null
-                            || phpDocTags.length == 0
+                        if (phpDocTags.length == 0
                             || phpDocTags[0].getChildren().length == 0
                         ) {
                             break;
@@ -88,6 +90,7 @@ public class AttributeTextCompletionProvider extends CompletionProvider<Completi
                             completionResultSet.addElement(
                                 LookupElementBuilder
                                 .create(((StringLiteralExpressionImpl) option).getContents())
+                                .withTypeText("string", true)
                                 .withIcon(icon)
                             );
                         }

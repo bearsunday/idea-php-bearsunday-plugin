@@ -12,6 +12,7 @@ import com.intellij.util.ProcessingContext;
 import com.jetbrains.php.PhpIndex;
 import com.jetbrains.php.codeInsight.PhpCodeInsightUtil;
 import com.jetbrains.php.lang.psi.elements.*;
+import com.jetbrains.php.refactoring.PhpAliasImporter;
 import gnu.trove.THashSet;
 import org.jetbrains.annotations.NotNull;
 
@@ -58,23 +59,13 @@ public class AnnotationCompletionProvider extends CompletionProvider<CompletionP
                         PsiElement psiElement = PsiUtilCore.getElementAtOffset(
                             insertionContext.getFile(), insertionContext.getStartOffset());
                         PhpPsiElement scope = PhpCodeInsightUtil.findScopeForUseOperator(psiElement);
-                        String insertPhpUse = PsiTreeUtil.getChildrenOfTypeAsList(lookupElement.getPsiElement(), PhpClass.class).get(0).getPresentableFQN();
+                        String insertPhpUse = "\\" + PsiTreeUtil.getChildrenOfTypeAsList(lookupElement.getPsiElement(), PhpClass.class).get(0).getPresentableFQN();
                         if (scope == null) {
-                            appendPhpUse(insertionContext, insertPhpUse);
                             return;
                         }
-                        for (PhpUseList phpUseList : PhpCodeInsightUtil.collectImports(scope)){
-                            for (PhpUse phpUse : phpUseList.getDeclarations()) {
-                                String fqn = phpUse.getFQN();
-                                if (fqn.equalsIgnoreCase("\\" + insertPhpUse)) {
-                                    return;
-                                }
-                            }
+                        if (PhpCodeInsightUtil.alreadyImported(scope, insertPhpUse) == null) {
+                            PhpAliasImporter.insertUseStatement(insertPhpUse, scope);
                         }
-                        appendPhpUse(insertionContext, insertPhpUse);
-                    }
-                    private void appendPhpUse(InsertionContext insertionContext, String insertPhpUse) {
-                        // todo write code
                     }
                 }).withIcon(icon);
             completionResultSet.addElement(lookupElement);
