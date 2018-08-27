@@ -14,7 +14,6 @@ public class AnnotationCompletionContributor extends CompletionContributor {
             return;
         }
         // @<caret>
-        // * @<caret>
         extend(CompletionType.BASIC, AnnotationPatternHelper.getDocBlockTag(), new AnnotationCompletionProvider());
 
         // @Foo(<caret>)
