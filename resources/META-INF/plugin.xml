@@ -1,12 +1,26 @@
 <idea-plugin>
   <id>idea.bear.sunday</id>
   <name>BEAR.Sunday Plugin</name>
-  <version>0.3</version>
+  <version>0.4</version>
   <vendor email="shingo4092@gmail.com">Shingo Kumagai</vendor>
 
   <description><![CDATA[
-<h1>BEAR.Sunday plugin.</h1>
-    ]]></description>
+  <h2>Feature</h2>
+  <ul>
+    <li>BEAR.Resource goto (app://self/user will be pointed to src/Resource/App/User.php) & (page://self/user will be pointed to src/Resource/Page/User.php)</li>
+    <li>BEAR.Resource URI completion</li>
+    <li>BEAR.Resource Annotation Helper</li>
+  </ul>
+  <h2>Information</h2>
+  <ul>
+    <li><a href="https://github.com/bearsunday/idea-php-bearsunday-plugin">GitHub</a></li>
+    <li><a href="https://plugins.jetbrains.com/plugin/8030">JetBrains</a></li>
+  </ul>
+  <h2>Related Plugins</h2>
+  <ul>
+    <li><a href="https://plugins.jetbrains.com/plugin/7320">Php Annotations Plugin</a></li>
+  </ul>
+  ]]></description>
 
   <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/build_number_ranges.html for description -->
   <idea-version since-build="141.0"/>
@@ -19,6 +33,7 @@
     <fileBasedIndex implementation="idea.bear.sunday.index.ResourceIndex"/>
 
     <completion.contributor language="PHP" implementationClass="idea.bear.sunday.resource.UriCompletionContributor"/>
+    <completion.contributor language="PHP" order="first" id="BEARResourceAnnotationCompletionContributor" implementationClass="idea.bear.sunday.annotation.AnnotationCompletionContributor"/>
 
     <gotoDeclarationHandler implementation="idea.bear.sunday.resource.ResourceGotoDeclarationHandler"/>
 
@@ -26,5 +41,6 @@
 
   <depends>com.jetbrains.php</depends>
   <depends>com.intellij.modules.platform</depends>
+  <depends optional="true">de.espend.idea.php.annotation</depends>
 
 </idea-plugin>

@@ -1,7 +1,7 @@
 IDEA PHP BEAR.Sunday Plugin
 ========================
-[![Version](http://phpstorm.espend.de/badge/8030/version)](https://plugins.jetbrains.com/plugin/8030)
-[![Downloads](http://phpstorm.espend.de/badge/8030/downloads)](https://plugins.jetbrains.com/plugin/8030)
+![Version](https://img.shields.io/jetbrains/plugin/v/8030-bear-sunday-plugin.svg)
+![Download](https://img.shields.io/jetbrains/plugin/d/8030-bear-sunday-plugin.svg)
 
 ## Links
  * Plugin url: https://plugins.jetbrains.com/plugin/8030

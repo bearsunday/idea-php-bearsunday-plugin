@@ -4,6 +4,9 @@ import com.intellij.codeInsight.completion.CompletionParameters;
 import com.intellij.codeInsight.completion.CompletionProvider;
 import com.intellij.codeInsight.completion.CompletionResultSet;
 import com.intellij.codeInsight.lookup.LookupElementBuilder;
+import com.intellij.openapi.editor.Editor;
+import com.intellij.openapi.editor.impl.EditorImpl;
+import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
 import com.intellij.util.ProcessingContext;
 import idea.bear.sunday.BearSundayProjectComponent;
@@ -15,17 +18,18 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
-import java.util.Collections;
 
 public class ResourceCompletionProvider extends CompletionProvider<CompletionParameters> {
 
-    ArrayList<String> list = new ArrayList();
+    private ArrayList<String> filePathList;
+    private int targetCnt = -1;
+    private ArrayList<LookupElementBuilder> lookupElementBuilders;
 
     public void addCompletions(@NotNull CompletionParameters parameters,
                                ProcessingContext context,
                                @NotNull CompletionResultSet resultSet) {
 
-        if(!BearSundayProjectComponent.isEnabled(parameters.getPosition())) {
+        if (!BearSundayProjectComponent.isEnabled(parameters.getPosition())) {
             return;
         }
 
@@ -35,9 +39,16 @@ public class ResourceCompletionProvider extends CompletionProvider<CompletionPar
             return;
         }
 
+        Editor editor = parameters.getEditor();
+        Project project = element.getProject();
+        String editFile = ((EditorImpl) editor).getVirtualFile().getPath();
+        String baseDir = project.getBasePath() + "/src/Resource/";
+
+        filePathList = new ArrayList<>();
+
         String[] schemeList = {"App", "Page"};
         for (String scheme : schemeList) {
-            Path dir = Paths.get(element.getProject().getBaseDir().getPath() + "/src/Resource/" + scheme);
+            Path dir = Paths.get(baseDir + scheme);
 
             try {
                 Files.walkFileTree(dir, new SimpleFileVisitor<Path>() {
@@ -46,7 +57,7 @@ public class ResourceCompletionProvider extends CompletionProvider<CompletionPar
                         if (!file.getFileName().toString().contains(".php")) {
                             return FileVisitResult.CONTINUE;
                         }
-                        list.add(file.toString());
+                        filePathList.add(file.toString());
                         return FileVisitResult.CONTINUE;
                     }
                 });
@@ -55,18 +66,30 @@ public class ResourceCompletionProvider extends CompletionProvider<CompletionPar
             }
         }
 
-        Collections.sort(list);
+        // when initialized
+        if (targetCnt < 0) {
+            targetCnt = filePathList.size();
+        }
 
-        for (String file : list) {
-            String baseDir = element.getProject().getBaseDir().getPath() + "/src/Resource/";
+        if (targetCnt == filePathList.size()
+            && lookupElementBuilders != null
+            && lookupElementBuilders.size() > 0
+        ){
+            resultSet.addAllElements(lookupElementBuilders);
+            return;
+        }
+
+        targetCnt = filePathList.size();
+        lookupElementBuilders = new ArrayList<>();
+
+        for (String file : filePathList) {
             String uri = file.replace(baseDir, "").replace(".php", "");
             String scheme = "app";
             if (uri.startsWith("Page")) {
                 scheme = "page";
             }
 
-            uri = scheme + "://self"
-                + ("-"
+            uri = ("-"
                     + StringUtils.join(
                         StringUtils.splitByCharacterTypeCamelCase(
                             uri.replaceFirst(WordUtils.capitalize(scheme), "")
@@ -74,8 +97,22 @@ public class ResourceCompletionProvider extends CompletionProvider<CompletionPar
                         "-"
                     )
                 ).replace("-/-", "/").toLowerCase().replace(scheme, "");
-            resultSet.addElement(LookupElementBuilder.create(uri));
+
+            if (editFile.startsWith(baseDir + "App") && scheme.equals("app")
+                || editFile.startsWith(baseDir + "Page") && scheme.equals("page")){
+                LookupElementBuilder lookupElementBuilder =
+                    LookupElementBuilder.create(uri)
+                        .withTypeText(StringUtils.replace(file, project.getBasePath() + "/", ""), true);
+                lookupElementBuilders.add(lookupElementBuilder);
+            }
+            uri = scheme + "://self" + uri;
+            LookupElementBuilder lookupElementBuilder =
+                LookupElementBuilder.create(uri)
+                    .withTypeText(
+                        StringUtils.replace(file, project.getBasePath() + "/", ""), true);
+            lookupElementBuilders.add(lookupElementBuilder);
         }
+        resultSet.addAllElements(lookupElementBuilders);
     }
 
 }
