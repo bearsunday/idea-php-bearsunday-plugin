@@ -11,6 +11,10 @@ IDEA PHP BEAR.Sunday Plugin
  * BEAR.Resource goto (app://self/user will be pointed to src/Resource/App/User.php)
  * BEAR.Resource URI completion
 
+## Maven Library
+
+ * URI-Template Library (com.damnhandy:handy-uri-templates:2.1.7)
+
 ## TODO
 
  * Highlight resource URI.

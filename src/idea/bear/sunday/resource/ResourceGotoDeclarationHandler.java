@@ -3,6 +3,7 @@ package idea.bear.sunday.resource;
 import com.intellij.codeInsight.navigation.actions.GotoDeclarationHandler;
 import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.editor.Editor;
+import com.intellij.openapi.editor.impl.EditorImpl;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.impl.source.tree.LeafPsiElement;
@@ -26,12 +27,24 @@ public class ResourceGotoDeclarationHandler implements GotoDeclarationHandler {
             return new PsiElement[0];
         }
 
+        String editFile = ((EditorImpl) editor).getVirtualFile().getPath();
+        String resourceBaseDir = project.getBasePath() + "/src/Resource/";
+
         String resourceName = psiElement.getText();
         if (((LeafPsiElement) psiElement).getElementType().equals(PhpDocTokenTypes.DOC_STRING)) {
             resourceName = resourceName.replaceAll("\"", "");
         }
+
         if(!resourceName.startsWith("app://") && !resourceName.startsWith("page://")) {
-            return new PsiElement[0];
+            if (resourceName.startsWith("/")){
+                String schema = "app";
+                if  (editFile.startsWith(resourceBaseDir + "Page")){
+                    schema = "page";
+                }
+                resourceName = schema + "://self" + resourceName;
+            } else {
+                return new PsiElement[0];
+            }
         }
 
         return ResourceIndex.getFileByUri(resourceName, psiElement.getProject(), editor);
