@@ -1,5 +1,8 @@
 package idea.bear.sunday.index;
 
+import com.damnhandy.uri.template.MalformedUriTemplateException;
+import com.damnhandy.uri.template.UriTemplateComponent;
+import com.damnhandy.uri.template.impl.UriTemplateParser;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.impl.EditorImpl;
 import com.intellij.openapi.project.Project;
@@ -20,6 +23,7 @@ import org.jetbrains.annotations.NotNull;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -80,12 +84,24 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
 
     public static PsiElement[] getFileByUri(String uri, Project project, Editor editor)
     {
+        UriTemplateParser uriTemplateParser = new UriTemplateParser();
+
         try {
+            LinkedList<UriTemplateComponent> list = uriTemplateParser.scan(uri);
+            if (list.get(0) != null) {
+                uri = list.get(0).getValue();
+            }
+        } catch (MalformedUriTemplateException me) {
+            return new PsiElement[0];
+        }
+
+        try{
             URI u = new URI(uri);
             String relPath = "src/Resource/";
+
             if (u.getScheme() == null) {
                 String editFile = ((EditorImpl) editor).getVirtualFile().getPath();
-                if (editFile.startsWith(project.getBasePath() + "/src/Resource/Page")){
+                if (editFile.startsWith(project.getBasePath() + "/src/Resource/Page")) {
                     relPath += "Page";
                 } else {
                     relPath += "App";
@@ -93,7 +109,7 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
                 relPath += StringUtils.remove(WordUtils.capitalizeFully(u.getPath(), new char[]{'/', '-'}), "-");
             } else {
                 relPath += WordUtils.capitalize(u.getScheme())
-                        + StringUtils.remove(WordUtils.capitalizeFully(u.getPath(), new char[]{'/', '-'}), "-");
+                    + StringUtils.remove(WordUtils.capitalizeFully(u.getPath(), new char[]{'/', '-'}), "-");
             }
             if (relPath.endsWith("/")) {
                 relPath += "index.php";
@@ -102,7 +118,7 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
             }
             VirtualFile targetFile = project.getBaseDir().findFileByRelativePath(relPath);
 
-            if(targetFile == null){
+            if (targetFile == null) {
                 return new PsiElement[0];
             }
 
@@ -120,7 +136,7 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
         @NotNull
         @Override
         public Map<String, Resource> map(@NotNull FileContent inputData) {
-            final Map<String, Resource> map = new THashMap<String, Resource>();
+            final Map<String, Resource> map = new THashMap<>();
             PsiFile psiFile = inputData.getPsiFile();
 
             if(!BearSundayProjectComponent.isEnabled(psiFile.getProject())) {
@@ -143,11 +159,7 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
         }
 
         String relativePath = VfsUtil.getRelativePath(inputData.getFile(), psiFile.getProject().getBaseDir(), '/');
-        if(relativePath != null && (relativePath.contains("/tests/") )) {
-            return false;
-        }
-
-        return true;
+        return relativePath == null || (!relativePath.contains("/tests/"));
     }
 
 }
