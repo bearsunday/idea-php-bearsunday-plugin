@@ -4,11 +4,9 @@ import com.intellij.codeInsight.navigation.actions.GotoDeclarationHandler;
 import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.impl.EditorImpl;
-import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.impl.source.tree.LeafPsiElement;
 import com.jetbrains.php.lang.documentation.phpdoc.lexer.PhpDocTokenTypes;
-import idea.bear.sunday.BearSundayProjectComponent;
 import idea.bear.sunday.index.ResourceIndex;
 import org.jetbrains.annotations.Nullable;
 
@@ -22,14 +20,6 @@ public class ResourceGotoDeclarationHandler implements GotoDeclarationHandler {
             return new PsiElement[0];
         }
 
-        Project project = psiElement.getProject();
-        if(!BearSundayProjectComponent.isEnabled(project)) {
-            return new PsiElement[0];
-        }
-
-        String editFile = ((EditorImpl) editor).getVirtualFile().getPath();
-        String resourceBaseDir = project.getBasePath() + "/src/Resource/";
-
         String resourceName = psiElement.getText();
         if (((LeafPsiElement) psiElement).getElementType().equals(PhpDocTokenTypes.DOC_STRING)) {
             resourceName = resourceName.replaceAll("\"", "");
@@ -37,8 +27,11 @@ public class ResourceGotoDeclarationHandler implements GotoDeclarationHandler {
 
         if(!resourceName.startsWith("app://") && !resourceName.startsWith("page://")) {
             if (resourceName.startsWith("/")){
+
                 String schema = "app";
-                if  (editFile.startsWith(resourceBaseDir + "Page")){
+                if  (((EditorImpl) editor).getVirtualFile().getPath().startsWith(
+                    psiElement.getProject().getBasePath() + "/src/Resource/Page")
+                ){
                     schema = "page";
                 }
                 resourceName = schema + "://self" + resourceName;

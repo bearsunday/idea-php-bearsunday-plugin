@@ -17,7 +17,6 @@ import com.intellij.util.io.EnumeratorStringDescriptor;
 import com.intellij.util.io.KeyDescriptor;
 import com.jetbrains.php.lang.PhpFileType;
 import gnu.trove.THashMap;
-import idea.bear.sunday.BearSundayProjectComponent;
 import org.jetbrains.annotations.NotNull;
 
 import java.net.URI;
@@ -136,22 +135,15 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
         @NotNull
         @Override
         public Map<String, Resource> map(@NotNull FileContent inputData) {
-            final Map<String, Resource> map = new THashMap<>();
-            PsiFile psiFile = inputData.getPsiFile();
-
-            if(!BearSundayProjectComponent.isEnabled(psiFile.getProject())) {
-                return map;
-            }
-
-            if(!isValidForIndex(inputData, psiFile)) {
-                return map;
+            if(!isValidForIndex(inputData, inputData.getPsiFile())) {
+                return new THashMap<>();
             }
 
             return ResourceIndexUtil.indexFile(inputData).getUriMap();
         }
     }
 
-    public static boolean isValidForIndex(FileContent inputData, PsiFile psiFile) {
+    private static boolean isValidForIndex(FileContent inputData, PsiFile psiFile) {
 
         String fileName = psiFile.getName();
         if(fileName.startsWith(".") || fileName.contains("Test")) {

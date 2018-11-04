@@ -27,9 +27,6 @@
 
   <extensions defaultExtensionNs="com.intellij">
 
-    <projectService serviceImplementation="idea.bear.sunday.Settings"/>
-    <projectConfigurable instance="idea.bear.sunday.SettingsForm" displayName="BEAR.Sunday Plugin" id="BEAR.Sunday.SettingsForm"/>
-
     <fileBasedIndex implementation="idea.bear.sunday.index.ResourceIndex"/>
 
     <completion.contributor language="PHP" implementationClass="idea.bear.sunday.resource.UriCompletionContributor"/>
