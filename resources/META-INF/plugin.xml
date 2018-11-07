@@ -1,7 +1,7 @@
 <idea-plugin>
   <id>idea.bear.sunday</id>
   <name>BEAR.Sunday Plugin</name>
-  <version>0.4</version>
+  <version>0.4.1</version>
   <vendor email="shingo4092@gmail.com">Shingo Kumagai</vendor>
 
   <description><![CDATA[
@@ -26,9 +26,6 @@
   <idea-version since-build="141.0"/>
 
   <extensions defaultExtensionNs="com.intellij">
-
-    <projectService serviceImplementation="idea.bear.sunday.Settings"/>
-    <projectConfigurable instance="idea.bear.sunday.SettingsForm" displayName="BEAR.Sunday Plugin" id="BEAR.Sunday.SettingsForm"/>
 
     <fileBasedIndex implementation="idea.bear.sunday.index.ResourceIndex"/>
 

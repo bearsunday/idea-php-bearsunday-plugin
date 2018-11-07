@@ -9,7 +9,6 @@ import com.intellij.openapi.editor.impl.EditorImpl;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
 import com.intellij.util.ProcessingContext;
-import idea.bear.sunday.BearSundayProjectComponent;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.WordUtils;
 import org.jetbrains.annotations.NotNull;
@@ -28,10 +27,6 @@ public class ResourceCompletionProvider extends CompletionProvider<CompletionPar
     public void addCompletions(@NotNull CompletionParameters parameters,
                                ProcessingContext context,
                                @NotNull CompletionResultSet resultSet) {
-
-        if (!BearSundayProjectComponent.isEnabled(parameters.getPosition())) {
-            return;
-        }
 
         PsiElement element = parameters.getOriginalPosition();
 
