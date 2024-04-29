@@ -21,7 +21,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-
 public class AnnotationOrAttributeGotoDeclarationHandler implements GotoDeclarationHandler {
 
     final String[] annotations = {"@Query", "@Named"};
@@ -63,7 +62,8 @@ public class AnnotationOrAttributeGotoDeclarationHandler implements GotoDeclarat
         Settings settings = Settings.getInstance(project);
         // SQL
         if (Arrays.asList(this.annotations).contains(name) || Arrays.asList(this.attributes).contains(name)) {
-            return this.sqlGoto(resourceName, project, settings);
+            String currentFilePath = editor.getVirtualFile().getPath();
+            return this.sqlGoto(resourceName, project, currentFilePath, settings);
         }
         // JsonSchema
         if (name.equals("JsonSchema")) {
@@ -73,7 +73,12 @@ public class AnnotationOrAttributeGotoDeclarationHandler implements GotoDeclarat
         return new PsiElement[0];
     }
 
-    private PsiElement @NotNull [] sqlGoto(@NotNull String resourceName, Project project, @NotNull Settings settings) {
+    private PsiElement @NotNull [] sqlGoto(
+            @NotNull String resourceName,
+            @NotNull Project project,
+            @NotNull String currentFilePath,
+            @NotNull Settings settings
+    ) {
 
         final Collection<String> sqlPaths = settings.sqlPaths;
         final String[] names = resourceName.replace("\"", "").split(",");
@@ -86,6 +91,9 @@ public class AnnotationOrAttributeGotoDeclarationHandler implements GotoDeclarat
 
             if (name.contains("=")) {
                 sqlFileName = name.split("=")[1];
+            } else if (currentFilePath.toLowerCase().contains("preview") && name.contains("original-")) {
+                // rare case
+                sqlFileName = name.replace("original-", "");
             } else {
                 sqlFileName = name;
             }
@@ -113,17 +121,21 @@ public class AnnotationOrAttributeGotoDeclarationHandler implements GotoDeclarat
         return psiElements.toArray(new PsiElement[0]);
     }
 
-    private PsiElement @NotNull [] jsonSchemaGoto(@NotNull String resourceName, @NotNull PsiElement stringLiteral, Project project, @NotNull Settings settings) {
+    private PsiElement @NotNull [] jsonSchemaGoto(
+            @NotNull String resourceName,
+            @NotNull PsiElement stringLiteral, Project project,
+            @NotNull Settings settings
+    ) {
 
         if (!resourceName.contains(".json")) {
             return new PsiElement[0];
         }
 
-        PsiElement searchKey = this.getMatchedSibling(stringLiteral);
-        String jsonPath;
-        if (searchKey.textMatches("schema")) {
+        String jsonPath = "";
+        PsiElement matchedSibling = this.getJsonSchemaMatchedSibling(stringLiteral);
+        if (matchedSibling.textMatches("schema")) {
             jsonPath = settings.jsonSchemaPath;
-        } else if (searchKey.textMatches("params")) {
+        } else if (matchedSibling.textMatches("params")) {
             jsonPath = settings.jsonValidatePath;
         } else {
             jsonPath = settings.jsonSchemaPath;
@@ -146,7 +158,7 @@ public class AnnotationOrAttributeGotoDeclarationHandler implements GotoDeclarat
         return psiElements.toArray(new PsiElement[0]);
     }
 
-    private PsiElement getMatchedSibling(PsiElement stringLiteral) {
+    private PsiElement getJsonSchemaMatchedSibling(PsiElement stringLiteral) {
 
         PsiElement sibiling = stringLiteral.getPrevSibling();
         if (sibiling == null) {
