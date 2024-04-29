@@ -9,8 +9,8 @@ import com.intellij.openapi.editor.impl.EditorImpl;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
 import com.intellij.util.ProcessingContext;
-import org.apache.commons.lang.StringUtils;
-import org.apache.commons.lang.WordUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.text.WordUtils;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
@@ -25,7 +25,7 @@ public class ResourceCompletionProvider extends CompletionProvider<CompletionPar
     private ArrayList<LookupElementBuilder> lookupElementBuilders;
 
     public void addCompletions(@NotNull CompletionParameters parameters,
-                               ProcessingContext context,
+                               @NotNull ProcessingContext context,
                                @NotNull CompletionResultSet resultSet) {
 
         PsiElement element = parameters.getOriginalPosition();
@@ -68,7 +68,7 @@ public class ResourceCompletionProvider extends CompletionProvider<CompletionPar
 
         if (targetCnt == filePathList.size()
             && lookupElementBuilders != null
-            && lookupElementBuilders.size() > 0
+            && !lookupElementBuilders.isEmpty()
         ){
             resultSet.addAllElements(lookupElementBuilders);
             return;

@@ -16,18 +16,13 @@ import com.intellij.util.io.DataExternalizer;
 import com.intellij.util.io.EnumeratorStringDescriptor;
 import com.intellij.util.io.KeyDescriptor;
 import com.jetbrains.php.lang.PhpFileType;
-import gnu.trove.THashMap;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.text.WordUtils;
 import org.jetbrains.annotations.NotNull;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-
-import org.apache.commons.lang.StringUtils;
-import org.apache.commons.lang.WordUtils;
+import java.util.*;
 
 public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
 
@@ -125,7 +120,7 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
             List<PsiElement> psiElements = new ArrayList<>();
             psiElements.add(psiFile);
 
-            return psiElements.toArray(new PsiElement[psiElements.size()]);
+            return psiElements.toArray(new PsiElement[0]);
         } catch (URISyntaxException e) {
             return new PsiElement[0];
         }
@@ -136,7 +131,7 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
         @Override
         public Map<String, Resource> map(@NotNull FileContent inputData) {
             if(!isValidForIndex(inputData, inputData.getPsiFile())) {
-                return new THashMap<>();
+                return new HashMap<>();
             }
 
             return ResourceIndexUtil.indexFile(inputData).getUriMap();
@@ -151,7 +146,7 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
         }
 
         String relativePath = VfsUtil.getRelativePath(inputData.getFile(), psiFile.getProject().getBaseDir(), '/');
-        return relativePath == null || (!relativePath.contains("/tests/"));
+        return relativePath == null || (!relativePath.contains("/tests/")) || (!relativePath.contains("/vendor/"));
     }
 
 }

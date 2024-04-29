@@ -1,6 +1,8 @@
 package idea.bear.sunday.annotation;
 
-import com.intellij.codeInsight.completion.*;
+import com.intellij.codeInsight.completion.CompletionParameters;
+import com.intellij.codeInsight.completion.CompletionProvider;
+import com.intellij.codeInsight.completion.CompletionResultSet;
 import com.intellij.codeInsight.lookup.LookupElementBuilder;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
@@ -12,17 +14,17 @@ import com.jetbrains.php.lang.documentation.phpdoc.psi.PhpDocComment;
 import com.jetbrains.php.lang.documentation.phpdoc.psi.tags.PhpDocTag;
 import com.jetbrains.php.lang.psi.elements.*;
 import com.jetbrains.php.lang.psi.elements.impl.StringLiteralExpressionImpl;
-import gnu.trove.THashSet;
 import idea.bear.sunday.resource.ResourceCompletionProvider;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
+import java.util.HashSet;
 
 public class AttributeTextCompletionProvider extends CompletionProvider<CompletionParameters> {
 
     @Override
     protected void addCompletions(@NotNull CompletionParameters completionParameters,
-                                  ProcessingContext processingContext,
+                                  @NotNull ProcessingContext processingContext,
                                   @NotNull CompletionResultSet completionResultSet) {
 
         PsiElement psiElement = completionParameters.getOriginalPosition();
@@ -45,7 +47,7 @@ public class AttributeTextCompletionProvider extends CompletionProvider<Completi
         final Project project = psiElement.getProject();
         final PhpIndex phpIndex = PhpIndex.getInstance(project);
 
-        Collection<PhpClass> phpClasses = new THashSet<>();
+        Collection<PhpClass> phpClasses = new HashSet<>();
         Collection<PhpNamespace> namespaces = phpIndex.getNamespacesByName("\\bear\\resource\\annotation");
         namespaces.addAll(phpIndex.getNamespacesByName("\\bear\\repositorymodule\\annotation"));
         for (PhpNamespace namespace: namespaces) {

@@ -4,6 +4,7 @@ import com.intellij.codeInsight.completion.*;
 import com.intellij.codeInsight.lookup.LookupElement;
 import com.intellij.codeInsight.lookup.LookupElementBuilder;
 import com.intellij.ide.plugins.PluginManager;
+import com.intellij.ide.plugins.PluginManagerCore;
 import com.intellij.openapi.extensions.PluginId;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
@@ -14,22 +15,22 @@ import com.intellij.util.ProcessingContext;
 import com.jetbrains.php.PhpIndex;
 import com.jetbrains.php.lang.documentation.phpdoc.parser.PhpDocElementTypes;
 import com.jetbrains.php.lang.psi.elements.*;
-
-import gnu.trove.THashSet;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.Objects;
 
 public class AttributeCompletionProvider extends CompletionProvider<CompletionParameters> {
 
     @Override
     protected void addCompletions(@NotNull CompletionParameters completionParameters,
-                                  ProcessingContext processingContext,
+                                  @NotNull ProcessingContext processingContext,
                                   @NotNull CompletionResultSet completionResultSet) {
 
         // if Php Annotation Plugin was installed, then nothing to do.
         if (PluginManager.isPluginInstalled(PluginId.getId("de.espend.idea.php.annotation"))
-            && PluginManager.getPlugin(PluginId.getId("de.espend.idea.php.annotation")).isEnabled()
+            && Objects.requireNonNull(PluginManagerCore.getPlugin(PluginId.getId("de.espend.idea.php.annotation"))).isEnabled()
         ){
             return;
         }
@@ -51,7 +52,7 @@ public class AttributeCompletionProvider extends CompletionProvider<CompletionPa
         final Project project = psiElement.getProject();
         final PhpIndex phpIndex = PhpIndex.getInstance(project);
 
-        Collection<PhpClass> phpClasses = new THashSet<>();
+        Collection<PhpClass> phpClasses = new HashSet<>();
         Collection<PhpNamespace> namespaces = phpIndex.getNamespacesByName("\\bear\\resource\\annotation");
         namespaces.addAll(phpIndex.getNamespacesByName("\\bear\\repositorymodule\\annotation"));
         for (PhpNamespace namespace: namespaces) {
@@ -80,7 +81,7 @@ public class AttributeCompletionProvider extends CompletionProvider<CompletionPa
                         .withPresentableText(field.getName())
                         .withInsertHandler(new InsertHandler<LookupElement>() {
                             @Override
-                            public void handleInsert(InsertionContext insertionContext, LookupElement lookupElement) {
+                            public void handleInsert(@NotNull InsertionContext insertionContext, @NotNull LookupElement lookupElement) {
                                 // caret move into quotation after insert completion
                                 insertionContext.getEditor().getCaretModel().moveCaretRelatively(-1, 0, false, false, true);
                             }

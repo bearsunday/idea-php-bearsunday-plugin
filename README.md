@@ -5,12 +5,19 @@ IDEA PHP BEAR.Sunday Plugin
 
 ## Links
  * Plugin url: https://plugins.jetbrains.com/plugin/8030
-
+<!-- Plugin description -->
 ## Current Features
 
  * BEAR.Resource goto (app://self/user will be pointed to src/Resource/App/User.php)
  * BEAR.Resource URI completion
+ * BEAR.Resource JSON Schema goto
+ * Ray.MediaQuery SQL goto
+ * Ray.QueryModule SQL goto
+ * Aura.Route goto BEAR.Resource
 
+## Related Plugins
+ * Php Annotations Plugin: https://plugins.jetbrains.com/plugin/7320
+<!-- Plugin description end -->
 ## Maven Library
 
  * URI-Template Library (com.damnhandy:handy-uri-templates:2.1.7)
@@ -19,3 +26,4 @@ IDEA PHP BEAR.Sunday Plugin
 
  * Highlight resource URI.
  * Resource With Query Completion
+ * Setting form for goto

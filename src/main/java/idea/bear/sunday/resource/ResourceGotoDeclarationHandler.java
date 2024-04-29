@@ -7,20 +7,26 @@ import com.intellij.openapi.editor.impl.EditorImpl;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.impl.source.tree.LeafPsiElement;
 import com.jetbrains.php.lang.documentation.phpdoc.lexer.PhpDocTokenTypes;
+import com.jetbrains.php.lang.psi.elements.impl.StringLiteralExpressionImpl;
 import idea.bear.sunday.index.ResourceIndex;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class ResourceGotoDeclarationHandler implements GotoDeclarationHandler {
 
     @Nullable
     @Override
-    public PsiElement[] getGotoDeclarationTargets(PsiElement psiElement, int i, Editor editor) {
+    public PsiElement[] getGotoDeclarationTargets(PsiElement psiElement, int offset, Editor editor) {
 
         if (psiElement == null) {
             return new PsiElement[0];
         }
 
-        String resourceName = psiElement.getText();
+        PsiElement context = psiElement.getContext();
+        if (!(context instanceof StringLiteralExpressionImpl)) {
+            return new PsiElement[0];
+        }
+        String resourceName = ((StringLiteralExpressionImpl) context).getContents();
         if (((LeafPsiElement) psiElement).getElementType().equals(PhpDocTokenTypes.DOC_STRING)) {
             resourceName = resourceName.replaceAll("\"", "");
         }
@@ -45,7 +51,7 @@ public class ResourceGotoDeclarationHandler implements GotoDeclarationHandler {
 
     @Nullable
     @Override
-    public String getActionText(DataContext dataContext) {
+    public String getActionText(@NotNull DataContext dataContext) {
         return "Go to Resource class";
     }
 
