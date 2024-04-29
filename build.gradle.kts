@@ -52,7 +52,7 @@ tasks {
         untilBuild = properties("pluginUntilBuild")
 
         // Extract the <!-- Plugin description --> section from README.md and provide for the plugin's manifest
-        pluginDescription = providers.fileContents(layout.projectDirectory.file("README.md")).asText.map {
+/*        pluginDescription = providers.fileContents(layout.projectDirectory.file("README.md")).asText.map {
             val start = "<!-- Plugin description -->"
             val end = "<!-- Plugin description end -->"
 
@@ -62,12 +62,7 @@ tasks {
                 }
                 subList(indexOf(start) + 1, indexOf(end)).joinToString("\n").let(::markdownToHTML)
             }
-        }
-    }
-
-    runIde {
-        systemProperty("intellij.idea.indices.debug", "true")
-        systemProperty("intellij.idea.indices.debug.extra.sanity", "true")
+        }*/
     }
 
     // Configure UI tests plugin
