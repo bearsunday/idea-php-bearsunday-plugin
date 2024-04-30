@@ -45,7 +45,7 @@ public class AnnotationOrAttributeGotoDeclarationHandler implements GotoDeclarat
             return new PsiElement[0];
         }
 
-        String name = "";
+        String name;
         PsiElement childContext = psiElement.getParent().getParent().getParent().getFirstChild().getContext();
         if (childContext instanceof PhpDocTagImpl) {
             name = ((PhpDocTagImpl) childContext).getName();
@@ -92,7 +92,6 @@ public class AnnotationOrAttributeGotoDeclarationHandler implements GotoDeclarat
             if (name.contains("=")) {
                 sqlFileName = name.split("=")[1];
             } else if (currentFilePath.toLowerCase().contains("preview") && name.contains("original-")) {
-                // rare case
                 sqlFileName = name.replace("original-", "");
             } else {
                 sqlFileName = name;
@@ -131,7 +130,7 @@ public class AnnotationOrAttributeGotoDeclarationHandler implements GotoDeclarat
             return new PsiElement[0];
         }
 
-        String jsonPath = "";
+        String jsonPath;
         PsiElement matchedSibling = this.getJsonSchemaMatchedSibling(stringLiteral);
         if (matchedSibling.textMatches("schema")) {
             jsonPath = settings.jsonSchemaPath;
