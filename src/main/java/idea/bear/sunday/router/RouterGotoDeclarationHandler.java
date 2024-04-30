@@ -29,6 +29,10 @@ public class RouterGotoDeclarationHandler implements GotoDeclarationHandler {
         }
 
         Project project = editor.getProject();
+        if (project == null) {
+            return new PsiElement[0];
+        }
+
         Settings settings = Settings.getInstance(project);
         if (!editor.getVirtualFile().getName().equals(settings.auraRouteFile)) {
             return new PsiElement[0];
@@ -39,7 +43,8 @@ public class RouterGotoDeclarationHandler implements GotoDeclarationHandler {
             return new PsiElement[0];
         }
 
-        String resourceName =  UriUtil.getUriValue(((StringLiteralExpressionImpl) context).getContents());
+        String contents = ((StringLiteralExpressionImpl) context).getContents();
+        String resourceName = UriUtil.getUriValue(contents);
         if (resourceName == null) {
             return new PsiElement[0];
         }

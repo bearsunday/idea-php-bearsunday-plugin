@@ -8,11 +8,11 @@ import java.util.LinkedList;
 
 public class UriUtil {
 
-    public static String getUriValue(String resourceName) {
+    public static String getUriValue(String uri) {
         UriTemplateParser uriTemplateParser = new UriTemplateParser();
 
         try {
-            LinkedList<UriTemplateComponent> list = uriTemplateParser.scan(resourceName);
+            LinkedList<UriTemplateComponent> list = uriTemplateParser.scan(uri);
             if (list.get(0) != null) {
                 return list.get(0).getValue();
             }
