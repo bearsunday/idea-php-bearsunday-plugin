@@ -46,7 +46,7 @@ public class AnnotationOrAttributeGotoDeclarationHandler implements GotoDeclarat
         }
 
         String name;
-        PsiElement childContext = psiElement.getParent().getParent().getParent().getFirstChild().getContext();
+        PsiElement childContext = context.getParent().getParent().getFirstChild().getContext();
         if (childContext instanceof PhpDocTagImpl phpDocTagImpl) {
             name = phpDocTagImpl.getName();
         } else if (childContext instanceof PhpAttributeImpl phpAttributeImpl) {
