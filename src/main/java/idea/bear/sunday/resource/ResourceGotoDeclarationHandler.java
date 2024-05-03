@@ -21,13 +21,17 @@ public class ResourceGotoDeclarationHandler implements GotoDeclarationHandler {
         if (psiElement == null) {
             return new PsiElement[0];
         }
-
-        PsiElement context = psiElement.getContext();
-        if (!(context instanceof StringLiteralExpressionImpl)) {
+        if (!(psiElement instanceof LeafPsiElement leafPsiElement)) {
             return new PsiElement[0];
         }
-        String resourceName = ((StringLiteralExpressionImpl) context).getContents();
-        if (((LeafPsiElement) psiElement).getElementType().equals(PhpDocTokenTypes.DOC_STRING)) {
+
+        PsiElement context = psiElement.getContext();
+        if (!(context instanceof StringLiteralExpressionImpl stringLiteralExpression)) {
+            return new PsiElement[0];
+        }
+
+        String resourceName = stringLiteralExpression.getContents();
+        if (leafPsiElement.getElementType().equals(PhpDocTokenTypes.DOC_STRING)) {
             resourceName = resourceName.replaceAll("\"", "");
         }
 

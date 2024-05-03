@@ -23,8 +23,8 @@ import java.util.List;
 
 public class AnnotationOrAttributeGotoDeclarationHandler implements GotoDeclarationHandler {
 
-    final String[] annotations = {"@Query", "@Named"};
-    final String[] attributes = {"DbQuery", "Query", "Named"};
+    final String[] targetAnnotations = {"@Query", "@Named"};
+    final String[] targetAttributes = {"DbQuery", "Query", "Named"};
 
     @Nullable
     @Override
@@ -35,11 +35,11 @@ public class AnnotationOrAttributeGotoDeclarationHandler implements GotoDeclarat
         }
 
         PsiElement context = psiElement.getContext();
-        if (!(context instanceof StringLiteralExpressionImpl)) {
+        if (!(context instanceof StringLiteralExpressionImpl stringLiteralExpression)) {
             return new PsiElement[0];
         }
 
-        String contents = ((StringLiteralExpressionImpl) context).getContents();
+        String contents = stringLiteralExpression.getContents();
         String resourceName = UriUtil.getUriValue(contents);
         if (resourceName == null) {
             return new PsiElement[0];
@@ -61,7 +61,7 @@ public class AnnotationOrAttributeGotoDeclarationHandler implements GotoDeclarat
         Project project = psiElement.getProject();
         Settings settings = Settings.getInstance(project);
         // SQL
-        if (Arrays.asList(this.annotations).contains(name) || Arrays.asList(this.attributes).contains(name)) {
+        if (Arrays.asList(this.targetAnnotations).contains(name) || Arrays.asList(this.targetAttributes).contains(name)) {
             String currentFilePath = editor.getVirtualFile().getPath();
             return this.sqlGoto(resourceName, project, currentFilePath, settings);
         }
