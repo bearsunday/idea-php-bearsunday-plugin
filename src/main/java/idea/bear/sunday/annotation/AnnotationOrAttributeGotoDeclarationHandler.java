@@ -23,8 +23,8 @@ import java.util.List;
 
 public class AnnotationOrAttributeGotoDeclarationHandler implements GotoDeclarationHandler {
 
-    final String[] targetAnnotations = {"@Query", "@Named"};
-    final String[] targetAttributes = {"DbQuery", "Query", "Named"};
+    private final String[] targetAnnotations = {"@DbQuery", "@Query", "@Named"};
+    private final String[] targetAttributes = {"DbQuery", "Query", "Named"};
 
     @Nullable
     @Override
@@ -131,10 +131,8 @@ public class AnnotationOrAttributeGotoDeclarationHandler implements GotoDeclarat
         }
 
         String jsonPath;
-        PsiElement matchedSibling = this.getJsonSchemaMatchedSibling(stringLiteral);
-        if (matchedSibling.textMatches("schema")) {
-            jsonPath = settings.jsonSchemaPath;
-        } else if (matchedSibling.textMatches("params")) {
+        PsiElement matchedSibling = this.getJsonSchemaSibling(stringLiteral);
+        if (matchedSibling.textMatches("params")) {
             jsonPath = settings.jsonValidatePath;
         } else {
             jsonPath = settings.jsonSchemaPath;
@@ -157,7 +155,7 @@ public class AnnotationOrAttributeGotoDeclarationHandler implements GotoDeclarat
         return psiElements.toArray(new PsiElement[0]);
     }
 
-    private PsiElement getJsonSchemaMatchedSibling(PsiElement stringLiteral) {
+    private PsiElement getJsonSchemaSibling(PsiElement stringLiteral) {
 
         PsiElement sibiling = stringLiteral.getPrevSibling();
         if (sibiling == null) {
