@@ -41,7 +41,7 @@ public class AnnotationOrAttributeGotoDeclarationHandler implements GotoDeclarat
 
         String contents = stringLiteralExpression.getContents();
         String resourceName = UriUtil.getUriValue(contents);
-        if (resourceName == null) {
+        if (resourceName.isBlank()) {
             return new PsiElement[0];
         }
 

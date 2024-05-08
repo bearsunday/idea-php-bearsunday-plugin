@@ -48,7 +48,7 @@ public class RouterGotoDeclarationHandler implements GotoDeclarationHandler {
 
         String contents = stringLiteralExpressionImpl.getContents();
         String resourceName = UriUtil.getUriValue(contents);
-        if (resourceName == null) {
+        if (resourceName.isBlank()) {
             return new PsiElement[0];
         }
 
