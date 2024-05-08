@@ -21,7 +21,7 @@ public class UriUtil {
                 value = list.get(0).getValue();
             }
         } catch (MalformedUriTemplateException me) {
-            logger.debug(me.getMessage());
+            logger.error("MalformedUriTemplateException encountered: ", me);
         }
 
         return value;
