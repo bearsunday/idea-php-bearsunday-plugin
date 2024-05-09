@@ -9,10 +9,10 @@ import java.util.LinkedList;
 
 public class UriUtil {
 
-    private static final UriTemplateParser uriTemplateParser = new UriTemplateParser();
     private static final Logger logger = Logger.getInstance(UriUtil.class);
 
     public static String getUriValue(String uri) {
+        UriTemplateParser uriTemplateParser = new UriTemplateParser();
         String value = "";
 
         try {
