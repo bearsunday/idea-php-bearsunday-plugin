@@ -10,18 +10,21 @@ import com.intellij.psi.util.PsiUtilCore;
 import com.intellij.util.ProcessingContext;
 import com.jetbrains.php.PhpIndex;
 import com.jetbrains.php.codeInsight.PhpCodeInsightUtil;
-import com.jetbrains.php.lang.psi.elements.*;
+import com.jetbrains.php.lang.psi.PhpGroupUseElement;
+import com.jetbrains.php.lang.psi.elements.PhpClass;
+import com.jetbrains.php.lang.psi.elements.PhpNamespace;
+import com.jetbrains.php.lang.psi.elements.PhpPsiElement;
 import com.jetbrains.php.refactoring.PhpAliasImporter;
-import gnu.trove.THashSet;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
+import java.util.HashSet;
 
 public class AnnotationCompletionProvider extends CompletionProvider<CompletionParameters> {
 
     @Override
     protected void addCompletions(@NotNull CompletionParameters completionParameters,
-                                  ProcessingContext processingContext,
+                                  @NotNull ProcessingContext processingContext,
                                   @NotNull CompletionResultSet completionResultSet) {
 
         final PsiElement psiElement = completionParameters.getOriginalPosition();
@@ -32,7 +35,7 @@ public class AnnotationCompletionProvider extends CompletionProvider<CompletionP
         final Project project = psiElement.getProject();
         final PhpIndex phpIndex = PhpIndex.getInstance(project);
 
-        Collection<PhpClass> phpClasses = new THashSet<>();
+        Collection<PhpClass> phpClasses = new HashSet<>();
         Collection<PhpNamespace> namespaces = phpIndex.getNamespacesByName("\\bear\\resource\\annotation");
         namespaces.addAll(phpIndex.getNamespacesByName("\\bear\\repositorymodule\\annotation"));
         for (PhpNamespace namespace: namespaces) {
@@ -50,7 +53,7 @@ public class AnnotationCompletionProvider extends CompletionProvider<CompletionP
                 .withPsiElement(phpClass.getContext())
                 .withInsertHandler(new InsertHandler<LookupElement>() {
                     @Override
-                    public void handleInsert(InsertionContext insertionContext, LookupElement lookupElement) {
+                    public void handleInsert(@NotNull InsertionContext insertionContext, @NotNull LookupElement lookupElement) {
                         // caret move into quotation after insert completion
                         insertionContext.getEditor().getCaretModel().moveCaretRelatively(-1, 0, false, false, true);
                         PsiElement psiElement = PsiUtilCore.getElementAtOffset(
@@ -60,7 +63,7 @@ public class AnnotationCompletionProvider extends CompletionProvider<CompletionP
                         if (scope == null) {
                             return;
                         }
-                        if (PhpCodeInsightUtil.alreadyImported(scope, insertPhpUse) == null) {
+                        if (PhpCodeInsightUtil.findImportedName(scope, insertPhpUse, PhpGroupUseElement.PhpUseKeyword.CLASS) == null) {
                             PhpAliasImporter.insertUseStatement(insertPhpUse, scope);
                         }
                     }

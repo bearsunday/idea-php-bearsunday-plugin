@@ -1,7 +1,7 @@
 <idea-plugin>
   <id>idea.bear.sunday</id>
-  <name>BEAR.Sunday Plugin</name>
-  <version>0.4.1</version>
+  <name>BEAR.Sunday</name>
+  <version>0.5</version>
   <vendor email="shingo4092@gmail.com">Shingo Kumagai</vendor>
 
   <description><![CDATA[
@@ -10,6 +10,10 @@
     <li>BEAR.Resource goto (app://self/user will be pointed to src/Resource/App/User.php) & (page://self/user will be pointed to src/Resource/Page/User.php)</li>
     <li>BEAR.Resource URI completion</li>
     <li>BEAR.Resource Annotation Helper</li>
+    <li>BEAR.Resource JSON Schema goto</li>
+    <li>Ray.MediaQuery SQL goto</li>
+    <li>Ray.QueryModule SQL goto</li>
+    <li>Aura.Route goto BEAR.Resource</li>
   </ul>
   <h2>Information</h2>
   <ul>
@@ -23,21 +27,23 @@
   ]]></description>
 
   <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/build_number_ranges.html for description -->
-  <idea-version since-build="141.0"/>
+  <idea-version since-build="231.8109.175"/>
 
   <extensions defaultExtensionNs="com.intellij">
-
+    <projectService serviceImplementation="idea.bear.sunday.Settings"/>
     <fileBasedIndex implementation="idea.bear.sunday.index.ResourceIndex"/>
 
     <completion.contributor language="PHP" implementationClass="idea.bear.sunday.resource.UriCompletionContributor"/>
     <completion.contributor language="PHP" order="first" id="BEARResourceAnnotationCompletionContributor" implementationClass="idea.bear.sunday.annotation.AnnotationCompletionContributor"/>
 
+    <gotoDeclarationHandler implementation="idea.bear.sunday.router.RouterGotoDeclarationHandler"/>
+    <gotoDeclarationHandler implementation="idea.bear.sunday.annotation.AnnotationOrAttributeGotoDeclarationHandler"/>
     <gotoDeclarationHandler implementation="idea.bear.sunday.resource.ResourceGotoDeclarationHandler"/>
 
   </extensions>
 
   <depends>com.jetbrains.php</depends>
   <depends>com.intellij.modules.platform</depends>
-  <depends optional="true">de.espend.idea.php.annotation</depends>
+  <depends optional="true" config-file="idea.bear.sunday-annotation.xml">de.espend.idea.php.annotation</depends>
 
 </idea-plugin>
