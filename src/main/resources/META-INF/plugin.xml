@@ -1,7 +1,7 @@
 <idea-plugin>
   <id>idea.bear.sunday</id>
   <name>BEAR.Sunday</name>
-  <version>0.5</version>
+  <version>0.6</version>
   <vendor email="shingo4092@gmail.com">Shingo Kumagai</vendor>
 
   <description><![CDATA[

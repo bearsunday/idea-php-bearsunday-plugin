@@ -31,14 +31,21 @@ public class Settings implements PersistentStateComponent<Settings> {
             "var/db/sql",
             "var/db/sql_preview"
     );
-    public static final String DEFAULT_JSON_SCHEMA_PATH = "var/json_schema";
-    public static final String DEFAULT_JSON_VALIDATE_PATH = "var/json_validate";
+    public static final Collection<String> DEFAULT_JSON_SCHEMA_PATH = Arrays.asList(
+            "var/json_schema",
+            "var/schema/response"
+    );
+
+    public static final Collection<String> DEFAULT_JSON_VALIDATE_PATH = Arrays.asList(
+            "var/json_validate",
+            "var/schema/request"
+    );
 
     public String auraRouteFile = DEFAULT_AURA_ROUTE_FILE;
     public Collection<String> resourcePaths = DEFAULT_RESOURCE_PATH;
     public Collection<String> sqlPaths = DEFAULT_SQL_PATH;
-    public String jsonSchemaPath = DEFAULT_JSON_SCHEMA_PATH;
-    public String jsonValidatePath = DEFAULT_JSON_VALIDATE_PATH;
+    public Collection<String> jsonSchemaPath = DEFAULT_JSON_SCHEMA_PATH;
+    public Collection<String> jsonValidatePath = DEFAULT_JSON_VALIDATE_PATH;
 
     protected Project project;
 

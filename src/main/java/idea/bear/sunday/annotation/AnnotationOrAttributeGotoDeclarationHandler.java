@@ -122,35 +122,45 @@ public class AnnotationOrAttributeGotoDeclarationHandler implements GotoDeclarat
 
     private PsiElement @NotNull [] jsonSchemaGoto(
             @NotNull String resourceName,
-            @NotNull PsiElement stringLiteral, Project project,
+            @NotNull PsiElement stringLiteral,
+            @NotNull Project project,
             @NotNull Settings settings
     ) {
-
         if (!resourceName.contains(".json")) {
             return new PsiElement[0];
         }
 
-        String jsonPath;
+        Collection<String> jsonPaths;
         PsiElement matchedSibling = this.getJsonSchemaSibling(stringLiteral);
         if (matchedSibling.textMatches("params")) {
-            jsonPath = settings.jsonValidatePath;
+            jsonPaths = settings.jsonValidatePath;
         } else {
-            jsonPath = settings.jsonSchemaPath;
-        }
-
-        if (!jsonPath.endsWith("/")) {
-            jsonPath += "/";
-        }
-
-        String jsonFilePath = jsonPath + resourceName;
-        VirtualFile targetFile = project.getBaseDir().findFileByRelativePath(jsonFilePath);
-        if (targetFile == null) {
-            return new PsiElement[0];
+            jsonPaths = settings.jsonSchemaPath;
         }
 
         List<PsiElement> psiElements = new ArrayList<>();
-        PsiFile psiFile = PsiManager.getInstance(project).findFile(targetFile);
-        psiElements.add(psiFile);
+        PsiManager psiManager = PsiManager.getInstance(project);
+
+        for (String jsonPath : jsonPaths) {
+            if (!jsonPath.endsWith("/")) {
+                jsonPath += "/";
+            }
+
+            String jsonFilePath = jsonPath + resourceName;
+            VirtualFile targetFile = project.getBaseDir().findFileByRelativePath(jsonFilePath);
+            if (targetFile == null) {
+                continue;
+            }
+
+            PsiFile psiFile = psiManager.findFile(targetFile);
+            if (psiFile != null) {
+                psiElements.add(psiFile);
+            }
+        }
+
+        if (psiElements.isEmpty()) {
+            return new PsiElement[0];
+        }
 
         return psiElements.toArray(new PsiElement[0]);
     }
