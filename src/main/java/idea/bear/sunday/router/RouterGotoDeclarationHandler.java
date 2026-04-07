@@ -10,8 +10,6 @@ import com.intellij.psi.PsiManager;
 import com.jetbrains.php.lang.psi.elements.impl.StringLiteralExpressionImpl;
 import idea.bear.sunday.Settings;
 import idea.bear.sunday.util.UriUtil;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.text.WordUtils;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -53,7 +51,7 @@ public class RouterGotoDeclarationHandler implements GotoDeclarationHandler {
         }
 
         List<PsiElement> psiElements = new ArrayList<>();
-        String resourceFileName = StringUtils.remove(WordUtils.capitalizeFully(resourceName, '/', '-'), "-") + ".php";
+        String resourceFileName = RouterUtil.toResourceFileName(resourceName);
         PsiManager psiManager = PsiManager.getInstance(project);
         Collection<String> resourcePaths = settings.resourcePaths;
         for (String resourcePath : resourcePaths) {
