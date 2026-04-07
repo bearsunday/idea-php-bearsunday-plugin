@@ -28,7 +28,7 @@ dependencies {
     intellijPlatform {
         phpstorm(properties("platformVersion"))
         bundledPlugin("com.jetbrains.php")
-        plugin("de.espend.idea.php.annotation", "12.0.2")
+        plugin("de.espend.idea.php.annotation", "12.0.1")
         pluginVerifier()
     }
 }

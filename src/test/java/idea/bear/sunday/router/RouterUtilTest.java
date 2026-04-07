@@ -30,4 +30,25 @@ class RouterUtilTest {
     void hyphenatedNestedResource() {
         assertEquals("/Api/UserProfile.php", RouterUtil.toResourceFileName("/api/user-profile"));
     }
+
+    @Test
+    void emptyPath() {
+        assertEquals(".php", RouterUtil.toResourceFileName(""));
+    }
+
+    @Test
+    void rootPath() {
+        assertEquals("/.php", RouterUtil.toResourceFileName("/"));
+    }
+
+    @Test
+    void trailingSlash() {
+        assertEquals("/User/.php", RouterUtil.toResourceFileName("/user/"));
+    }
+
+    @Test
+    void nullInput() {
+        // WordUtils.capitalizeFully(null) returns null, and "null" + ".php" results from string concatenation
+        assertEquals("null.php", RouterUtil.toResourceFileName(null));
+    }
 }

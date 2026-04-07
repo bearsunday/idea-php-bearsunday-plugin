@@ -1,5 +1,5 @@
-IDEA PHP BEAR.Sunday Plugin
-========================
+# IDEA PHP BEAR.Sunday Plugin
+
 ![Version](https://img.shields.io/jetbrains/plugin/v/8030-bear-sunday-plugin.svg)
 ![Download](https://img.shields.io/jetbrains/plugin/d/8030-bear-sunday-plugin.svg)
 
