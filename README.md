@@ -1,5 +1,5 @@
-IDEA PHP BEAR.Sunday Plugin
-========================
+# IDEA PHP BEAR.Sunday Plugin
+
 ![Version](https://img.shields.io/jetbrains/plugin/v/8030-bear-sunday-plugin.svg)
 ![Download](https://img.shields.io/jetbrains/plugin/d/8030-bear-sunday-plugin.svg)
 
@@ -18,9 +18,33 @@ IDEA PHP BEAR.Sunday Plugin
 ## Related Plugins
  * Php Annotations Plugin: https://plugins.jetbrains.com/plugin/7320
 <!-- Plugin description end -->
-## Maven Library
+## Requirements
 
- * URI-Template Library (com.damnhandy:handy-uri-templates:2.1.7)
+ * PhpStorm 2025.1 or later
+ * JDK 21 (for building)
+
+## Libraries
+
+ * URI-Template Library (com.damnhandy:handy-uri-templates:2.1.8)
+ * Apache Commons Text (org.apache.commons:commons-text:1.12.0)
+
+## Build
+
+```sh
+./gradlew buildPlugin
+```
+
+## Run in sandbox PhpStorm
+
+```sh
+./gradlew runIde
+```
+
+## Test
+
+```sh
+./gradlew test
+```
 
 ## TODO
 

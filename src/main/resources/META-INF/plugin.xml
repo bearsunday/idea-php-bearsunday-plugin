@@ -1,7 +1,7 @@
 <idea-plugin>
   <id>idea.bear.sunday</id>
   <name>BEAR.Sunday</name>
-  <version>0.6</version>
+  <version>0.7</version>
   <vendor email="shingo4092@gmail.com">Shingo Kumagai</vendor>
 
   <description><![CDATA[
@@ -27,7 +27,7 @@
   ]]></description>
 
   <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/build_number_ranges.html for description -->
-  <idea-version since-build="231.8109.175"/>
+  <idea-version since-build="251"/>
 
   <extensions defaultExtensionNs="com.intellij">
     <projectService serviceImplementation="idea.bear.sunday.Settings"/>
