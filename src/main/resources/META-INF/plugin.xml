@@ -42,6 +42,8 @@
 
     <psi.referenceContributor language="Twig"
                               implementation="idea.bear.sunday.template.EmbedTemplateReferenceContributor"/>
+    <codeInsight.lineMarkerProvider language="Twig"
+                                    implementationClass="idea.bear.sunday.template.EmbedTwigLineMarkerProvider"/>
 
     <notificationGroup id="BEAR.Sunday" displayType="BALLOON"/>
 
