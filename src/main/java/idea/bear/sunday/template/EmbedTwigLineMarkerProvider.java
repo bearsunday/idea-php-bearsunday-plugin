@@ -9,16 +9,12 @@ import com.intellij.openapi.util.NotNullLazyValue;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
-import com.intellij.psi.PsiManager;
 import com.jetbrains.php.lang.psi.elements.PhpClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.Icon;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
 
 public class EmbedTwigLineMarkerProvider implements LineMarkerProvider {
 
@@ -65,35 +61,12 @@ public class EmbedTwigLineMarkerProvider implements LineMarkerProvider {
         if (srcUri == null) {
             return null;
         }
-        NotNullLazyValue<Collection<? extends PsiElement>> targets =
-                NotNullLazyValue.lazy(() -> resolveTargets(srcUri, parentResource, project));
+        NotNullLazyValue<Collection<? extends PsiElement>> targets = NotNullLazyValue.lazy(
+                () -> EmbedResolver.resolveEmbeddedTemplates(srcUri, parentResource, TwigSupport.INSTANCE, project));
         return NavigationGutterIconBuilder.create(EMBED_ICON)
                 .setTargets(targets)
                 .setTooltipText("Embed: " + varName + " → " + srcUri)
                 .setPopupTitle("Embedded template")
                 .createLineMarkerInfo(element);
-    }
-
-    @NotNull
-    private static Collection<? extends PsiElement> resolveTargets(@NotNull String srcUri,
-                                                                   @NotNull PhpClass parentResource,
-                                                                   @NotNull Project project) {
-        PhpClass embedded = EmbedResolver.resolveEmbeddedClass(srcUri, parentResource, project);
-        if (embedded == null) {
-            return Collections.emptyList();
-        }
-        List<VirtualFile> templates = TwigSupport.INSTANCE.resolveTemplates(embedded);
-        if (templates.isEmpty()) {
-            return Collections.emptyList();
-        }
-        List<PsiElement> targets = new ArrayList<>(templates.size());
-        PsiManager psiManager = PsiManager.getInstance(project);
-        for (VirtualFile vf : templates) {
-            PsiFile pf = psiManager.findFile(vf);
-            if (pf != null) {
-                targets.add(pf);
-            }
-        }
-        return targets;
     }
 }

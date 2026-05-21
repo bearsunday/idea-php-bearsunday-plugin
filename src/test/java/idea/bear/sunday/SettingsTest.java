@@ -54,6 +54,12 @@ class SettingsTest {
     }
 
     @Test
+    void defaultQiqTemplatePath() {
+        Settings settings = new Settings();
+        assertEquals("var/qiq/template", settings.qiqTemplatePath);
+    }
+
+    @Test
     void getStateReturnsSelf() {
         Settings settings = new Settings();
         assertSame(settings, settings.getState());

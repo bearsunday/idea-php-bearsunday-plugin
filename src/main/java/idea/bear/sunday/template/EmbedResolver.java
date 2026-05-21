@@ -4,6 +4,10 @@ import com.damnhandy.uri.template.MalformedUriTemplateException;
 import com.damnhandy.uri.template.UriTemplateComponent;
 import com.damnhandy.uri.template.impl.UriTemplateParser;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiFile;
+import com.intellij.psi.PsiManager;
 import com.jetbrains.php.lang.psi.elements.Method;
 import com.jetbrains.php.lang.psi.elements.PhpAttribute;
 import com.jetbrains.php.lang.psi.elements.PhpClass;
@@ -14,8 +18,11 @@ import org.jetbrains.annotations.Nullable;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -66,6 +73,34 @@ public final class EmbedResolver {
         classRel += ".php";
         String classAbsPath = appRoot + TemplateUtils.RESOURCE_DIR_SEGMENT + classRel;
         return TemplateUtils.findClassByAbsolutePath(project, classAbsPath);
+    }
+
+    /**
+     * Resolves the resource embedded at {@code srcUri} to its template PSI files, for use as
+     * gutter-icon navigation targets. Shared by the Twig and Qiq line marker providers.
+     */
+    @NotNull
+    public static Collection<? extends PsiElement> resolveEmbeddedTemplates(@NotNull String srcUri,
+                                                                            @NotNull PhpClass parentResource,
+                                                                            @NotNull TemplateEngineSupport support,
+                                                                            @NotNull Project project) {
+        PhpClass embedded = resolveEmbeddedClass(srcUri, parentResource, project);
+        if (embedded == null) {
+            return Collections.emptyList();
+        }
+        List<VirtualFile> templates = support.resolveTemplates(embedded);
+        if (templates.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<PsiElement> targets = new ArrayList<>(templates.size());
+        PsiManager psiManager = PsiManager.getInstance(project);
+        for (VirtualFile vf : templates) {
+            PsiFile pf = psiManager.findFile(vf);
+            if (pf != null) {
+                targets.add(pf);
+            }
+        }
+        return targets;
     }
 
     @Nullable

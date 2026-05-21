@@ -64,6 +64,20 @@ intellijPlatform {
     }
 }
 
+// Test-only IDE run with the third-party Qiq Templates Support plugin installed, for
+// verifying Qiq template features. The Qiq plugin is NOT a dependency of the published
+// plugin: it is absent from the main dependencies and from plugin.xml. Run via
+// `./gradlew runIdeWithQiq`.
+intellijPlatformTesting {
+    runIde {
+        register("runIdeWithQiq") {
+            plugins {
+                plugin("io.github.jingu.idea-qiq-plugin", "0.5.0")
+            }
+        }
+    }
+}
+
 java {
     sourceCompatibility = JavaVersion.toVersion(properties("javaVersion").get())
     targetCompatibility = JavaVersion.toVersion(properties("javaVersion").get())
