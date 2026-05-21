@@ -4,7 +4,7 @@ import com.damnhandy.uri.template.MalformedUriTemplateException;
 import com.damnhandy.uri.template.UriTemplateComponent;
 import com.damnhandy.uri.template.impl.UriTemplateParser;
 import com.intellij.openapi.editor.Editor;
-import com.intellij.openapi.editor.impl.EditorImpl;
+import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -98,8 +98,12 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
             String relPath = "src/Resource/";
 
             if (u.getScheme() == null) {
-                String editFile = ((EditorImpl) editor).getVirtualFile().getPath();
-                if (editFile.startsWith(project.getBasePath() + "/src/Resource/Page")) {
+                // editor may be an EditorWindowImpl for injected fragments (e.g. Qiq tags),
+                // which is not an EditorImpl; resolve the file without casting.
+                VirtualFile editFile = editor == null ? null
+                    : FileDocumentManager.getInstance().getFile(editor.getDocument());
+                if (editFile != null
+                    && editFile.getPath().startsWith(project.getBasePath() + "/src/Resource/Page")) {
                     relPath += "Page";
                 } else {
                     relPath += "App";
