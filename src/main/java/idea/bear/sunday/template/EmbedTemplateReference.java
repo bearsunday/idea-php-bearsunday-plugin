@@ -4,6 +4,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
 import com.intellij.psi.PsiReferenceBase;
 import com.jetbrains.php.lang.psi.elements.PhpClass;
@@ -37,10 +38,14 @@ public class EmbedTemplateReference extends PsiReferenceBase<PsiElement> {
             return null;
         }
         List<VirtualFile> templates = support.resolveTemplates(embeddedClass);
-        if (templates.isEmpty()) {
-            return null;
+        PsiManager psiManager = PsiManager.getInstance(project);
+        for (VirtualFile candidate : templates) {
+            PsiFile pf = psiManager.findFile(candidate);
+            if (pf != null) {
+                return pf;
+            }
         }
-        return PsiManager.getInstance(project).findFile(templates.get(0));
+        return null;
     }
 
     @Override
