@@ -2,16 +2,13 @@ package idea.bear.sunday.template;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.TextRange;
-import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
-import com.intellij.psi.PsiFile;
-import com.intellij.psi.PsiManager;
 import com.intellij.psi.PsiReferenceBase;
 import com.jetbrains.php.lang.psi.elements.PhpClass;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.List;
+import java.util.Collection;
 
 public class EmbedTemplateReference extends PsiReferenceBase<PsiElement> {
 
@@ -33,19 +30,9 @@ public class EmbedTemplateReference extends PsiReferenceBase<PsiElement> {
     @Override
     public PsiElement resolve() {
         Project project = getElement().getProject();
-        PhpClass embeddedClass = EmbedResolver.resolveEmbeddedClass(srcUri, parentResource, project);
-        if (embeddedClass == null) {
-            return null;
-        }
-        List<VirtualFile> templates = support.resolveTemplates(embeddedClass);
-        PsiManager psiManager = PsiManager.getInstance(project);
-        for (VirtualFile candidate : templates) {
-            PsiFile pf = psiManager.findFile(candidate);
-            if (pf != null) {
-                return pf;
-            }
-        }
-        return null;
+        Collection<? extends PsiElement> targets =
+                EmbedResolver.resolveEmbeddedTemplates(srcUri, parentResource, support, project);
+        return targets.isEmpty() ? null : targets.iterator().next();
     }
 
     @Override
