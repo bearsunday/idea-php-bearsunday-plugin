@@ -41,7 +41,7 @@ public class TwigSupport implements TemplateEngineSupport {
         if (element.getNode() == null) {
             return null;
         }
-        if (!"VARIABLE_REFERENCE".equals(element.getNode().getElementType().toString())) {
+        if (element.getNode().getElementType() != TwigElementTypes.VARIABLE_REFERENCE) {
             return null;
         }
         if (!isInsidePrintBlock(element)) {

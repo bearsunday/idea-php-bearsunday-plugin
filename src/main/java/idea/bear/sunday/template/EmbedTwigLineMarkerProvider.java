@@ -10,6 +10,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.jetbrains.php.lang.psi.elements.PhpClass;
+import com.jetbrains.twig.elements.TwigElementTypes;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -34,7 +35,7 @@ public class EmbedTwigLineMarkerProvider implements LineMarkerProvider {
         }
         // The leaf identifier sits inside a VARIABLE_REFERENCE composite element when used
         // as a Twig variable. Re-use TwigSupport's name extraction (validates print block too).
-        if (!"VARIABLE_REFERENCE".equals(parent.getNode().getElementType().toString())) {
+        if (parent.getNode().getElementType() != TwigElementTypes.VARIABLE_REFERENCE) {
             return null;
         }
         PsiFile psiFile = element.getContainingFile();
