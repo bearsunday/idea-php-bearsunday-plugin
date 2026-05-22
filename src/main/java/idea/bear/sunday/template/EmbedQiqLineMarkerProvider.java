@@ -48,13 +48,9 @@ public class EmbedQiqLineMarkerProvider implements LineMarkerProvider {
             IconLoader.getIcon("/icons/embed.svg", EmbedQiqLineMarkerProvider.class);
 
     /**
-     * Matches a Qiq output tag host whose text is solely a {@code $this->name} property access,
-     * optionally surrounded by whitespace. Used with {@link Matcher#matches} so the pattern is
-     * anchored to the entire host text — any extra expression (further chaining like
-     * {@code ->X}, subscripting {@code […]}, invocation {@code (…)}, concatenation, or another
-     * subexpression that wraps {@code $this->X}) causes a non-match. That way the gutter icon
-     * only fires when the tag is rendering the embedded resource directly, not when it merely
-     * dereferences it.
+     * Anchored stand-alone {@code $this->name} pattern (used with {@link Matcher#matches}).
+     * Whitespace-tolerant so {@code {{= $this->foo }}} hosts match. Rationale for rejecting
+     * any wrapping expression is on the class JavaDoc.
      */
     private static final Pattern STANDALONE_THIS_PROPERTY =
             Pattern.compile("\\s*\\$this->(\\w+)\\s*");
@@ -96,11 +92,6 @@ public class EmbedQiqLineMarkerProvider implements LineMarkerProvider {
                 .createLineMarkerInfo(element);
     }
 
-    /**
-     * Returns the {@code $this->X} reference when {@code hostText} is entirely a stand-alone
-     * {@code $this->X} expression and {@code X} is bound by an {@code #[Embed(rel: 'X')]}
-     * attribute on {@code parentResource}.
-     */
     @Nullable
     private static EmbedRef findEmbedReference(@NotNull String hostText, @NotNull PhpClass parentResource) {
         Matcher matcher = STANDALONE_THIS_PROPERTY.matcher(hostText);
