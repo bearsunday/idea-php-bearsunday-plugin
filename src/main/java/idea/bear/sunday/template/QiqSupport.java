@@ -58,8 +58,10 @@ public class QiqSupport implements TemplateEngineSupport {
         // It must live inside a Qiq tag (any tag). Tag-kind filtering — distinguishing output
         // tags ({{= ... }}) from code tags ({{ ... }}) — is the line marker provider's concern;
         // for Cmd+click navigation it's useful to jump from $this->X regardless of which tag
-        // the reference sits in.
-        if (InjectedLanguageManager.getInstance(element.getProject()).getInjectionHost(element) == null) {
+        // the reference sits in. We require the injection host to be a Qiq template file —
+        // otherwise any PHP fragment injected by another language plugin (e.g. plain HEREDOC or
+        // a different template engine) would be misclassified as a Qiq variable.
+        if (qiqHostFile(element, element.getProject()) == null) {
             return null;
         }
         String name = fieldReference.getName();
