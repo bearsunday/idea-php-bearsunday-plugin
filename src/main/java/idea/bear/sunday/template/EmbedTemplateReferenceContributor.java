@@ -12,6 +12,7 @@ import com.intellij.psi.PsiReferenceRegistrar;
 import com.intellij.util.ProcessingContext;
 import com.jetbrains.php.lang.psi.elements.PhpClass;
 import com.jetbrains.twig.TwigLanguage;
+import com.jetbrains.twig.elements.TwigElementTypes;
 import org.jetbrains.annotations.NotNull;
 
 public class EmbedTemplateReferenceContributor extends PsiReferenceContributor {
@@ -19,7 +20,8 @@ public class EmbedTemplateReferenceContributor extends PsiReferenceContributor {
     @Override
     public void registerReferenceProviders(@NotNull PsiReferenceRegistrar registrar) {
         registrar.registerReferenceProvider(
-                PlatformPatterns.psiElement().withLanguage(TwigLanguage.INSTANCE),
+                PlatformPatterns.psiElement(TwigElementTypes.VARIABLE_REFERENCE)
+                        .withLanguage(TwigLanguage.INSTANCE),
                 new EmbedReferenceProvider(),
                 PsiReferenceRegistrar.HIGHER_PRIORITY
         );
