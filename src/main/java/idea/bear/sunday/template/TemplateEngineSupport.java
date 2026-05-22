@@ -24,7 +24,7 @@ public interface TemplateEngineSupport {
 
     @Nullable
     static TemplateEngineSupport forFile(@NotNull VirtualFile file, @NotNull Project project) {
-        for (TemplateEngineSupport support : List.of(TwigSupport.INSTANCE)) {
+        for (TemplateEngineSupport support : List.of(TwigSupport.INSTANCE, QiqSupport.INSTANCE)) {
             if (support.accepts(file, project)) {
                 return support;
             }
