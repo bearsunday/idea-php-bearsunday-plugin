@@ -10,7 +10,6 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.jetbrains.php.lang.psi.elements.PhpClass;
-import com.jetbrains.twig.elements.TwigElementTypes;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -30,12 +29,13 @@ public class EmbedTwigLineMarkerProvider implements LineMarkerProvider {
             return null;
         }
         PsiElement parent = element.getParent();
-        if (parent == null || parent.getNode() == null) {
+        if (parent == null) {
             return null;
         }
-        // The leaf identifier sits inside a VARIABLE_REFERENCE composite element when used
-        // as a Twig variable. Re-use TwigSupport's name extraction (validates print block too).
-        if (parent.getNode().getElementType() != TwigElementTypes.VARIABLE_REFERENCE) {
+        // extractVariableName validates the Twig language, the VARIABLE_REFERENCE element type
+        // and the surrounding print block; a non-null return implies the shape we need.
+        String varName = TwigSupport.INSTANCE.extractVariableName(parent);
+        if (varName == null) {
             return null;
         }
         PsiFile psiFile = element.getContainingFile();
@@ -48,10 +48,6 @@ public class EmbedTwigLineMarkerProvider implements LineMarkerProvider {
         }
         Project project = element.getProject();
         if (!TwigSupport.INSTANCE.accepts(file, project)) {
-            return null;
-        }
-        String varName = TwigSupport.INSTANCE.extractVariableName(parent);
-        if (varName == null) {
             return null;
         }
         PhpClass parentResource = TwigSupport.INSTANCE.resolveResourceClass(file, project);
