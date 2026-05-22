@@ -48,12 +48,16 @@ public class EmbedQiqLineMarkerProvider implements LineMarkerProvider {
             IconLoader.getIcon("/icons/embed.svg", EmbedQiqLineMarkerProvider.class);
 
     /**
-     * Matches a stand-alone {@code $this->name} property access — the name must not be followed
-     * by further chaining ({@code ->}), subscripting ({@code [}), invocation ({@code (}) or
-     * additional identifier characters.
+     * Matches a Qiq output tag host whose text is solely a {@code $this->name} property access,
+     * optionally surrounded by whitespace. Used with {@link Matcher#matches} so the pattern is
+     * anchored to the entire host text — any extra expression (further chaining like
+     * {@code ->X}, subscripting {@code […]}, invocation {@code (…)}, concatenation, or another
+     * subexpression that wraps {@code $this->X}) causes a non-match. That way the gutter icon
+     * only fires when the tag is rendering the embedded resource directly, not when it merely
+     * dereferences it.
      */
     private static final Pattern STANDALONE_THIS_PROPERTY =
-            Pattern.compile("\\$this->(\\w+)(?![\\w\\[(])(?!->)");
+            Pattern.compile("\\s*\\$this->(\\w+)\\s*");
 
     @Nullable
     @Override
@@ -93,20 +97,19 @@ public class EmbedQiqLineMarkerProvider implements LineMarkerProvider {
     }
 
     /**
-     * Returns the first stand-alone {@code $this->X} occurrence in {@code hostText} whose
-     * {@code X} is bound by an {@code #[Embed(rel: 'X')]} attribute on {@code parentResource}.
+     * Returns the {@code $this->X} reference when {@code hostText} is entirely a stand-alone
+     * {@code $this->X} expression and {@code X} is bound by an {@code #[Embed(rel: 'X')]}
+     * attribute on {@code parentResource}.
      */
     @Nullable
     private static EmbedRef findEmbedReference(@NotNull String hostText, @NotNull PhpClass parentResource) {
         Matcher matcher = STANDALONE_THIS_PROPERTY.matcher(hostText);
-        while (matcher.find()) {
-            String name = matcher.group(1);
-            String src = EmbedResolver.findEmbedSrcUri(parentResource, name);
-            if (src != null) {
-                return new EmbedRef(name, src);
-            }
+        if (!matcher.matches()) {
+            return null;
         }
-        return null;
+        String name = matcher.group(1);
+        String src = EmbedResolver.findEmbedSrcUri(parentResource, name);
+        return src == null ? null : new EmbedRef(name, src);
     }
 
     private record EmbedRef(@NotNull String varName, @NotNull String srcUri) {
