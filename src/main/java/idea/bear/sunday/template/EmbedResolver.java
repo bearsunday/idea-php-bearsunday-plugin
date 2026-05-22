@@ -68,7 +68,7 @@ public final class EmbedResolver {
         String classRel = WordUtils.capitalize(scheme)
                 + StringUtils.remove(WordUtils.capitalizeFully(path, new char[]{'/', '-'}), "-");
         if (classRel.endsWith("/")) {
-            classRel += "index";
+            classRel += "Index";
         }
         classRel += ".php";
         String classAbsPath = appRoot + TemplateUtils.RESOURCE_DIR_SEGMENT + classRel;
