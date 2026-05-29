@@ -2,7 +2,6 @@ package idea.bear.sunday.template;
 
 import com.intellij.lang.injection.InjectedLanguageManager;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
@@ -10,20 +9,22 @@ import com.intellij.psi.PsiLanguageInjectionHost;
 import com.jetbrains.php.lang.psi.elements.FieldReference;
 import com.jetbrains.php.lang.psi.elements.PhpClass;
 import com.jetbrains.php.lang.psi.elements.Variable;
-import idea.bear.sunday.Settings;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 /**
  * Qiq template engine support (bear/qiq-module 2.x).
  *
- * <p>Unlike Twig, Qiq templates use the plain {@code .php} extension and live under a single
- * template directory, so a file counts as a Qiq template only when it sits under that
- * directory. Qiq exposes template data as properties of the template object, so a variable
- * is written {@code {{= $this->foo }}}; its PHP fragment is injected by the third-party Qiq
+ * <p>Unlike Twig, Qiq templates use the plain {@code .php} extension, so the directory layout
+ * cannot be assumed and the template engine's configured path is not consulted. A {@code .php}
+ * file outside {@code src/Resource/} is treated as a candidate Qiq template; precise Qiq-ness is
+ * confirmed downstream by the Qiq language injection ({@link #isQiqOutputExpression}) and by
+ * reverse resolution to a resource class. Qiq exposes template data as properties of the template
+ * object, so a variable is written {@code {{= $this->foo }}}; its PHP fragment is injected by the third-party Qiq
  * plugin and read here through the platform {@link InjectedLanguageManager}. No compile-time
  * dependency on the Qiq plugin is needed; when it is absent no injection happens, so the Qiq
  * features simply stay inactive.
@@ -42,7 +43,10 @@ public class QiqSupport implements TemplateEngineSupport {
         if (!file.getName().endsWith(EXTENSION)) {
             return false;
         }
-        return file.getPath().contains("/" + templateDirSegment(project) + "/");
+        // A Qiq template is a .php file outside the resource tree. This is a cheap structural
+        // pre-filter only: callers gate on the Qiq language injection before navigating, and
+        // resolveResourceClass rejects files that do not mirror a resource class.
+        return !file.getPath().contains(TemplateUtils.RESOURCE_DIR_SEGMENT);
     }
 
     @Nullable
@@ -74,28 +78,47 @@ public class QiqSupport implements TemplateEngineSupport {
         if (appRoot == null || relPath == null || !relPath.endsWith(EXTENSION)) {
             return Collections.emptyList();
         }
-        // Qiq keeps the .php extension, so the resource-relative path maps over verbatim.
-        String absPath = appRoot + "/" + templateDirSegment(resourceClass.getProject()) + "/" + relPath;
-        VirtualFile candidate = LocalFileSystem.getInstance().findFileByPath(absPath);
-        return candidate == null ? Collections.emptyList() : List.of(candidate);
+        // Qiq keeps the .php name, so the template shares the resource-relative path verbatim but
+        // lives outside src/Resource under the (unknown) template root. Find it by name, keep the
+        // candidates that are this relative file under the app root, and drop the resource tree
+        // (which excludes the resource class itself and any like-named sibling resources).
+        List<VirtualFile> results = new ArrayList<>();
+        for (VirtualFile candidate : TemplateUtils.filesNamed(resourceClass.getProject(), TemplateUtils.fileNameOf(relPath))) {
+            String candidatePath = candidate.getPath();
+            if (candidatePath.contains(TemplateUtils.RESOURCE_DIR_SEGMENT)) {
+                continue;
+            }
+            if (TemplateUtils.isUnderAppRootWithRel(candidatePath, appRoot, relPath)) {
+                results.add(candidate);
+            }
+        }
+        return results;
     }
 
     @Nullable
     @Override
     public PhpClass resolveResourceClass(@NotNull VirtualFile templateFile, @NotNull Project project) {
-        if (!templateFile.getName().endsWith(EXTENSION)) {
-            return null;
-        }
         String filePath = templateFile.getPath();
-        String segment = "/" + templateDirSegment(project) + "/";
-        int idx = filePath.lastIndexOf(segment);
-        if (idx < 0) {
+        if (!templateFile.getName().endsWith(EXTENSION) || filePath.contains(TemplateUtils.RESOURCE_DIR_SEGMENT)) {
             return null;
         }
-        String appRoot = filePath.substring(0, idx);
-        String relInTemplates = filePath.substring(idx + segment.length());
-        String classAbsPath = appRoot + TemplateUtils.RESOURCE_DIR_SEGMENT + relInTemplates;
-        return TemplateUtils.findClassByAbsolutePath(project, classAbsPath);
+        // Reverse of resolveTemplates: the resource shares the template's name and relative path,
+        // but under src/Resource/. Look up resource files by that name and keep the one whose own
+        // relative path is this template under the same app root.
+        for (VirtualFile resourceFile : TemplateUtils.filesNamed(project, templateFile.getName())) {
+            String appRoot = TemplateUtils.appRootOfPath(resourceFile.getPath());
+            String resourceRel = TemplateUtils.relativeFromResourcePath(resourceFile.getPath());
+            if (appRoot == null || resourceRel == null) {
+                continue;
+            }
+            if (TemplateUtils.isUnderAppRootWithRel(filePath, appRoot, resourceRel)) {
+                PhpClass cls = TemplateUtils.findClass(project, resourceFile);
+                if (cls != null) {
+                    return cls;
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -160,10 +183,5 @@ public class QiqSupport implements TemplateEngineSupport {
     private static boolean isThisQualified(@NotNull FieldReference fieldReference) {
         return fieldReference.getClassReference() instanceof Variable variable
                 && "this".equals(variable.getName());
-    }
-
-    @NotNull
-    private static String templateDirSegment(@NotNull Project project) {
-        return TemplateUtils.trimSlash(Settings.getInstance(project).qiqTemplatePath);
     }
 }

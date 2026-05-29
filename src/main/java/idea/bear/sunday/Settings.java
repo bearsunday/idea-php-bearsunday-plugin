@@ -41,20 +41,11 @@ public class Settings implements PersistentStateComponent<Settings> {
             "var/schema/request"
     );
 
-    public static final Collection<String> DEFAULT_TWIG_TEMPLATE_PATHS = Arrays.asList(
-            "src/Resource",
-            "var/templates"
-    );
-
-    public static final String DEFAULT_QIQ_TEMPLATE_PATH = "var/qiq/template";
-
     public String auraRouteFile = DEFAULT_AURA_ROUTE_FILE;
     public Collection<String> resourcePaths = DEFAULT_RESOURCE_PATH;
     public Collection<String> sqlPaths = DEFAULT_SQL_PATH;
     public Collection<String> jsonSchemaPath = DEFAULT_JSON_SCHEMA_PATH;
     public Collection<String> jsonValidatePath = DEFAULT_JSON_VALIDATE_PATH;
-    public Collection<String> twigTemplatePaths = DEFAULT_TWIG_TEMPLATE_PATHS;
-    public String qiqTemplatePath = DEFAULT_QIQ_TEMPLATE_PATH;
 
     protected Project project;
 

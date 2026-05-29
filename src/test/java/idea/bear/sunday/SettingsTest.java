@@ -46,20 +46,6 @@ class SettingsTest {
     }
 
     @Test
-    void defaultTwigTemplatePaths() {
-        Settings settings = new Settings();
-        assertTrue(settings.twigTemplatePaths.contains("src/Resource"));
-        assertTrue(settings.twigTemplatePaths.contains("var/templates"));
-        assertEquals(2, settings.twigTemplatePaths.size());
-    }
-
-    @Test
-    void defaultQiqTemplatePath() {
-        Settings settings = new Settings();
-        assertEquals("var/qiq/template", settings.qiqTemplatePath);
-    }
-
-    @Test
     void getStateReturnsSelf() {
         Settings settings = new Settings();
         assertSame(settings, settings.getState());
