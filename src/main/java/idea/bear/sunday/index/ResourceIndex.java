@@ -1,7 +1,7 @@
 package idea.bear.sunday.index;
 
 import com.intellij.openapi.editor.Editor;
-import com.intellij.openapi.editor.impl.EditorImpl;
+import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.vfs.VfsUtil;
@@ -74,17 +74,17 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
 
     public static PsiElement[] getFileByUri(String uri, Project project, Editor editor)
     {
-        VirtualFile editorFile = ((EditorImpl) editor).getVirtualFile();
-        boolean pageContext = editorFile != null
-            && editorFile.getPath().startsWith(project.getBasePath() + "/src/Resource/Page");
-
-        String relPath = UriUtil.toResourceRelativePath(uri, pageContext);
-        if (relPath == null) {
+        VirtualFile baseDir = ProjectUtil.guessProjectDir(project);
+        if (baseDir == null) {
             return new PsiElement[0];
         }
 
-        VirtualFile baseDir = ProjectUtil.guessProjectDir(project);
-        if (baseDir == null) {
+        VirtualFile editorFile = FileDocumentManager.getInstance().getFile(editor.getDocument());
+        boolean pageContext = editorFile != null
+            && editorFile.getPath().startsWith(baseDir.getPath() + "/src/Resource/Page");
+
+        String relPath = UriUtil.toResourceRelativePath(uri, pageContext);
+        if (relPath == null) {
             return new PsiElement[0];
         }
 
