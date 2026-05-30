@@ -69,7 +69,9 @@ public class RouterGotoDeclarationHandler implements GotoDeclarationHandler {
             }
 
             PsiFile pfiFile = psiManager.findFile(targetFile);
-            psiElements.add(pfiFile);
+            if (pfiFile != null) {
+                psiElements.add(pfiFile);
+            }
         }
 
         if (psiElements.isEmpty()) {

@@ -115,7 +115,9 @@ public class AnnotationOrAttributeGotoDeclarationHandler implements GotoDeclarat
                 }
 
                 PsiFile psiFile = psiManager.findFile(targetFile);
-                psiElements.add(psiFile);
+                if (psiFile != null) {
+                    psiElements.add(psiFile);
+                }
             }
         }
 
