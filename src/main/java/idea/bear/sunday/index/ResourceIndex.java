@@ -1,8 +1,5 @@
 package idea.bear.sunday.index;
 
-import com.damnhandy.uri.template.MalformedUriTemplateException;
-import com.damnhandy.uri.template.UriTemplateComponent;
-import com.damnhandy.uri.template.impl.UriTemplateParser;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.impl.EditorImpl;
 import com.intellij.openapi.project.Project;
@@ -16,16 +13,10 @@ import com.intellij.util.io.DataExternalizer;
 import com.intellij.util.io.EnumeratorStringDescriptor;
 import com.intellij.util.io.KeyDescriptor;
 import com.jetbrains.php.lang.PhpFileType;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.text.WordUtils;
+import idea.bear.sunday.util.UriUtil;
 import org.jetbrains.annotations.NotNull;
 
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
 
 public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
@@ -82,52 +73,25 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
 
     public static PsiElement[] getFileByUri(String uri, Project project, Editor editor)
     {
-        UriTemplateParser uriTemplateParser = new UriTemplateParser();
+        String editFile = ((EditorImpl) editor).getVirtualFile().getPath();
+        boolean pageContext = editFile.startsWith(project.getBasePath() + "/src/Resource/Page");
 
-        try {
-            LinkedList<UriTemplateComponent> list = uriTemplateParser.scan(uri);
-            if (list.get(0) != null) {
-                uri = list.get(0).getValue();
-            }
-        } catch (MalformedUriTemplateException me) {
+        String relPath = UriUtil.toResourceRelativePath(uri, pageContext);
+        if (relPath == null) {
             return new PsiElement[0];
         }
 
-        try{
-            URI u = new URI(uri);
-            String relPath = "src/Resource/";
-
-            if (u.getScheme() == null) {
-                String editFile = ((EditorImpl) editor).getVirtualFile().getPath();
-                if (editFile.startsWith(project.getBasePath() + "/src/Resource/Page")) {
-                    relPath += "Page";
-                } else {
-                    relPath += "App";
-                }
-                relPath += StringUtils.remove(WordUtils.capitalizeFully(u.getPath(), new char[]{'/', '-'}), "-");
-            } else {
-                relPath += WordUtils.capitalize(u.getScheme())
-                    + StringUtils.remove(WordUtils.capitalizeFully(u.getPath(), new char[]{'/', '-'}), "-");
-            }
-            if (relPath.endsWith("/")) {
-                relPath += "index.php";
-            } else {
-                relPath += ".php";
-            }
-            VirtualFile targetFile = project.getBaseDir().findFileByRelativePath(relPath);
-
-            if (targetFile == null) {
-                return new PsiElement[0];
-            }
-
-            PsiFile psiFile = PsiManager.getInstance(project).findFile(targetFile);
-            List<PsiElement> psiElements = new ArrayList<>();
-            psiElements.add(psiFile);
-
-            return psiElements.toArray(new PsiElement[0]);
-        } catch (URISyntaxException e) {
+        VirtualFile targetFile = project.getBaseDir().findFileByRelativePath(relPath);
+        if (targetFile == null) {
             return new PsiElement[0];
         }
+
+        PsiFile psiFile = PsiManager.getInstance(project).findFile(targetFile);
+        if (psiFile == null) {
+            return new PsiElement[0];
+        }
+
+        return new PsiElement[]{psiFile};
     }
 
     private static class MyDataIndexer implements DataIndexer<String, Resource, FileContent> {
