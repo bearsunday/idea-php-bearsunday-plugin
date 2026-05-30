@@ -74,8 +74,9 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
 
     public static PsiElement[] getFileByUri(String uri, Project project, Editor editor)
     {
-        String editFile = ((EditorImpl) editor).getVirtualFile().getPath();
-        boolean pageContext = editFile.startsWith(project.getBasePath() + "/src/Resource/Page");
+        VirtualFile editorFile = ((EditorImpl) editor).getVirtualFile();
+        boolean pageContext = editorFile != null
+            && editorFile.getPath().startsWith(project.getBasePath() + "/src/Resource/Page");
 
         String relPath = UriUtil.toResourceRelativePath(uri, pageContext);
         if (relPath == null) {
@@ -121,7 +122,8 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
 
         VirtualFile baseDir = ProjectUtil.guessProjectDir(psiFile.getProject());
         String relativePath = baseDir == null ? null : VfsUtil.getRelativePath(inputData.getFile(), baseDir, '/');
-        return relativePath == null || (!relativePath.contains("/tests/")) || (!relativePath.contains("/vendor/"));
+        return relativePath == null
+            || (!relativePath.contains("/tests/") && !relativePath.contains("/vendor/"));
     }
 
 }
