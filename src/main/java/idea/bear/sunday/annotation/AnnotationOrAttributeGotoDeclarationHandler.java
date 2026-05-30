@@ -3,6 +3,7 @@ package idea.bear.sunday.annotation;
 import com.intellij.codeInsight.navigation.actions.GotoDeclarationHandler;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
@@ -84,6 +85,11 @@ public class AnnotationOrAttributeGotoDeclarationHandler implements GotoDeclarat
         final String[] names = resourceName.replace("\"", "").split(",");
         final List<PsiElement> psiElements = new ArrayList<>();
 
+        VirtualFile baseDir = ProjectUtil.guessProjectDir(project);
+        if (baseDir == null) {
+            return new PsiElement[0];
+        }
+
         PsiManager psiManager = PsiManager.getInstance(project);
         for (String name : names) {
             String sqlFileName;
@@ -103,7 +109,7 @@ public class AnnotationOrAttributeGotoDeclarationHandler implements GotoDeclarat
                     sqlPath += "/";
                 }
 
-                targetFile = project.getBaseDir().findFileByRelativePath(sqlPath + sqlFileName);
+                targetFile = baseDir.findFileByRelativePath(sqlPath + sqlFileName);
                 if (targetFile == null) {
                     continue;
                 }
@@ -138,6 +144,11 @@ public class AnnotationOrAttributeGotoDeclarationHandler implements GotoDeclarat
             jsonPaths = settings.jsonSchemaPath;
         }
 
+        VirtualFile baseDir = ProjectUtil.guessProjectDir(project);
+        if (baseDir == null) {
+            return new PsiElement[0];
+        }
+
         List<PsiElement> psiElements = new ArrayList<>();
         PsiManager psiManager = PsiManager.getInstance(project);
 
@@ -147,7 +158,7 @@ public class AnnotationOrAttributeGotoDeclarationHandler implements GotoDeclarat
             }
 
             String jsonFilePath = jsonPath + resourceName;
-            VirtualFile targetFile = project.getBaseDir().findFileByRelativePath(jsonFilePath);
+            VirtualFile targetFile = baseDir.findFileByRelativePath(jsonFilePath);
             if (targetFile == null) {
                 continue;
             }

@@ -23,7 +23,7 @@ import java.util.Map;
 public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
 
     public static final ID<String, Resource> RESOURCE_URI_INDEX = ID.create("idea.bear.sunday.resource.uri");
-    private static final int INDEX_VERSION = 3;
+    private static final int INDEX_VERSION = 4;
     private final DataIndexer<String, Resource, FileContent> myIndexer = new MyDataIndexer();
     private final DataExternalizer<Resource> myExternalizer = new ResourceExternalizer();
 
@@ -119,7 +119,8 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
             return false;
         }
 
-        String relativePath = VfsUtil.getRelativePath(inputData.getFile(), psiFile.getProject().getBaseDir(), '/');
+        VirtualFile baseDir = ProjectUtil.guessProjectDir(psiFile.getProject());
+        String relativePath = baseDir == null ? null : VfsUtil.getRelativePath(inputData.getFile(), baseDir, '/');
         return relativePath == null || (!relativePath.contains("/tests/")) || (!relativePath.contains("/vendor/"));
     }
 

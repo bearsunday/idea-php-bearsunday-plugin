@@ -5,6 +5,9 @@
 ### Added
 - Goto bound interceptor: Ctrl/Cmd-click a Ray.Aop binding attribute (e.g. `#[Transactional]`) to jump to the interceptor class(es) bound to it in a module via `bindInterceptor()` (#19)
 
+### Changed
+- Replaced the deprecated `Project#getBaseDir()` with `ProjectUtil.guessProjectDir()` (with null guards) across the resource / router / SQL / JSON Schema goto handlers and the resource index
+
 ### Fixed
 - Resource URI goto failed for camelCase URIs (e.g. `app://self/blogPosting` no longer resolves to `Blogposting`); inner capitals are now preserved (#11)
 
