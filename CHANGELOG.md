@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Goto bound interceptor: Ctrl/Cmd-click a Ray.Aop binding attribute (e.g. `#[Transactional]`) to jump to the interceptor class(es) bound to it in a module via `bindInterceptor()` (#19)
+
+### Fixed
+- Resource URI goto failed for camelCase URIs (e.g. `app://self/blogPosting` no longer resolves to `Blogposting`); inner capitals are now preserved (#11)
+
 ## [0.7]
 
 ### Changed

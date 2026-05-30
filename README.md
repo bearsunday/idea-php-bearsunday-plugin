@@ -11,6 +11,7 @@
  * BEAR.Resource goto (app://self/user will be pointed to src/Resource/App/User.php)
  * BEAR.Resource URI completion
  * BEAR.Resource JSON Schema goto
+ * Ray.Aop interceptor goto (#[Transactional] will be pointed to the interceptor bound in a module)
  * Ray.MediaQuery SQL goto
  * Ray.QueryModule SQL goto
  * Aura.Route goto BEAR.Resource

@@ -11,6 +11,7 @@
     <li>BEAR.Resource URI completion</li>
     <li>BEAR.Resource Annotation Helper</li>
     <li>BEAR.Resource JSON Schema goto</li>
+    <li>Ray.Aop interceptor goto (#[Transactional] will be pointed to the interceptor bound in a module)</li>
     <li>Ray.MediaQuery SQL goto</li>
     <li>Ray.QueryModule SQL goto</li>
     <li>Aura.Route goto BEAR.Resource</li>
@@ -32,6 +33,7 @@
   <extensions defaultExtensionNs="com.intellij">
     <projectService serviceImplementation="idea.bear.sunday.Settings"/>
     <fileBasedIndex implementation="idea.bear.sunday.index.ResourceIndex"/>
+    <fileBasedIndex implementation="idea.bear.sunday.aop.InterceptorBindingIndex"/>
 
     <completion.contributor language="PHP" implementationClass="idea.bear.sunday.resource.UriCompletionContributor"/>
     <completion.contributor language="PHP" order="first" id="BEARResourceAnnotationCompletionContributor" implementationClass="idea.bear.sunday.annotation.AnnotationCompletionContributor"/>
@@ -39,6 +41,7 @@
     <gotoDeclarationHandler implementation="idea.bear.sunday.router.RouterGotoDeclarationHandler"/>
     <gotoDeclarationHandler implementation="idea.bear.sunday.annotation.AnnotationOrAttributeGotoDeclarationHandler"/>
     <gotoDeclarationHandler implementation="idea.bear.sunday.resource.ResourceGotoDeclarationHandler"/>
+    <gotoDeclarationHandler implementation="idea.bear.sunday.aop.InterceptorGotoDeclarationHandler"/>
 
   </extensions>
 
