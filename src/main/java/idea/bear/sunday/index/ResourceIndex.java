@@ -3,6 +3,7 @@ package idea.bear.sunday.index;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.impl.EditorImpl;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
@@ -81,7 +82,12 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
             return new PsiElement[0];
         }
 
-        VirtualFile targetFile = project.getBaseDir().findFileByRelativePath(relPath);
+        VirtualFile baseDir = ProjectUtil.guessProjectDir(project);
+        if (baseDir == null) {
+            return new PsiElement[0];
+        }
+
+        VirtualFile targetFile = baseDir.findFileByRelativePath(relPath);
         if (targetFile == null) {
             return new PsiElement[0];
         }

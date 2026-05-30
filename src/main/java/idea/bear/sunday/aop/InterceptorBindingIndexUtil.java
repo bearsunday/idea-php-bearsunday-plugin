@@ -39,7 +39,8 @@ public final class InterceptorBindingIndexUtil {
         Map<String, List<String>> result = new HashMap<>();
 
         for (MethodReference call : PsiTreeUtil.findChildrenOfType(psiFile, MethodReference.class)) {
-            if (!BIND_INTERCEPTOR.equals(call.getName())) {
+            // PHP method names are case-insensitive, so match accordingly.
+            if (!BIND_INTERCEPTOR.equalsIgnoreCase(call.getName())) {
                 continue;
             }
 
@@ -70,7 +71,7 @@ public final class InterceptorBindingIndexUtil {
         List<String> result = new ArrayList<>();
 
         for (MethodReference matcher : PsiTreeUtil.findChildrenOfType(bindInterceptorCall, MethodReference.class)) {
-            if (!ANNOTATED_WITH.equals(matcher.getName())) {
+            if (!ANNOTATED_WITH.equalsIgnoreCase(matcher.getName())) {
                 continue;
             }
 
