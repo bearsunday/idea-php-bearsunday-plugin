@@ -9,7 +9,7 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.jetbrains.php.PhpIndex;
 import com.jetbrains.php.lang.psi.elements.ClassReference;
-import com.jetbrains.php.lang.psi.elements.PhpAttribute;
+import com.jetbrains.php.lang.psi.elements.impl.PhpAttributeImpl;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -59,12 +59,17 @@ public class InterceptorGotoDeclarationHandler implements GotoDeclarationHandler
      */
     @Nullable
     private static String findClickedAttributeFqn(@NotNull PsiElement psiElement) {
-        ClassReference classReference = PsiTreeUtil.getParentOfType(psiElement, ClassReference.class);
-        if (classReference != null && classReference.getParent() instanceof PhpAttribute attribute) {
-            return InterceptorBindingIndexUtil.normalizeFqn(attribute.getFQN());
+        PhpAttributeImpl attribute = PsiTreeUtil.getParentOfType(psiElement, PhpAttributeImpl.class);
+        if (attribute == null) {
+            return null;
         }
 
-        return null;
+        ClassReference classReference = PsiTreeUtil.findChildOfType(attribute, ClassReference.class);
+        if (classReference == null || !PsiTreeUtil.isAncestor(classReference, psiElement, false)) {
+            return null;
+        }
+
+        return InterceptorBindingIndexUtil.normalizeFqn(classReference.getFQN());
     }
 
     @Nullable
