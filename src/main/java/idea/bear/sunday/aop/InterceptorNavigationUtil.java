@@ -71,8 +71,23 @@ final class InterceptorNavigationUtil {
     }
 
     @NotNull
+    static PsiElement findLineMarkerAnchor(@NotNull ClassReference classReference) {
+        PsiElement anchor = classReference;
+        while (anchor.getFirstChild() != null) {
+            anchor = anchor.getFirstChild();
+        }
+
+        return anchor;
+    }
+
+    @NotNull
     static PsiElement[] findInterceptorTargets(@Nullable String annotationFqn, @NotNull Project project) {
         List<String> interceptorFqns = findInterceptorFqns(annotationFqn, project);
+        return findInterceptorTargets(interceptorFqns, project);
+    }
+
+    @NotNull
+    static PsiElement[] findInterceptorTargets(@NotNull List<String> interceptorFqns, @NotNull Project project) {
         if (interceptorFqns.isEmpty()) {
             return PsiElement.EMPTY_ARRAY;
         }

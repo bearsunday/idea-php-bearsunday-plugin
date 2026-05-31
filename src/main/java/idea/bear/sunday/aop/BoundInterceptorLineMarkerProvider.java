@@ -1,6 +1,5 @@
 package idea.bear.sunday.aop;
 
-import com.intellij.codeInsight.daemon.LineMarkerInfo;
 import com.intellij.codeInsight.daemon.RelatedItemLineMarkerInfo;
 import com.intellij.codeInsight.daemon.RelatedItemLineMarkerProvider;
 import com.intellij.codeInsight.navigation.NavigationGutterIconBuilder;
@@ -35,11 +34,13 @@ public class BoundInterceptorLineMarkerProvider extends RelatedItemLineMarkerPro
         @NotNull PsiElement element,
         @NotNull Collection<? super RelatedItemLineMarkerInfo<?>> result
     ) {
-        if (!(element instanceof ClassReference classReference)) {
+        ClassReference classReference = InterceptorNavigationUtil.findAttributeClassReference(element);
+        if (classReference == null) {
             return;
         }
 
-        if (InterceptorNavigationUtil.findAttributeClassReference(classReference) != classReference) {
+        PsiElement markerElement = InterceptorNavigationUtil.findLineMarkerAnchor(classReference);
+        if (markerElement != element) {
             return;
         }
 
@@ -54,18 +55,17 @@ public class BoundInterceptorLineMarkerProvider extends RelatedItemLineMarkerPro
             return;
         }
 
-        PsiElement[] targets = InterceptorNavigationUtil.findInterceptorTargets(annotationFqn, project);
+        PsiElement[] targets = InterceptorNavigationUtil.findInterceptorTargets(interceptorFqns, project);
         if (targets.length == 0) {
             return;
         }
 
-        LineMarkerInfo<PsiElement> marker = NavigationGutterIconBuilder.create(BEAR_ICON)
+        result.add(NavigationGutterIconBuilder.create(BEAR_ICON)
             .setTargets(Arrays.asList(targets))
             .setTooltipText(buildTooltip(interceptorFqns))
             .setPopupTitle("Bound Interceptors")
             .setEmptyPopupText("No bound interceptor found")
-            .createLineMarkerInfo(classReference);
-        result.add((RelatedItemLineMarkerInfo<?>) marker);
+            .createLineMarkerInfo(markerElement));
     }
 
     private static String buildTooltip(List<String> interceptorFqns) {
