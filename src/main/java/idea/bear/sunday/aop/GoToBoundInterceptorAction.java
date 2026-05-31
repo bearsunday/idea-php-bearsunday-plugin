@@ -31,7 +31,7 @@ public class GoToBoundInterceptorAction extends AnAction {
     public void actionPerformed(@NotNull AnActionEvent event) {
         Project project = event.getProject();
         Editor editor = event.getData(CommonDataKeys.EDITOR);
-        if (project == null || editor == null) {
+        if (project == null || editor == null || DumbService.isDumb(project)) {
             return;
         }
 
