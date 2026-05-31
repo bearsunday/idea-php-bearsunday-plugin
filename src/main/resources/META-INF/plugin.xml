@@ -11,6 +11,7 @@
     <li>BEAR.Resource URI completion</li>
     <li>BEAR.Resource Annotation Helper</li>
     <li>BEAR.Resource JSON Schema goto</li>
+    <li>Ray.Aop bound interceptor navigation from attributes such as #[Transactional]</li>
     <li>Ray.MediaQuery SQL goto</li>
     <li>Ray.QueryModule SQL goto</li>
     <li>Aura.Route goto BEAR.Resource</li>
@@ -32,9 +33,11 @@
   <extensions defaultExtensionNs="com.intellij">
     <projectService serviceImplementation="idea.bear.sunday.Settings"/>
     <fileBasedIndex implementation="idea.bear.sunday.index.ResourceIndex"/>
+    <fileBasedIndex implementation="idea.bear.sunday.aop.InterceptorBindingIndex"/>
 
     <completion.contributor language="PHP" implementationClass="idea.bear.sunday.resource.UriCompletionContributor"/>
     <completion.contributor language="PHP" order="first" id="BEARResourceAnnotationCompletionContributor" implementationClass="idea.bear.sunday.annotation.AnnotationCompletionContributor"/>
+    <codeInsight.lineMarkerProvider language="PHP" implementationClass="idea.bear.sunday.aop.BoundInterceptorLineMarkerProvider"/>
 
     <gotoDeclarationHandler implementation="idea.bear.sunday.router.RouterGotoDeclarationHandler"/>
     <gotoDeclarationHandler implementation="idea.bear.sunday.annotation.AnnotationOrAttributeGotoDeclarationHandler"/>
@@ -62,5 +65,16 @@
   <depends>com.jetbrains.twig</depends>
   <depends>com.intellij.modules.platform</depends>
   <depends optional="true" config-file="idea.bear.sunday-annotation.xml">de.espend.idea.php.annotation</depends>
+
+  <actions>
+    <action id="idea.bear.sunday.aop.GoToBoundInterceptor"
+            class="idea.bear.sunday.aop.GoToBoundInterceptorAction"
+            text="Go to Bound Interceptor"
+            description="Navigate from a Ray.Aop attribute to the interceptor bound to it"
+            icon="/icons/bear.png">
+      <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+      <add-to-group group-id="GoToMenu" anchor="last"/>
+    </action>
+  </actions>
 
 </idea-plugin>

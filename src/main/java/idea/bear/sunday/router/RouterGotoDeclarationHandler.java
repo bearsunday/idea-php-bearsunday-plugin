@@ -3,6 +3,7 @@ package idea.bear.sunday.router;
 import com.intellij.codeInsight.navigation.actions.GotoDeclarationHandler;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
@@ -50,6 +51,11 @@ public class RouterGotoDeclarationHandler implements GotoDeclarationHandler {
             return new PsiElement[0];
         }
 
+        VirtualFile baseDir = ProjectUtil.guessProjectDir(project);
+        if (baseDir == null) {
+            return new PsiElement[0];
+        }
+
         List<PsiElement> psiElements = new ArrayList<>();
         String resourceFileName = RouterUtil.toResourceFileName(resourceName);
         PsiManager psiManager = PsiManager.getInstance(project);
@@ -57,13 +63,15 @@ public class RouterGotoDeclarationHandler implements GotoDeclarationHandler {
         for (String resourcePath : resourcePaths) {
             String findFilePath = resourcePath + resourceFileName;
 
-            VirtualFile targetFile = project.getBaseDir().findFileByRelativePath(findFilePath);
+            VirtualFile targetFile = baseDir.findFileByRelativePath(findFilePath);
             if (targetFile == null) {
                 continue;
             }
 
             PsiFile pfiFile = psiManager.findFile(targetFile);
-            psiElements.add(pfiFile);
+            if (pfiFile != null) {
+                psiElements.add(pfiFile);
+            }
         }
 
         if (psiElements.isEmpty()) {
