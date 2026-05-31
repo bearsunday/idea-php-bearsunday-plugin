@@ -1,5 +1,6 @@
 package idea.bear.sunday.template;
 
+import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -13,6 +14,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
+import java.util.Collections;
 
 final class TemplateUtils {
 
@@ -64,9 +66,17 @@ final class TemplateUtils {
         return classFile == null ? null : relativeFromResourcePath(classFile.getPath());
     }
 
-    /** Project files (libraries excluded) with the given file name, looked up via the name index. */
+    /**
+     * Project files (libraries excluded) with the given file name, looked up via the name index.
+     * Returns empty while indexing (dumb mode): the name index is unavailable then and querying it
+     * would throw IndexNotReadyException. Callers run from line markers / goto / reference resolution,
+     * which the daemon re-runs once indexing finishes, so navigation simply re-resolves.
+     */
     @NotNull
     static Collection<VirtualFile> filesNamed(@NotNull Project project, @NotNull String fileName) {
+        if (DumbService.isDumb(project)) {
+            return Collections.emptyList();
+        }
         return FilenameIndex.getVirtualFilesByName(fileName, GlobalSearchScope.projectScope(project));
     }
 
