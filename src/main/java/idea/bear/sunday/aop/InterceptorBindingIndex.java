@@ -96,7 +96,7 @@ public class InterceptorBindingIndex extends FileBasedIndexExtension<String, Lis
         public Map<String, List<String>> map(@NotNull FileContent inputData) {
             // Cheap pre-filter: only parse files that actually declare interceptor bindings.
             // Matched case-insensitively to stay consistent with the PSI-level method-name match.
-            if (!StringUtil.containsIgnoreCase(inputData.getContentAsText(), "bindInterceptor")) {
+            if (!StringUtil.containsIgnoreCase(inputData.getContentAsText().toString(), "bindInterceptor")) {
                 return Collections.emptyMap();
             }
 
