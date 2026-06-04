@@ -59,8 +59,4 @@ public class SettingsForm implements Configurable {
     private Settings getSettings() {
         return Settings.getInstance(project);
     }
-
-    private void createUIComponents() {
-        // TODO: place custom component creation code here
-    }
 }
