@@ -5,6 +5,7 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.indexing.FileContent;
 import com.jetbrains.php.lang.psi.elements.PhpClass;
+import idea.bear.sunday.util.UriUtil;
 
 public class ResourceIndexUtil {
 
@@ -34,23 +35,10 @@ public class ResourceIndexUtil {
             return result;
         }
 
-        String nameSpace = phpClass.getNamespaceName();
-        if(!nameSpace.contains("Resource")) {
+        String uri = UriUtil.toResourceUri(phpClass);
+        if(uri == null) {
             return result;
         }
-
-        int index = nameSpace.indexOf("Resource\\");
-        String scheme = nameSpace.substring(index + 9).replace("\\", "/").toLowerCase();
-
-        if(scheme.startsWith("app")) {
-            scheme = scheme.replace("app", "app://self");
-        }
-        if(scheme.startsWith("page")) {
-            scheme = scheme.replace("page", "page://self");
-        }
-
-        String className = phpClass.getName().toLowerCase();
-        String uri = scheme + className;
 
         result.addUriMap(uri, new Resource(uri, phpClass.getFQN()));
 

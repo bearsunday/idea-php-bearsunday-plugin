@@ -11,6 +11,7 @@
     <li>BEAR.Resource URI completion</li>
     <li>BEAR.Resource Annotation Helper</li>
     <li>BEAR.Resource JSON Schema goto</li>
+    <li>Incoming Link/Embed relation gutter for BEAR.Resource methods</li>
     <li>Ray.Aop bound interceptor navigation from attributes such as #[Transactional]</li>
     <li>Ray.MediaQuery SQL goto</li>
     <li>Ray.QueryModule SQL goto</li>
@@ -34,10 +35,12 @@
     <projectService serviceImplementation="idea.bear.sunday.Settings"/>
     <fileBasedIndex implementation="idea.bear.sunday.index.ResourceIndex"/>
     <fileBasedIndex implementation="idea.bear.sunday.aop.InterceptorBindingIndex"/>
+    <fileBasedIndex implementation="idea.bear.sunday.relation.ResourceRelationIndex"/>
 
     <completion.contributor language="PHP" implementationClass="idea.bear.sunday.resource.UriCompletionContributor"/>
     <completion.contributor language="PHP" order="first" id="BEARResourceAnnotationCompletionContributor" implementationClass="idea.bear.sunday.annotation.AnnotationCompletionContributor"/>
     <codeInsight.lineMarkerProvider language="PHP" implementationClass="idea.bear.sunday.aop.BoundInterceptorLineMarkerProvider"/>
+    <codeInsight.lineMarkerProvider language="PHP" implementationClass="idea.bear.sunday.relation.ResourceIncomingRelationLineMarkerProvider"/>
 
     <gotoDeclarationHandler implementation="idea.bear.sunday.router.RouterGotoDeclarationHandler"/>
     <gotoDeclarationHandler implementation="idea.bear.sunday.annotation.AnnotationOrAttributeGotoDeclarationHandler"/>
@@ -53,7 +56,7 @@
             class="idea.bear.sunday.aop.GoToBoundInterceptorAction"
             text="Go to Bound Interceptor"
             description="Navigate from a Ray.Aop attribute to the interceptor bound to it"
-            icon="/icons/bear.png">
+            icon="/icons/ray-aop.png">
       <add-to-group group-id="EditorPopupMenu" anchor="last"/>
       <add-to-group group-id="GoToMenu" anchor="last"/>
     </action>
