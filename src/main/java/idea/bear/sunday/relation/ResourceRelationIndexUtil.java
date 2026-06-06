@@ -28,6 +28,10 @@ public final class ResourceRelationIndexUtil {
     }
 
     public static Map<String, List<ResourceRelation>> index(PsiFile psiFile) {
+        return index(psiFile, ProjectUtil.guessProjectDir(psiFile.getProject()));
+    }
+
+    static Map<String, List<ResourceRelation>> index(PsiFile psiFile, @Nullable VirtualFile baseDir) {
         Map<String, List<ResourceRelation>> result = new HashMap<>();
         PhpClass sourceClass = PsiTreeUtil.findChildOfType(psiFile, PhpClass.class);
         String sourceUri = UriUtil.toResourceUri(sourceClass);
@@ -35,7 +39,6 @@ public final class ResourceRelationIndexUtil {
             return result;
         }
 
-        VirtualFile baseDir = ProjectUtil.guessProjectDir(psiFile.getProject());
         VirtualFile sourceFile = psiFile.getVirtualFile();
         if (baseDir == null || sourceFile == null) {
             return result;
