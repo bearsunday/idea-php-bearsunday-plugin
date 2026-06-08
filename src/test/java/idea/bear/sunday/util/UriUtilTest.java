@@ -68,6 +68,37 @@ class UriUtilTest {
     }
 
     @Test
+    void normalizeSupportedAppUriWithTemplate() {
+        assertEquals("app://self/user", UriUtil.normalizeSupportedResourceUri("app://self/user{?id}", false));
+    }
+
+    @Test
+    void normalizeSupportedPageUriWithTemplate() {
+        assertEquals("page://self/index", UriUtil.normalizeSupportedResourceUri("page://self/index{?id}", false));
+    }
+
+    @Test
+    void normalizeSupportedRelativeAppContext() {
+        assertEquals("app://self/user", UriUtil.normalizeSupportedResourceUri("/user{?id}", false));
+    }
+
+    @Test
+    void normalizeSupportedRelativePageContext() {
+        assertEquals("page://self/user", UriUtil.normalizeSupportedResourceUri("/user{?id}", true));
+    }
+
+    @Test
+    void supportedRelativePathCamelCaseUriWithTemplate() {
+        assertEquals("src/Resource/App/BlogPosting.php", UriUtil.toSupportedResourceRelativePath("app://self/blogPosting{?id}", false));
+    }
+
+    @Test
+    void unsupportedQueryScheme() {
+        assertNull(UriUtil.normalizeSupportedResourceUri("query://self/user", false));
+        assertNull(UriUtil.toSupportedResourceRelativePath("query://self/user", false));
+    }
+
+    @Test
     void relativePathEmptyUri() {
         assertNull(UriUtil.toResourceRelativePath("", false));
     }

@@ -19,6 +19,9 @@ import java.util.List;
 
 final class InterceptorNavigationUtil {
 
+    private static final String RESOURCE_EMBED = "\\BEAR\\Resource\\Annotation\\Embed";
+    private static final String RESOURCE_LINK = "\\BEAR\\Resource\\Annotation\\Link";
+
     private InterceptorNavigationUtil() {
     }
 
@@ -49,7 +52,7 @@ final class InterceptorNavigationUtil {
         }
 
         ClassReference classReference = findAttributeClassReference(psiElement);
-        if (classReference != null) {
+        if (classReference != null && !isResourceRelationAttribute(classReference)) {
             return InterceptorBindingIndexUtil.normalizeFqn(classReference.getFQN());
         }
 
@@ -68,6 +71,11 @@ final class InterceptorNavigationUtil {
         }
 
         return null;
+    }
+
+    static boolean isResourceRelationAttribute(@NotNull ClassReference classReference) {
+        String fqn = InterceptorBindingIndexUtil.normalizeFqn(classReference.getFQN());
+        return RESOURCE_EMBED.equals(fqn) || RESOURCE_LINK.equals(fqn);
     }
 
     @NotNull

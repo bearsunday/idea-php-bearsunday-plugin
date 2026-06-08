@@ -1,3 +1,5 @@
+import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+
 fun properties(key: String) = providers.gradleProperty(key)
 fun environment(key: String) = providers.environmentVariable(key)
 
@@ -23,6 +25,7 @@ dependencies {
 
     testImplementation(platform("org.junit:junit-bom:5.11.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
+    testImplementation("junit:junit:4.13.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     intellijPlatform {
@@ -30,6 +33,7 @@ dependencies {
         bundledPlugin("com.jetbrains.php")
         bundledPlugin("com.jetbrains.twig")
         plugin("de.espend.idea.php.annotation", "12.0.1")
+        testFramework(TestFrameworkType.Platform)
         pluginVerifier()
     }
 }

@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class BoundInterceptorLineMarkerProvider extends RelatedItemLineMarkerProvider {
-    private static final Icon BEAR_ICON = IconLoader.getIcon("/icons/bear.png", BoundInterceptorLineMarkerProvider.class);
+    private static final Icon AOP_ICON = IconLoader.getIcon("/icons/ray-aop.png", BoundInterceptorLineMarkerProvider.class);
 
     @Override
     public String getName() {
@@ -26,7 +26,7 @@ public class BoundInterceptorLineMarkerProvider extends RelatedItemLineMarkerPro
 
     @Override
     public Icon getIcon() {
-        return BEAR_ICON;
+        return AOP_ICON;
     }
 
     @Override
@@ -36,6 +36,9 @@ public class BoundInterceptorLineMarkerProvider extends RelatedItemLineMarkerPro
     ) {
         ClassReference classReference = InterceptorNavigationUtil.findAttributeClassReference(element);
         if (classReference == null) {
+            return;
+        }
+        if (InterceptorNavigationUtil.isResourceRelationAttribute(classReference)) {
             return;
         }
 
@@ -60,7 +63,7 @@ public class BoundInterceptorLineMarkerProvider extends RelatedItemLineMarkerPro
             return;
         }
 
-        result.add(NavigationGutterIconBuilder.create(BEAR_ICON)
+        result.add(NavigationGutterIconBuilder.create(AOP_ICON)
             .setTargets(Arrays.asList(targets))
             .setTooltipText(buildTooltip(interceptorFqns))
             .setPopupTitle("Bound Interceptors")
