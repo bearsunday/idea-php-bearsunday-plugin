@@ -3,7 +3,8 @@ package idea.bear.sunday.resource;
 import com.intellij.codeInsight.navigation.actions.GotoDeclarationHandler;
 import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.editor.Editor;
-import com.intellij.openapi.editor.impl.EditorImpl;
+import com.intellij.openapi.fileEditor.FileDocumentManager;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.impl.source.tree.LeafPsiElement;
 import com.jetbrains.php.lang.documentation.phpdoc.lexer.PhpDocTokenTypes;
@@ -39,7 +40,11 @@ public class ResourceGotoDeclarationHandler implements GotoDeclarationHandler {
             if (resourceName.startsWith("/")){
 
                 String schema = "app";
-                if  (((EditorImpl) editor).getVirtualFile().getPath().startsWith(
+                // editor may be an EditorWindowImpl for injected fragments (e.g. Qiq tags),
+                // which is not an EditorImpl; resolve the file without casting.
+                VirtualFile editorFile = editor == null ? null
+                    : FileDocumentManager.getInstance().getFile(editor.getDocument());
+                if (editorFile != null && editorFile.getPath().startsWith(
                     psiElement.getProject().getBasePath() + "/src/Resource/Page")
                 ){
                     schema = "page";

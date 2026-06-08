@@ -31,6 +31,7 @@ dependencies {
     intellijPlatform {
         phpstorm(properties("platformVersion"))
         bundledPlugin("com.jetbrains.php")
+        bundledPlugin("com.jetbrains.twig")
         plugin("de.espend.idea.php.annotation", "12.0.1")
         testFramework(TestFrameworkType.Platform)
         pluginVerifier()
@@ -63,6 +64,20 @@ intellijPlatform {
     pluginVerification {
         ides {
             recommended()
+        }
+    }
+}
+
+// Test-only IDE run with the third-party Qiq Templates Support plugin installed, for
+// verifying Qiq template features. The Qiq plugin is NOT a dependency of the published
+// plugin: it is absent from the main dependencies and from plugin.xml. Run via
+// `./gradlew runIdeWithQiq`.
+intellijPlatformTesting {
+    runIde {
+        register("runIdeWithQiq") {
+            plugins {
+                plugin("io.github.jingu.idea-qiq-plugin", "0.5.0")
+            }
         }
     }
 }

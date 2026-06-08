@@ -1,30 +1,25 @@
 <idea-plugin>
   <id>idea.bear.sunday</id>
   <name>BEAR.Sunday</name>
-  <version>0.7</version>
+  <version>0.8</version>
   <vendor email="shingo4092@gmail.com">Shingo Kumagai</vendor>
 
   <description><![CDATA[
-  <h2>Feature</h2>
+  <h2>Features</h2>
   <ul>
-    <li>BEAR.Resource goto (app://self/user will be pointed to src/Resource/App/User.php) & (page://self/user will be pointed to src/Resource/Page/User.php)</li>
     <li>BEAR.Resource URI completion</li>
-    <li>BEAR.Resource Annotation Helper</li>
+    <li>BEAR.Resource goto from URIs such as <code>app://self/user</code> to <code>src/Resource/App/User.php</code></li>
     <li>BEAR.Resource JSON Schema goto</li>
     <li>Incoming Link/Embed relation gutter for BEAR.Resource methods</li>
-    <li>Ray.Aop bound interceptor navigation from attributes such as #[Transactional]</li>
+    <li>Ray.Aop bound interceptor gutter icon and navigation from attributes such as <code>#[Transactional]</code></li>
     <li>Ray.MediaQuery SQL goto</li>
     <li>Ray.QueryModule SQL goto</li>
-    <li>Aura.Route goto BEAR.Resource</li>
+    <li>Aura.Router goto BEAR.Resource</li>
   </ul>
-  <h2>Information</h2>
+  <h2>Links</h2>
   <ul>
     <li><a href="https://github.com/bearsunday/idea-php-bearsunday-plugin">GitHub</a></li>
-    <li><a href="https://plugins.jetbrains.com/plugin/8030">JetBrains</a></li>
-  </ul>
-  <h2>Related Plugins</h2>
-  <ul>
-    <li><a href="https://plugins.jetbrains.com/plugin/7320">Php Annotations Plugin</a></li>
+    <li><a href="https://plugins.jetbrains.com/plugin/8030">JetBrains Marketplace</a></li>
   </ul>
   ]]></description>
 
@@ -45,9 +40,27 @@
     <gotoDeclarationHandler implementation="idea.bear.sunday.router.RouterGotoDeclarationHandler"/>
     <gotoDeclarationHandler implementation="idea.bear.sunday.annotation.AnnotationOrAttributeGotoDeclarationHandler"/>
     <gotoDeclarationHandler implementation="idea.bear.sunday.resource.ResourceGotoDeclarationHandler"/>
+    <gotoDeclarationHandler implementation="idea.bear.sunday.template.EmbedQiqGotoDeclarationHandler"/>
+
+    <psi.referenceContributor language="Twig"
+                              implementation="idea.bear.sunday.template.EmbedTemplateReferenceContributor"/>
+    <codeInsight.lineMarkerProvider language="Twig"
+                                    implementationClass="idea.bear.sunday.template.EmbedTwigLineMarkerProvider"/>
+    <!-- Qiq line marker: registered for language="Qiq". The id is contributed by the Qiq
+         Templates Support plugin; when that plugin is absent the language stays unresolved and
+         this extension is silently disabled, so we keep no compile-time dependency on it.
+         Running on the host Qiq PSI (instead of language="PHP" on the injected fragment) is
+         what stops the daemon from invoking the provider twice and producing duplicated icons.
+         (Goto-declaration for Qiq is the language-agnostic gotoDeclarationHandler above.) -->
+    <codeInsight.lineMarkerProvider language="Qiq"
+                                    implementationClass="idea.bear.sunday.template.EmbedQiqLineMarkerProvider"/>
+
+    <notificationGroup id="BEAR.Sunday" displayType="BALLOON"/>
+
   </extensions>
 
   <depends>com.jetbrains.php</depends>
+  <depends>com.jetbrains.twig</depends>
   <depends>com.intellij.modules.platform</depends>
   <depends optional="true" config-file="idea.bear.sunday-annotation.xml">de.espend.idea.php.annotation</depends>
 

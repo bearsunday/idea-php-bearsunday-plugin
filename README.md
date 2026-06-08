@@ -1,34 +1,34 @@
-# IDEA PHP BEAR.Sunday Plugin
+# BEAR.Sunday PhpStorm Plugin
 
 ![Version](https://img.shields.io/jetbrains/plugin/v/8030-bear-sunday-plugin.svg)
 ![Download](https://img.shields.io/jetbrains/plugin/d/8030-bear-sunday-plugin.svg)
 
 ## Links
- * Plugin url: https://plugins.jetbrains.com/plugin/8030
+
+* [JetBrains Marketplace](https://plugins.jetbrains.com/plugin/8030)
+
 <!-- Plugin description -->
-## Current Features
+## Features
 
- * BEAR.Resource goto (app://self/user will be pointed to src/Resource/App/User.php)
- * BEAR.Resource URI completion
- * BEAR.Resource JSON Schema goto
- * Incoming Link/Embed relation gutter for BEAR.Resource methods
- * Ray.Aop bound interceptor gutter icon and navigation from attributes such as #[Transactional]
- * Ray.MediaQuery SQL goto
- * Ray.QueryModule SQL goto
- * Aura.Route goto BEAR.Resource
+* BEAR.Resource URI completion
+* BEAR.Resource goto from URIs such as `app://self/user` to `src/Resource/App/User.php`
+* BEAR.Resource JSON Schema goto
+* Incoming Link/Embed relation gutter for BEAR.Resource methods
+* Ray.Aop bound interceptor gutter icon and navigation from attributes such as `#[Transactional]`
+* Ray.MediaQuery SQL goto
+* Ray.QueryModule SQL goto
+* Aura.Router goto BEAR.Resource
 
-## Related Plugins
- * Php Annotations Plugin: https://plugins.jetbrains.com/plugin/7320
 <!-- Plugin description end -->
 ## Requirements
 
- * PhpStorm 2025.1 or later
- * JDK 21 (for building)
+* PhpStorm 2025.1 or later
+* JDK 21 for building
 
 ## Libraries
 
- * URI-Template Library (com.damnhandy:handy-uri-templates:2.1.8)
- * Apache Commons Text (org.apache.commons:commons-text:1.12.0)
+* URI-Template Library (`com.damnhandy:handy-uri-templates:2.1.8`)
+* Apache Commons Text (`org.apache.commons:commons-text:1.12.0`)
 
 ## Build
 
@@ -48,8 +48,6 @@
 ./gradlew test
 ```
 
-## TODO
+## License
 
- * Highlight resource URI.
- * Resource With Query Completion
- * Setting form for goto
+MIT License. See [LICENSE](LICENSE).
