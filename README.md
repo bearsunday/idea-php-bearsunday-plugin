@@ -14,6 +14,7 @@
 * BEAR.Resource goto from URIs such as `app://self/user` to `src/Resource/App/User.php`
 * BEAR.Resource JSON Schema goto
 * Incoming Link/Embed relation gutter for BEAR.Resource methods
+* Extract BEAR.Resource parameters to Ray.InputQuery DTO
 * Ray.Aop bound interceptor gutter icon and navigation from attributes such as `#[Transactional]`
 * Ray.MediaQuery SQL goto
 * Ray.QueryModule SQL goto
