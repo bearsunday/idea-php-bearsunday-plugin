@@ -59,6 +59,21 @@ public final class BodyTypes {
         return new UnionType(List.copyOf(unique.values()));
     }
 
+    public static BodyType withShapeField(BodyType type, ShapeField field) {
+        Objects.requireNonNull(type);
+        Objects.requireNonNull(field);
+        if (type instanceof ShapeType shapeType) {
+            return shape(withShapeField(shapeType.fields(), field));
+        }
+        if (type instanceof UnionType unionType) {
+            return union(unionType.types().stream()
+                .map(branch -> withShapeField(branch, field))
+                .toList());
+        }
+
+        return type;
+    }
+
     public static String renderFormatted(BodyType type) {
         return renderFormatted(type, 0, false);
     }
@@ -91,6 +106,24 @@ public final class BodyTypes {
         }
 
         return false;
+    }
+
+    private static List<ShapeField> withShapeField(List<ShapeField> fields, ShapeField field) {
+        List<ShapeField> merged = new ArrayList<>();
+        boolean replaced = false;
+        for (ShapeField existing : fields) {
+            if (existing.key().equals(field.key())) {
+                merged.add(field);
+                replaced = true;
+                continue;
+            }
+            merged.add(existing);
+        }
+        if (!replaced) {
+            merged.add(field);
+        }
+
+        return merged;
     }
 
     private interface FormattableBodyType extends BodyType {

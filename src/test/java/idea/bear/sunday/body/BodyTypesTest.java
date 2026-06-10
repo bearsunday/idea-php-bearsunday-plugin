@@ -58,6 +58,31 @@ class BodyTypesTest {
     }
 
     @Test
+    void withShapeFieldAddsAndReplacesShapeField() {
+        BodyType type = BodyTypes.shape(List.of(
+            new ShapeField("id", BodyTypes.INT)
+        ));
+
+        BodyType added = BodyTypes.withShapeField(type, new ShapeField("name", BodyTypes.STRING));
+        BodyType replaced = BodyTypes.withShapeField(added, new ShapeField("id", BodyTypes.STRING));
+
+        assertEquals("array{id: int, name: string}", added.render());
+        assertEquals("array{id: string, name: string}", replaced.render());
+    }
+
+    @Test
+    void withShapeFieldAppliesToUnionBranches() {
+        BodyType type = BodyTypes.union(List.of(
+            BodyTypes.shape(List.of(new ShapeField("id", BodyTypes.INT))),
+            BodyTypes.shape(List.of(new ShapeField("status", BodyTypes.STRING)))
+        ));
+
+        BodyType updated = BodyTypes.withShapeField(type, new ShapeField("meta", BodyTypes.MIXED));
+
+        assertEquals("array{id: int, meta: mixed}|array{status: string, meta: mixed}", updated.render());
+    }
+
+    @Test
     void formatsShapeUnionsAcrossLines() {
         BodyType type = BodyTypes.union(List.of(
             BodyTypes.shape(List.of(new ShapeField("id", BodyTypes.INT))),

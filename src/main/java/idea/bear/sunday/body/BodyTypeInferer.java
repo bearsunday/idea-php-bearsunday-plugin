@@ -8,23 +8,35 @@ import com.jetbrains.php.lang.psi.elements.PhpExpression;
 import com.jetbrains.php.lang.psi.elements.PhpPsiElement;
 import com.jetbrains.php.lang.psi.elements.PhpTypedElement;
 import com.jetbrains.php.lang.psi.elements.StringLiteralExpression;
+import com.jetbrains.php.lang.psi.elements.Variable;
 import com.jetbrains.php.lang.psi.resolve.types.PhpType;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 public final class BodyTypeInferer {
 
     public BodyType infer(PhpExpression expression) {
+        return infer(expression, Map.of());
+    }
+
+    public BodyType infer(PhpExpression expression, Map<String, BodyType> localTypes) {
         if (expression instanceof ArrayCreationExpression arrayCreationExpression) {
-            return inferArray(arrayCreationExpression);
+            return inferArray(arrayCreationExpression, localTypes);
         }
         if (expression instanceof StringLiteralExpression) {
             return BodyTypes.STRING;
+        }
+        if (expression instanceof Variable variableExpression) {
+            BodyType localType = localTypes.get(variableName(variableExpression));
+            if (localType != null) {
+                return localType;
+            }
         }
 
         String text = expression.getText().trim().toLowerCase(Locale.ROOT);
@@ -44,7 +56,7 @@ public final class BodyTypeInferer {
         return inferTypedElement(expression).orElse(BodyTypes.MIXED);
     }
 
-    private BodyType inferArray(ArrayCreationExpression arrayCreationExpression) {
+    private BodyType inferArray(ArrayCreationExpression arrayCreationExpression, Map<String, BodyType> localTypes) {
         List<ArrayElementType> elements = new ArrayList<>();
         Set<Integer> handledValueOffsets = new HashSet<>();
         int nextImplicitIndex = 0;
@@ -67,14 +79,14 @@ public final class BodyTypeInferer {
                     nextImplicitIndex = Math.max(nextImplicitIndex, Integer.parseInt(key) + 1);
                 }
             }
-            elements.add(new ArrayElementType(key, infer(valueExpression), listKey));
+            elements.add(new ArrayElementType(key, infer(valueExpression, localTypes), listKey));
         }
         for (PhpExpression valueExpression : arrayValueExpressionsOf(arrayCreationExpression)) {
             if (handledValueOffsets.contains(valueExpression.getTextRange().getStartOffset())) {
                 continue;
             }
             String key = String.valueOf(nextImplicitIndex);
-            elements.add(new ArrayElementType(key, infer(valueExpression), true));
+            elements.add(new ArrayElementType(key, infer(valueExpression, localTypes), true));
             nextImplicitIndex++;
         }
 
@@ -144,6 +156,15 @@ public final class BodyTypeInferer {
 
     private boolean isIntegerKey(String key) {
         return key.matches("0|[1-9][0-9]*");
+    }
+
+    private String variableName(Variable variable) {
+        String name = variable.getName();
+        if (name != null && !name.isBlank()) {
+            return name;
+        }
+
+        return variable.getText().replaceFirst("^\\$", "");
     }
 
     private Optional<BodyType> inferTypedElement(PhpExpression expression) {

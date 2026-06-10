@@ -64,6 +64,71 @@ class BodyTypeCollectorFixtureTest {
         assertEquals("array{status: string}", collection.declarations().get(1).bodyType().render());
     }
 
+    @Test
+    void collectsLiteralBodyOffsetAssignments() {
+        PsiFile psiFile = fixture.addFileToProject("ArticleOffset.php", """
+            <?php
+            final class ArticleOffset extends \\BEAR\\Resource\\ResourceObject
+            {
+                public function onGet(): static
+                {
+                    $meta = [1, 2];
+                    $this->body = ['a' => 1];
+                    $this->body['b'] = $meta;
+                    $this->body['c'] = $unknown;
+
+                    return $this;
+                }
+            }
+            """);
+
+        BodyTypeCollection collection = collect(psiFile);
+
+        assertEquals(List.of("ArticleOffsetGetBody"), collection.typeNames());
+        assertEquals("array{a: int, b: list<int>, c: mixed}", collection.declarations().get(0).bodyType().render());
+    }
+
+    @Test
+    void skipsDynamicBodyOffsetAssignments() {
+        PsiFile psiFile = fixture.addFileToProject("DynamicOffset.php", """
+            <?php
+            final class DynamicOffset extends \\BEAR\\Resource\\ResourceObject
+            {
+                public function onGet(string $key): static
+                {
+                    $this->body = ['a' => 1];
+                    $this->body[$key] = 2;
+
+                    return $this;
+                }
+            }
+            """);
+
+        BodyTypeCollection collection = collect(psiFile);
+
+        assertEquals("array{a: int}", collection.declarations().get(0).bodyType().render());
+    }
+
+    @Test
+    void collectsBodyOffsetAssignmentsWithoutFullBodyAssignment() {
+        PsiFile psiFile = fixture.addFileToProject("OnlyOffset.php", """
+            <?php
+            final class OnlyOffset extends \\BEAR\\Resource\\ResourceObject
+            {
+                public function onGet(): static
+                {
+                    $this->body['foo'] = 1;
+
+                    return $this;
+                }
+            }
+            """);
+
+        BodyTypeCollection collection = collect(psiFile);
+
+        assertEquals("array{foo: int}", collection.declarations().get(0).bodyType().render());
+    }
+
     private static BodyTypeCollection collect(PsiFile psiFile) {
         return ApplicationManager.getApplication().runReadAction((Computable<BodyTypeCollection>) () -> {
             PhpClass phpClass = PsiTreeUtil.findChildOfType(psiFile, PhpClass.class);
