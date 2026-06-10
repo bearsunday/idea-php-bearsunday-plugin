@@ -72,6 +72,33 @@ class BodyTypeInfererFixtureTest {
         );
     }
 
+    @Test
+    void infersImplicitElementsInMixedArrayShapeFromPhpPsi() {
+        PsiFile psiFile = fixture.addFileToProject("MixedBody.php", """
+            <?php
+            final class MixedBody
+            {
+                public function onPost(): static
+                {
+                    $this->body = [
+                        'status' => 'created',
+                        'id' => 2,
+                        'apple',
+                    ];
+
+                    return $this;
+                }
+            }
+            """);
+
+        BodyType bodyType = inferAssignedBody(psiFile);
+
+        assertEquals(
+            "array{status: string, id: int, 0: string}",
+            bodyType.render()
+        );
+    }
+
     private static BodyType inferAssignedBody(PsiFile psiFile) {
         return ApplicationManager.getApplication().runReadAction((Computable<BodyType>) () -> {
             AssignmentExpression assignment = PsiTreeUtil.findChildOfType(psiFile, AssignmentExpression.class);

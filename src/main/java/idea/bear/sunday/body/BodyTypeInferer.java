@@ -1,7 +1,7 @@
 package idea.bear.sunday.body;
 
-import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.PsiElement;
+import com.intellij.psi.util.PsiTreeUtil;
 import com.jetbrains.php.lang.psi.elements.ArrayCreationExpression;
 import com.jetbrains.php.lang.psi.elements.ArrayHashElement;
 import com.jetbrains.php.lang.psi.elements.PhpExpression;
@@ -11,9 +11,11 @@ import com.jetbrains.php.lang.psi.elements.StringLiteralExpression;
 import com.jetbrains.php.lang.psi.resolve.types.PhpType;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 public final class BodyTypeInferer {
 
@@ -44,26 +46,36 @@ public final class BodyTypeInferer {
 
     private BodyType inferArray(ArrayCreationExpression arrayCreationExpression) {
         List<ArrayElementType> elements = new ArrayList<>();
-        int implicitIndex = 0;
+        Set<Integer> handledValueOffsets = new HashSet<>();
+        int nextImplicitIndex = 0;
         for (ArrayHashElement hashElement : hashElementsOf(arrayCreationExpression)) {
             PhpPsiElement value = hashElement.getValue();
             if (!(value instanceof PhpExpression valueExpression)) {
                 continue;
             }
+            handledValueOffsets.add(valueExpression.getTextRange().getStartOffset());
 
             String key = keyOf(hashElement.getKey()).orElse(null);
+            boolean listKey;
             if (key == null) {
-                key = String.valueOf(implicitIndex);
+                key = String.valueOf(nextImplicitIndex);
+                listKey = true;
+                nextImplicitIndex++;
+            } else {
+                listKey = isListKey(key, nextImplicitIndex);
+                if (isIntegerKey(key)) {
+                    nextImplicitIndex = Math.max(nextImplicitIndex, Integer.parseInt(key) + 1);
+                }
             }
-            elements.add(new ArrayElementType(key, infer(valueExpression), isListKey(key, implicitIndex)));
-            implicitIndex++;
+            elements.add(new ArrayElementType(key, infer(valueExpression), listKey));
         }
-        if (elements.isEmpty()) {
-            for (PhpExpression valueExpression : arrayValueExpressionsOf(arrayCreationExpression)) {
-                String key = String.valueOf(implicitIndex);
-                elements.add(new ArrayElementType(key, infer(valueExpression), true));
-                implicitIndex++;
+        for (PhpExpression valueExpression : arrayValueExpressionsOf(arrayCreationExpression)) {
+            if (handledValueOffsets.contains(valueExpression.getTextRange().getStartOffset())) {
+                continue;
             }
+            String key = String.valueOf(nextImplicitIndex);
+            elements.add(new ArrayElementType(key, infer(valueExpression), true));
+            nextImplicitIndex++;
         }
 
         if (elements.isEmpty()) {
@@ -128,6 +140,10 @@ public final class BodyTypeInferer {
 
     private boolean isListKey(String key, int expectedIndex) {
         return key.equals(String.valueOf(expectedIndex));
+    }
+
+    private boolean isIntegerKey(String key) {
+        return key.matches("0|[1-9][0-9]*");
     }
 
     private Optional<BodyType> inferTypedElement(PhpExpression expression) {
