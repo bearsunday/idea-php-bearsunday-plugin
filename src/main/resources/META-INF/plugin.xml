@@ -17,6 +17,7 @@
     <li>Ray.MediaQuery SQL goto</li>
     <li>Ray.QueryModule SQL goto</li>
     <li>Aura.Router goto BEAR.Resource</li>
+    <li>Generate Psalm body type PHPDoc for BEAR.Resource body array shapes</li>
   </ul>
   <h2>Links</h2>
   <ul>
@@ -38,6 +39,11 @@
     <completion.contributor language="PHP" order="first" id="BEARResourceAnnotationCompletionContributor" implementationClass="idea.bear.sunday.annotation.AnnotationCompletionContributor"/>
     <codeInsight.lineMarkerProvider language="PHP" implementationClass="idea.bear.sunday.aop.BoundInterceptorLineMarkerProvider"/>
     <codeInsight.lineMarkerProvider language="PHP" implementationClass="idea.bear.sunday.relation.ResourceIncomingRelationLineMarkerProvider"/>
+    <intentionAction>
+      <language>PHP</language>
+      <className>idea.bear.sunday.body.GenerateBodyTypeIntention</className>
+      <category>BEAR.Sunday</category>
+    </intentionAction>
 
     <gotoDeclarationHandler implementation="idea.bear.sunday.router.RouterGotoDeclarationHandler"/>
     <gotoDeclarationHandler implementation="idea.bear.sunday.annotation.AnnotationOrAttributeGotoDeclarationHandler"/>
