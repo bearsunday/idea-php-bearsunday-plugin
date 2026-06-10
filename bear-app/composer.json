@@ -34,7 +34,7 @@
     "scripts": {
         "post-install-cmd": [
             "@setup",
-            "@composer bin all install --ansi"
+            "@php bin/install-tools.php"
         ],
         "setup": "php bin/setup.php",
         "compile": "./vendor/bin/bear.compile 'MyVendor\\MyProject' prod-app ./",

@@ -4,4 +4,4 @@ parameters:
     - src
     - tests
   excludePaths:
-  	- tests/Http/index.php
+    - tests/Http/index.php

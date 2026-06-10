@@ -82,9 +82,10 @@ jobs:
         run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
 
       - name: Install dependencies
-        run: |
-          composer install --no-interaction --no-progress --prefer-dist
-          composer require --dev maglnet/composer-require-checker
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Install composer-require-checker
+        run: composer global require maglnet/composer-require-checker
 
       - name: Run composer-require-checker
-        run: ./vendor/bin/composer-require-checker
+        run: $(composer global config bin-dir --absolute)/composer-require-checker

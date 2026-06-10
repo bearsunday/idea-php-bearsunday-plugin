@@ -104,12 +104,12 @@ public class ExtractInputDtoAction extends AnAction {
 
         String finalDtoClass = dtoClass;
         WriteCommandAction.runWriteCommandAction(project, () -> {
-            document.setText(result.resourceText());
             try {
                 updateQueryInterfaces(baseDir, result, selectedNames, finalDtoClass, dtoFqn);
                 VirtualFile inputDir = ensureDirectory(baseDir, "src/Input");
                 VirtualFile dtoFile = inputDir.createChildData(this, finalDtoClass + ".php");
                 dtoFile.setBinaryContent(result.dtoText().getBytes(StandardCharsets.UTF_8));
+                document.setText(result.resourceText());
             } catch (IOException ex) {
                 throw new RuntimeException(ex);
             }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MyVendor\MyProject\Hypermedia;
 
+use BEAR\Dev\Http\HttpResource;
 use BEAR\Resource\ResourceInterface;
 use BEAR\Resource\ResourceObject;
 use MyVendor\MyProject\Injector;
@@ -12,7 +13,7 @@ use Ray\Di\InjectorInterface;
 
 class WorkflowTest extends TestCase
 {
-    protected ResourceInterface $resource;
+    protected ResourceInterface|HttpResource $resource;
     protected InjectorInterface $injector;
 
     protected function setUp(): void

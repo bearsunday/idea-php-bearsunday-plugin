@@ -24,6 +24,7 @@ import java.util.regex.Pattern;
 
 final class ExtractInputDtoDialog extends DialogWrapper {
     private static final Pattern BY_REFERENCE = Pattern.compile("&\\s*\\$");
+    private static final Pattern PHP_IDENTIFIER = Pattern.compile("[A-Za-z_\\x80-\\xff][A-Za-z0-9_\\x80-\\xff]*");
 
     private final JBTextField className = new JBTextField("Input", 24);
     private final JBTextField variableName = new JBTextField("input", 24);
@@ -161,8 +162,16 @@ final class ExtractInputDtoDialog extends DialogWrapper {
             setErrorText(BearSundayBundle.message("input.error.dto.class.required"));
             return;
         }
+        if (!isValidPhpClassName(getDtoClass())) {
+            setErrorText(BearSundayBundle.message("input.error.dto.class.invalid"));
+            return;
+        }
         if (getDtoVariable().isBlank()) {
             setErrorText(BearSundayBundle.message("input.error.variable.required"));
+            return;
+        }
+        if (!PHP_IDENTIFIER.matcher(getDtoVariable()).matches()) {
+            setErrorText(BearSundayBundle.message("input.error.variable.invalid"));
             return;
         }
         if (getSelectedParameterNames().isEmpty()) {
@@ -179,6 +188,20 @@ final class ExtractInputDtoDialog extends DialogWrapper {
 
     String getDtoVariable() {
         return variableName.getText().trim().replaceFirst("^\\$", "");
+    }
+
+
+    private static boolean isValidPhpClassName(String className) {
+        String normalized = className.startsWith("\\") ? className.substring(1) : className;
+        if (normalized.isBlank() || normalized.contains("\\\\")) {
+            return false;
+        }
+        for (String segment : normalized.split("\\\\")) {
+            if (!PHP_IDENTIFIER.matcher(segment).matches()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     Set<String> getSelectedParameterNames() {
