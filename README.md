@@ -55,6 +55,10 @@ After generation:
 
 ![Generate BEAR body type after](docs/images/body-type-generator-after.png)
 
+Actual sandbox PhpStorm screenshot:
+
+![PhpStorm demo app screenshot](docs/images/phpstorm-body-type-demo-real.png)
+
 ## Requirements
 
 * PhpStorm 2025.1 or later

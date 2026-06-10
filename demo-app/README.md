@@ -33,6 +33,7 @@ composer install
 
 - `../docs/images/body-type-generator-before.png`
 - `../docs/images/body-type-generator-after.png`
+- `../docs/images/phpstorm-body-type-demo-real.png`
 
 ## 動作確認用コマンド
 
