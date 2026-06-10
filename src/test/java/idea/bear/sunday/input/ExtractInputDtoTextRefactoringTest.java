@@ -253,4 +253,102 @@ class ExtractInputDtoTextRefactoringTest {
         assertTrue(result.resourceText().contains("public function onGet(#[Input] Point $p): static"));
     }
 
+    @Test
+    void detectsSelectedParameterNamesFromSelectionText() {
+        String paramsText = "int $x, int $y, string $label = 'origin'";
+        var params = refactoring.parseParams(paramsText);
+
+        assertEquals(Set.of("x"), refactoring.selectedNamesFromText("$this->body = ['x' => $x];", params));
+        assertEquals(Set.of("x", "y"), refactoring.selectedNamesFromText("$x + $y", params));
+    }
+
+    @Test
+    void collapsesSelectedMethodCallArgumentsToInputDto() {
+        String source = """
+            <?php
+            namespace MyVendor\\Todo\\Resource\\App;
+
+            final class Plot
+            {
+                public function onGet(int $x, int $y): static
+                {
+                    $this->body = $this->pointQuery->distance($x, $y);
+
+                    return $this;
+                }
+            }
+            """;
+
+        ExtractInputDtoTextRefactoring.RefactoringResult result = refactoring.refactorResource(
+            source,
+            source.indexOf("onGet"),
+            Set.of("x", "y"),
+            "PointInput",
+            "input",
+            "MyVendor\\Todo\\Input\\PointInput"
+        );
+
+        assertTrue(result.resourceText().contains("$this->pointQuery->distance($input);"));
+        assertFalse(result.resourceText().contains("distance($input->x, $input->y)"));
+    }
+
+    @Test
+    void keepsFreeFunctionArgumentsAsInputProperties() {
+        String source = """
+            <?php
+            namespace MyVendor\\Todo\\Resource\\App;
+
+            final class Plot
+            {
+                public function onGet(int $x, int $y): static
+                {
+                    $this->body = ['max' => max($x, $y)];
+
+                    return $this;
+                }
+            }
+            """;
+
+        ExtractInputDtoTextRefactoring.RefactoringResult result = refactoring.refactorResource(
+            source,
+            source.indexOf("onGet"),
+            Set.of("x", "y"),
+            "PointInput",
+            "input",
+            "MyVendor\\Todo\\Input\\PointInput"
+        );
+
+        assertTrue(result.resourceText().contains("max($input->x, $input->y)"));
+    }
+
+    @Test
+    void refactorsCollapsedQueryInterfaceMethodSignature() {
+        String source = """
+            <?php
+            namespace MyVendor\\Todo\\Query;
+
+            use Ray\\MediaQuery\\Annotation\\DbQuery;
+
+            interface PointQueryInterface
+            {
+                /** @return array{x: int, y: int, squaredDistance: int} */
+                #[DbQuery('point_distance', type: 'row')]
+                public function distance(int $x, int $y): array;
+            }
+            """;
+
+        String result = refactoring.refactorQueryInterface(
+            source,
+            Set.of("distance"),
+            Set.of("x", "y"),
+            "PointInput",
+            "MyVendor\\Todo\\Input\\PointInput"
+        );
+
+        assertTrue(result.contains("use MyVendor\\Todo\\Input\\PointInput;"));
+        assertFalse(result.contains("use Ray\\InputQuery\\Attribute\\Input;"));
+        assertTrue(result.contains("public function distance(PointInput $pointInput): array;"));
+        assertFalse(result.contains("public function distance(int $x, int $y): array;"));
+    }
+
 }

@@ -3,6 +3,7 @@
   <name>BEAR.Sunday</name>
   <version>0.8</version>
   <vendor email="shingo4092@gmail.com">Shingo Kumagai</vendor>
+  <resource-bundle>messages.BearSundayBundle</resource-bundle>
 
   <description><![CDATA[
   <h2>Features</h2>
@@ -68,7 +69,7 @@
   <actions>
     <action id="idea.bear.sunday.input.ExtractInputDto"
             class="idea.bear.sunday.input.ExtractInputDtoAction"
-            text="Extract BEAR Input DTO..."
+            text="Extract Input DTO..."
             description="Extract BEAR.Resource method parameters to a Ray.InputQuery DTO">
       <add-to-group group-id="EditorPopupMenu" anchor="last"/>
       <add-to-group group-id="RefactoringMenu" anchor="last"/>

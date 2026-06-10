@@ -12,16 +12,26 @@ import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
+import idea.bear.sunday.BearSundayBundle;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
 public class ExtractInputDtoAction extends AnAction {
     private final ExtractInputDtoTextRefactoring refactoring = new ExtractInputDtoTextRefactoring();
+
+    public ExtractInputDtoAction() {
+        super(
+            BearSundayBundle.message("action.extract.input.dto.text"),
+            BearSundayBundle.message("action.extract.input.dto.description"),
+            null
+        );
+    }
 
     @Override
     public @NotNull ActionUpdateThread getActionUpdateThread() {
@@ -51,14 +61,13 @@ public class ExtractInputDtoAction extends AnAction {
         int offset = editor.getCaretModel().getOffset();
         ExtractInputDtoTextRefactoring.MethodInfo method = refactoring.findMethodAtOffset(text, offset);
         if (method == null) {
-            HintManager.getInstance().showErrorHint(editor, "Place caret inside a BEAR.Resource onXxx method");
+            HintManager.getInstance().showErrorHint(editor, BearSundayBundle.message("input.error.place.caret"));
             return;
         }
 
         List<ExtractInputDtoTextRefactoring.ParamInfo> params = refactoring.parseParams(method.paramsText());
-        boolean hasSupportedParam = params.stream().anyMatch(ExtractInputDtoTextRefactoring.ParamInfo::supported);
-        if (!hasSupportedParam) {
-            HintManager.getInstance().showErrorHint(editor, "No supported parameters to extract");
+        if (params.isEmpty()) {
+            HintManager.getInstance().showErrorHint(editor, BearSundayBundle.message("input.error.no.parameters"));
             return;
         }
 
@@ -84,12 +93,12 @@ public class ExtractInputDtoAction extends AnAction {
         VirtualFile resourceFile = FileDocumentManager.getInstance().getFile(document);
         VirtualFile baseDir = project.getBaseDir();
         if (resourceFile == null || baseDir == null) {
-            HintManager.getInstance().showErrorHint(editor, "Cannot resolve project files");
+            HintManager.getInstance().showErrorHint(editor, BearSundayBundle.message("input.error.resolve.files"));
             return;
         }
         String dtoRelativePath = "src/Input/" + dtoClass + ".php";
         if (baseDir.findFileByRelativePath(dtoRelativePath) != null) {
-            HintManager.getInstance().showErrorHint(editor, dtoRelativePath + " already exists");
+            HintManager.getInstance().showErrorHint(editor, BearSundayBundle.message("input.error.file.exists", dtoRelativePath));
             return;
         }
 
@@ -97,6 +106,7 @@ public class ExtractInputDtoAction extends AnAction {
         WriteCommandAction.runWriteCommandAction(project, () -> {
             document.setText(result.resourceText());
             try {
+                updateQueryInterfaces(baseDir, result, selectedNames, finalDtoClass, dtoFqn);
                 VirtualFile inputDir = ensureDirectory(baseDir, "src/Input");
                 VirtualFile dtoFile = inputDir.createChildData(this, finalDtoClass + ".php");
                 dtoFile.setBinaryContent(result.dtoText().getBytes(StandardCharsets.UTF_8));
@@ -104,6 +114,46 @@ public class ExtractInputDtoAction extends AnAction {
                 throw new RuntimeException(ex);
             }
         });
+    }
+
+
+    private void updateQueryInterfaces(
+        VirtualFile baseDir,
+        ExtractInputDtoTextRefactoring.RefactoringResult result,
+        Set<String> selectedNames,
+        String dtoClass,
+        String dtoFqn
+    ) throws IOException {
+        if (result.collapsedMethodNames().isEmpty()) {
+            return;
+        }
+        VirtualFile queryDir = baseDir.findFileByRelativePath("src/Query");
+        if (queryDir == null || !queryDir.isDirectory()) {
+            return;
+        }
+        for (VirtualFile file : phpFiles(queryDir)) {
+            String text = new String(file.contentsToByteArray(), StandardCharsets.UTF_8);
+            String updated = refactoring.refactorQueryInterface(text, result.collapsedMethodNames(), selectedNames, dtoClass, dtoFqn);
+            if (!updated.equals(text)) {
+                file.setBinaryContent(updated.getBytes(StandardCharsets.UTF_8));
+            }
+        }
+    }
+
+    private static List<VirtualFile> phpFiles(VirtualFile dir) {
+        List<VirtualFile> files = new ArrayList<>();
+        collectPhpFiles(dir, files);
+        return files;
+    }
+
+    private static void collectPhpFiles(VirtualFile dir, List<VirtualFile> files) {
+        for (VirtualFile child : dir.getChildren()) {
+            if (child.isDirectory()) {
+                collectPhpFiles(child, files);
+            } else if (child.getName().endsWith(".php")) {
+                files.add(child);
+            }
+        }
     }
 
     private static boolean isResourceFile(Editor editor) {
