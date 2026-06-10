@@ -28,6 +28,13 @@ class BodyTypesTest {
         ));
 
         assertEquals("array{user: array{id: int, name: string}}", type.render());
+        assertEquals("""
+            array{
+                user: array{
+                    id: int,
+                    name: string
+                }
+            }""", BodyTypes.renderFormatted(type));
     }
 
     @Test
@@ -37,6 +44,10 @@ class BodyTypesTest {
         )));
 
         assertEquals("list<array{id: int}>", type.render());
+        assertEquals("""
+            list<array{
+                id: int
+            }>""", BodyTypes.renderFormatted(type));
     }
 
     @Test
@@ -44,6 +55,22 @@ class BodyTypesTest {
         BodyType type = BodyTypes.union(List.of(BodyTypes.STRING, BodyTypes.INT, BodyTypes.STRING));
 
         assertEquals("string|int", type.render());
+    }
+
+    @Test
+    void formatsShapeUnionsAcrossLines() {
+        BodyType type = BodyTypes.union(List.of(
+            BodyTypes.shape(List.of(new ShapeField("id", BodyTypes.INT))),
+            BodyTypes.shape(List.of(new ShapeField("status", BodyTypes.STRING)))
+        ));
+
+        assertEquals("array{id: int}|array{status: string}", type.render());
+        assertEquals("""
+            array{
+                id: int
+            }|array{
+                status: string
+            }""", BodyTypes.renderFormatted(type));
     }
 
     @Test

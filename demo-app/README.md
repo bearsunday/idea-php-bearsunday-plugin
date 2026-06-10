@@ -27,7 +27,7 @@ composer install
 
 ## Body type PHPDoc生成
 
-`src/Resource/App/BodyTypeDemo.php` で **Generate BEAR body type** を実行すると、`$this->body` への代入から class PHPDoc に `@psalm-type BodyTypeDemoBody = ...` と `@property BodyTypeDemoBody|null $body` が追加されます。
+`src/Resource/App/BodyTypeDemo.php` で **Generate BEAR body type** を実行すると、`$this->body` への代入から class PHPDoc に `@psalm-type BodyTypeDemoGetBody = ...` / `@psalm-type BodyTypeDemoPostBody = ...` と `@property BodyTypeDemoGetBody|BodyTypeDemoPostBody|null $body` が追加されます。
 
 スクリーンショット:
 

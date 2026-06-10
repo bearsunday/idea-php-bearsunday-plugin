@@ -47,14 +47,14 @@ public class GenerateBodyTypeIntention extends PsiElementBaseIntentionAction {
             return;
         }
 
-        Optional<BodyType> bodyType = collector.collect(phpClass);
-        if (bodyType.isEmpty()) {
+        Optional<BodyTypeCollection> bodyTypes = collector.collect(phpClass);
+        if (bodyTypes.isEmpty()) {
             return;
         }
 
         Document document = editor.getDocument();
         PsiDocumentManager.getInstance(project).commitDocument(document);
-        WriteCommandAction.runWriteCommandAction(project, TEXT, null, () -> updateDocBlock(document, phpClass, bodyType.get()));
+        WriteCommandAction.runWriteCommandAction(project, TEXT, null, () -> updateDocBlock(document, phpClass, bodyTypes.get()));
         PsiDocumentManager.getInstance(project).commitDocument(document);
     }
 
@@ -71,17 +71,17 @@ public class GenerateBodyTypeIntention extends PsiElementBaseIntentionAction {
         return PsiTreeUtil.getParentOfType(element, PhpClass.class);
     }
 
-    private void updateDocBlock(Document document, PhpClass phpClass, BodyType bodyType) {
-        String typeName = BodyTypeName.fromClass(phpClass);
+    private void updateDocBlock(Document document, PhpClass phpClass, BodyTypeCollection bodyTypes) {
+        String legacyTypeName = BodyTypeName.fromClass(phpClass);
         PhpDocComment docComment = phpClass.getDocComment();
 
         if (docComment == null) {
-            String newDocBlock = BodyDocBlockUpdater.create(typeName, bodyType);
+            String newDocBlock = BodyDocBlockUpdater.create(bodyTypes);
             document.insertString(phpClass.getTextRange().getStartOffset(), newDocBlock + "\n");
             return;
         }
 
-        String updatedDocBlock = BodyDocBlockUpdater.update(docComment.getText(), typeName, bodyType);
+        String updatedDocBlock = BodyDocBlockUpdater.update(docComment.getText(), bodyTypes, legacyTypeName);
         document.replaceString(
             docComment.getTextRange().getStartOffset(),
             docComment.getTextRange().getEndOffset(),

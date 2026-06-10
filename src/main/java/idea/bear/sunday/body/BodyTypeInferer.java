@@ -1,5 +1,7 @@
 package idea.bear.sunday.body;
 
+import com.intellij.psi.util.PsiTreeUtil;
+import com.intellij.psi.PsiElement;
 import com.jetbrains.php.lang.psi.elements.ArrayCreationExpression;
 import com.jetbrains.php.lang.psi.elements.ArrayHashElement;
 import com.jetbrains.php.lang.psi.elements.PhpExpression;
@@ -43,7 +45,7 @@ public final class BodyTypeInferer {
     private BodyType inferArray(ArrayCreationExpression arrayCreationExpression) {
         List<ArrayElementType> elements = new ArrayList<>();
         int implicitIndex = 0;
-        for (ArrayHashElement hashElement : arrayCreationExpression.getHashElements()) {
+        for (ArrayHashElement hashElement : hashElementsOf(arrayCreationExpression)) {
             PhpPsiElement value = hashElement.getValue();
             if (!(value instanceof PhpExpression valueExpression)) {
                 continue;
@@ -55,6 +57,13 @@ public final class BodyTypeInferer {
             }
             elements.add(new ArrayElementType(key, infer(valueExpression), isListKey(key, implicitIndex)));
             implicitIndex++;
+        }
+        if (elements.isEmpty()) {
+            for (PhpExpression valueExpression : arrayValueExpressionsOf(arrayCreationExpression)) {
+                String key = String.valueOf(implicitIndex);
+                elements.add(new ArrayElementType(key, infer(valueExpression), true));
+                implicitIndex++;
+            }
         }
 
         if (elements.isEmpty()) {
@@ -70,6 +79,35 @@ public final class BodyTypeInferer {
         return BodyTypes.shape(elements.stream()
             .map(element -> new ShapeField(element.key(), element.type()))
             .toList());
+    }
+
+    private List<ArrayHashElement> hashElementsOf(ArrayCreationExpression arrayCreationExpression) {
+        List<ArrayHashElement> hashElements = new ArrayList<>();
+        for (ArrayHashElement hashElement : arrayCreationExpression.getHashElements()) {
+            hashElements.add(hashElement);
+        }
+
+        if (!hashElements.isEmpty()) {
+            return hashElements;
+        }
+
+        return PsiTreeUtil.getChildrenOfTypeAsList(arrayCreationExpression, ArrayHashElement.class);
+    }
+
+    private List<PhpExpression> arrayValueExpressionsOf(ArrayCreationExpression arrayCreationExpression) {
+        List<PhpExpression> values = new ArrayList<>();
+        for (PsiElement child : arrayCreationExpression.getChildren()) {
+            if (!"Array value".equals(child.getNode().getElementType().toString())) {
+                continue;
+            }
+
+            PhpExpression expression = PsiTreeUtil.findChildOfType(child, PhpExpression.class, false);
+            if (expression != null) {
+                values.add(expression);
+            }
+        }
+
+        return values;
     }
 
     private Optional<String> keyOf(PhpPsiElement keyElement) {

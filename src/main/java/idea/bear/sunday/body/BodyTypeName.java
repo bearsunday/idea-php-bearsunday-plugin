@@ -1,6 +1,9 @@
 package idea.bear.sunday.body;
 
 import com.jetbrains.php.lang.psi.elements.PhpClass;
+import com.jetbrains.php.lang.psi.elements.Method;
+
+import java.util.Locale;
 
 public final class BodyTypeName {
 
@@ -8,12 +11,40 @@ public final class BodyTypeName {
     }
 
     public static String fromClass(PhpClass phpClass) {
+        return resourceName(phpClass) + "Body";
+    }
+
+    public static String fromClassAndMethod(PhpClass phpClass, Method method) {
+        return resourceName(phpClass) + methodSuffix(method) + "Body";
+    }
+
+    private static String resourceName(PhpClass phpClass) {
         String name = phpClass.getName();
         if (name == null || name.isBlank()) {
-            return "ResourceBody";
+            return "Resource";
         }
 
-        return name + "Body";
+        return name;
+    }
+
+    private static String methodSuffix(Method method) {
+        String methodName = method.getName();
+        if (methodName == null || methodName.isBlank()) {
+            return "";
+        }
+        if (methodName.startsWith("on") && methodName.length() > 2) {
+            return capitalize(methodName.substring(2));
+        }
+
+        return capitalize(methodName);
+    }
+
+    private static String capitalize(String value) {
+        if (value.isBlank()) {
+            return "";
+        }
+
+        return value.substring(0, 1).toUpperCase(Locale.ROOT) + value.substring(1);
     }
 
 }

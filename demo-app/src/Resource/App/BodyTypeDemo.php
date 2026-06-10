@@ -10,6 +10,24 @@ use MyVendor\MyProject\Annotation\Audited;
 
 /**
  * Demo target: run "Generate BEAR body type" on this class.
+ *
+ * @psalm-type BodyTypeDemoGetBody = array{
+ *     id: int,
+ *     name: string,
+ *     posts: list<array{
+ *         id: int,
+ *         title: string
+ *     }>,
+ *     meta: array{
+ *         active: bool,
+ *         score: float
+ *     }
+ * }
+ * @psalm-type BodyTypeDemoPostBody = array{
+ *     status: string,
+ *     id: int
+ * }
+ * @property BodyTypeDemoGetBody|BodyTypeDemoPostBody|null $body
  */
 final class BodyTypeDemo extends ResourceObject
 {
