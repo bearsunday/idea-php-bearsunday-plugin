@@ -1,0 +1,1 @@
+<strong>{{= $this->name }}</strong>
