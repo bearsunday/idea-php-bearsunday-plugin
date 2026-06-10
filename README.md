@@ -19,6 +19,7 @@
 * Ray.MediaQuery SQL goto
 * Ray.QueryModule SQL goto
 * Aura.Router goto BEAR.Resource
+* Generate Psalm body type PHPDoc for BEAR.Resource body array shapes
 
 <!-- Plugin description end -->
 ## Requirements
