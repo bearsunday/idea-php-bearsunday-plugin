@@ -82,7 +82,7 @@ public final class BodyTypeInferer {
 
         String text = keyElement.getText().trim();
         if (text.matches("[+-]?[0-9][0-9_]*")) {
-            return Optional.of(text.replace("_", ""));
+            return Optional.of(text.replace("_", "").replaceFirst("^\\+", ""));
         }
 
         return Optional.of(text);
