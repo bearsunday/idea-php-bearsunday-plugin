@@ -21,7 +21,7 @@ final class AppModule extends AbstractAppModule
         $this->install(new AuraSqlModule('sqlite::memory:'));
         $this->install(new MediaQuerySqlModule(
             interfaceDir: dirname(__DIR__) . '/Query',
-            sqlDir: dirname(__DIR__, 2) . '/var/sql',
+            sqlDir: dirname(__DIR__, 2) . '/var/db/sql',
         ));
     }
 }

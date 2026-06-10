@@ -31,6 +31,10 @@
 * URI-Template Library (`com.damnhandy:handy-uri-templates:2.1.8`)
 * Apache Commons Text (`org.apache.commons:commons-text:1.12.0`)
 
+## Demo app
+
+`demo-app/` is a small BEAR.Sunday application for trying this plugin's BEAR.Resource, Ray.InputQuery, and Ray.MediaQuery support in PhpStorm. It is a local demo fixture for the plugin, not a standalone package release.
+
 ## Build
 
 ```sh

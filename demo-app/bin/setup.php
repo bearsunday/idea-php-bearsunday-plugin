@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
-use SplFileInfo;
-
 $root = dirname(__DIR__);
 $tmpDir = $root . '/var/tmp';
+$protectedDirs = [
+    $tmpDir . '/cache',
+    $tmpDir . '/di',
+];
 
 if (! is_dir($tmpDir)) {
     exit(0);
@@ -21,6 +21,10 @@ $iterator = new RecursiveIteratorIterator(
 /** @var SplFileInfo $file */
 foreach ($iterator as $file) {
     $path = $file->getPathname();
+    if ($file->getBasename() === '.gitkeep' || in_array($path, $protectedDirs, true)) {
+        continue;
+    }
+
     $ok = $file->isDir() ? rmdir($path) : unlink($path);
     if (! $ok) {
         fwrite(STDERR, sprintf("Failed to remove %s\n", $path));
