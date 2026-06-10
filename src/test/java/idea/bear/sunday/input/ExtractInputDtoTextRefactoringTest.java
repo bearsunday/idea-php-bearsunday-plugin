@@ -351,4 +351,30 @@ class ExtractInputDtoTextRefactoringTest {
         assertFalse(result.contains("public function distance(int $x, int $y): array;"));
     }
 
+    @Test
+    void leavesQueryInterfaceUnchangedWhenCollapsedMethodDoesNotMatch() {
+        String source = """
+            <?php
+            namespace MyVendor\\Todo\\Query;
+
+            use Ray\\MediaQuery\\Annotation\\DbQuery;
+
+            interface OtherQueryInterface
+            {
+                #[DbQuery('other', type: 'row')]
+                public function other(int $x, int $y): array;
+            }
+            """;
+
+        String result = refactoring.refactorQueryInterface(
+            source,
+            Set.of("distance"),
+            Set.of("x", "y"),
+            "PointInput",
+            "MyVendor\\Todo\\Input\\PointInput"
+        );
+
+        assertEquals(source, result);
+    }
+
 }

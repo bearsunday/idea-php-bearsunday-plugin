@@ -331,10 +331,11 @@ public final class ExtractInputDtoTextRefactoring {
             out.append(newParams);
             last = matcher.end(3);
         }
-        if (last > 0) {
-            out.append(text.substring(last));
-            updated = out.toString();
+        if (last == 0) {
+            return text;
         }
+        out.append(text.substring(last));
+        updated = out.toString();
         updated = addUse(updated, dtoFqn.startsWith("\\") ? dtoFqn.substring(1) : dtoFqn);
         return updated;
     }
