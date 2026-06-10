@@ -3,7 +3,9 @@ package idea.bear.sunday.body;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.jetbrains.php.lang.psi.elements.AssignmentExpression;
 import com.jetbrains.php.lang.psi.elements.FieldReference;
+import com.jetbrains.php.lang.psi.elements.Function;
 import com.jetbrains.php.lang.psi.elements.MemberReference;
+import com.jetbrains.php.lang.psi.elements.Method;
 import com.jetbrains.php.lang.psi.elements.PhpClass;
 import com.jetbrains.php.lang.psi.elements.PhpExpression;
 import com.jetbrains.php.lang.psi.elements.PhpPsiElement;
@@ -27,6 +29,9 @@ public final class BodyTypeCollector {
         List<BodyType> bodyTypes = new ArrayList<>();
         Collection<AssignmentExpression> assignments = PsiTreeUtil.findChildrenOfType(phpClass, AssignmentExpression.class);
         for (AssignmentExpression assignment : assignments) {
+            if (!isDirectMethodAssignment(assignment, phpClass)) {
+                continue;
+            }
             if (!isThisBodyAssignment(assignment)) {
                 continue;
             }
@@ -54,12 +59,19 @@ public final class BodyTypeCollector {
         if (RESOURCE_OBJECT_FQN.equals(superFqn)) {
             return true;
         }
-        if ("ResourceObject".equals(phpClass.getSuperName())) {
-            return true;
-        }
 
         PhpClass superClass = phpClass.getSuperClass();
         return superClass != null && isResourceObject(superClass);
+    }
+
+    private boolean isDirectMethodAssignment(AssignmentExpression assignment, PhpClass phpClass) {
+        Function function = PsiTreeUtil.getParentOfType(assignment, Function.class);
+        if (!(function instanceof Method method)) {
+            return false;
+        }
+
+        PhpClass containingClass = method.getContainingClass();
+        return phpClass.equals(containingClass);
     }
 
     private boolean isThisBodyAssignment(AssignmentExpression assignment) {
