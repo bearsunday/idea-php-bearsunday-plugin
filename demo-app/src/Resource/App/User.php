@@ -7,8 +7,8 @@ namespace MyVendor\MyProject\Resource\App;
 use BEAR\Resource\ResourceObject;
 
 /**
- * @psalm-type UserGetBody = array{id: int, name: string}
- * @property UserGetBody|null $body
+ * @psalm-type UserBody = array{id: int, name: string}
+ * @property UserBody|null $body
  */
 final class User extends ResourceObject
 {

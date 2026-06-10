@@ -14,9 +14,9 @@ class BodyDocBlockUpdaterTest {
 
         assertEquals("""
             /**
-             * @psalm-type IndexGetBody = array{id: int}
-             * @property IndexGetBody|null $body
-             */""", BodyDocBlockUpdater.create(collection("IndexGetBody", bodyType)));
+             * @psalm-type IndexBody = array{id: int}
+             * @property IndexBody|null $body
+             */""", BodyDocBlockUpdater.create(collection("IndexBody", bodyType)));
     }
 
     @Test
@@ -26,11 +26,11 @@ class BodyDocBlockUpdaterTest {
 
         assertEquals("""
             /**
-             * @psalm-type ArticleGetBody = array{id: int}
+             * @psalm-type ArticleBody = array{id: int}
              * @psalm-type ArticlePostBody = array{status: string}
-             * @property ArticleGetBody|ArticlePostBody|null $body
+             * @property ArticleBody|ArticlePostBody|null $body
              */""", BodyDocBlockUpdater.create(new BodyTypeCollection(List.of(
-            new BodyTypeDeclaration("ArticleGetBody", getBodyType),
+            new BodyTypeDeclaration("ArticleBody", getBodyType),
             new BodyTypeDeclaration("ArticlePostBody", postBodyType)
         ))));
     }
@@ -43,12 +43,12 @@ class BodyDocBlockUpdaterTest {
             /**
              * Existing summary.
              *
-             * @psalm-type IndexGetBody = array{name: string}
-             * @property IndexGetBody|null $body
+             * @psalm-type IndexBody = array{name: string}
+             * @property IndexBody|null $body
              */""", BodyDocBlockUpdater.update("""
             /**
              * Existing summary.
-             */""", collection("IndexGetBody", bodyType)));
+             */""", collection("IndexBody", bodyType)));
     }
 
     @Test
@@ -59,34 +59,34 @@ class BodyDocBlockUpdaterTest {
             /**
              * Existing summary.
              *
-             * @psalm-type IndexGetBody = array{id: int}
-             * @property IndexGetBody|null $body
+             * @psalm-type IndexBody = array{id: int}
+             * @property IndexBody|null $body
              */""", BodyDocBlockUpdater.update("""
             /**
              * Existing summary.
-             * @psalm-type IndexGetBody = array{old: string}
+             * @psalm-type IndexBody = array{old: string}
              * @property array<string, mixed>|null $body
-             */""", collection("IndexGetBody", bodyType)));
+             */""", collection("IndexBody", bodyType)));
     }
 
     @Test
-    void replacesLegacyClassBodyTypeName() {
+    void replacesLegacyGetBodyTypeName() {
         BodyType bodyType = BodyTypes.shape(List.of(new ShapeField("id", BodyTypes.INT)));
 
         assertEquals("""
             /**
              * Existing summary.
              *
-             * @psalm-type IndexGetBody = array{id: int}
-             * @property IndexGetBody|null $body
+             * @psalm-type IndexBody = array{id: int}
+             * @property IndexBody|null $body
              */""", BodyDocBlockUpdater.update("""
             /**
              * Existing summary.
-             * @psalm-type IndexBody = array{
+             * @psalm-type IndexGetBody = array{
              *     old: string
              * }
-             * @property IndexBody|null $body
-             */""", collection("IndexGetBody", bodyType), "IndexBody"));
+             * @property IndexGetBody|null $body
+             */""", collection("IndexBody", bodyType), "IndexGetBody"));
     }
 
     @Test
@@ -97,8 +97,8 @@ class BodyDocBlockUpdaterTest {
             /**
              * Existing summary.
              *
-             * @psalm-type IndexGetBody = array{id: int}
-             * @property IndexGetBody|null $body
+             * @psalm-type IndexBody = array{id: int}
+             * @property IndexBody|null $body
              */""", BodyDocBlockUpdater.update("""
             /**
              * Existing summary.
@@ -107,7 +107,7 @@ class BodyDocBlockUpdaterTest {
              *     removed: bool
              * }
              * @property IndexGetBody|IndexPutBody|null $body
-             */""", collection("IndexGetBody", bodyType)));
+             */""", collection("IndexBody", bodyType)));
     }
 
     @Test
@@ -128,7 +128,7 @@ class BodyDocBlockUpdaterTest {
 
         assertEquals("""
             /**
-             * @psalm-type IndexGetBody = array{
+             * @psalm-type IndexBody = array{
              *     id: int,
              *     posts: list<array{
              *         id: int,
@@ -138,8 +138,8 @@ class BodyDocBlockUpdaterTest {
              *     status: string,
              *     id: int
              * }
-             * @property IndexGetBody|null $body
-             */""", BodyDocBlockUpdater.create(collection("IndexGetBody", bodyType)));
+             * @property IndexBody|null $body
+             */""", BodyDocBlockUpdater.create(collection("IndexBody", bodyType)));
     }
 
     @Test
@@ -150,16 +150,16 @@ class BodyDocBlockUpdaterTest {
             /**
              * Existing summary.
              *
-             * @psalm-type IndexGetBody = array{name: string}
-             * @property IndexGetBody|null $body
+             * @psalm-type IndexBody = array{name: string}
+             * @property IndexBody|null $body
              */""", BodyDocBlockUpdater.update("""
             /**
              * Existing summary.
-             * @psalm-type IndexGetBody = array{
+             * @psalm-type IndexBody = array{
              *     id: int
              * }
-             * @property IndexGetBody|null $body
-             */""", collection("IndexGetBody", bodyType)));
+             * @property IndexBody|null $body
+             */""", collection("IndexBody", bodyType)));
     }
 
     @Test
@@ -170,13 +170,13 @@ class BodyDocBlockUpdaterTest {
             /**
              * Existing summary.
              *
-             * @psalm-type IndexGetBody = array{name: string}
-             * @property IndexGetBody|null $body
+             * @psalm-type IndexBody = array{name: string}
+             * @property IndexBody|null $body
              */""", BodyDocBlockUpdater.update("""
             /**
              * Existing summary.
              *
-             */""", collection("IndexGetBody", bodyType)));
+             */""", collection("IndexBody", bodyType)));
     }
 
     private static BodyTypeCollection collection(String typeName, BodyType bodyType) {

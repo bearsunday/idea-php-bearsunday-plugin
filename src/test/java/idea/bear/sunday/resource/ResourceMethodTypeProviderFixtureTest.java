@@ -11,6 +11,7 @@ import com.intellij.testFramework.fixtures.CodeInsightTestFixture;
 import com.intellij.testFramework.fixtures.IdeaProjectTestFixture;
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory;
 import com.intellij.testFramework.fixtures.TestFixtureBuilder;
+import com.jetbrains.php.lang.psi.elements.FieldReference;
 import com.jetbrains.php.lang.psi.elements.MethodReference;
 import com.jetbrains.php.lang.psi.resolve.types.PhpType;
 import org.junit.jupiter.api.AfterEach;
@@ -68,6 +69,32 @@ class ResourceMethodTypeProviderFixtureTest {
             """);
 
         PhpType completedType = completedType(caller, "get");
+
+        assertTrue(completedType.getTypes().contains("\\MyVendor\\MyProject\\Resource\\App\\Index"));
+    }
+
+    @Test
+    void resolvesLiteralPutUriToResourceClass() {
+        addPhysicalPhpFile("src/Resource/App/Index.php", """
+            <?php
+            namespace MyVendor\\MyProject\\Resource\\App;
+
+            final class Index extends \\BEAR\\Resource\\ResourceObject {}
+            """);
+        PsiFile caller = fixture.addFileToProject("src/Resource/App/Caller.php", """
+            <?php
+            namespace MyVendor\\MyProject\\Resource\\App;
+
+            final class Caller
+            {
+                public function onPut(): void
+                {
+                    $index = $this->resource->put('app://self/index');
+                }
+            }
+            """);
+
+        PhpType completedType = completedType(caller, "put");
 
         assertTrue(completedType.getTypes().contains("\\MyVendor\\MyProject\\Resource\\App\\Index"));
     }
@@ -145,9 +172,142 @@ class ResourceMethodTypeProviderFixtureTest {
         });
     }
 
+    @Test
+    void narrowsGetBodyTypeFromLocalResourceVariable() {
+        addPhysicalPhpFile("src/Resource/App/Article.php", """
+            <?php
+            namespace MyVendor\\MyProject\\Resource\\App;
+
+            final class Article extends \\BEAR\\Resource\\ResourceObject
+            {
+                public function onGet(): static
+                {
+                    $this->body = ['id' => 1, 'title' => 'Hello'];
+
+                    return $this;
+                }
+
+                public function onPost(): static
+                {
+                    $this->body = ['status' => 'created'];
+
+                    return $this;
+                }
+            }
+            """);
+        PsiFile caller = fixture.addFileToProject("src/Resource/App/Caller.php", """
+            <?php
+            namespace MyVendor\\MyProject\\Resource\\App;
+
+            final class Caller
+            {
+                public function onGet(): void
+                {
+                    $article = $this->resource->get('app://self/article');
+                    $body = $article->body;
+                }
+            }
+            """);
+
+        PhpType completedType = completedBodyType(caller);
+
+        assertTrue(completedType.getTypes().contains("array{id: int, title: string}"), completedType::toString);
+        assertTrue(completedType.isNullable(), completedType::toString);
+    }
+
+    @Test
+    void narrowsPutBodyTypeFromLocalResourceVariable() {
+        addPhysicalPhpFile("src/Resource/App/Article.php", """
+            <?php
+            namespace MyVendor\\MyProject\\Resource\\App;
+
+            final class Article extends \\BEAR\\Resource\\ResourceObject
+            {
+                public function onGet(): static
+                {
+                    $this->body = ['id' => 1];
+
+                    return $this;
+                }
+
+                public function onPut(): static
+                {
+                    $this->body = ['updated' => true];
+
+                    return $this;
+                }
+            }
+            """);
+        PsiFile caller = fixture.addFileToProject("src/Resource/App/Caller.php", """
+            <?php
+            namespace MyVendor\\MyProject\\Resource\\App;
+
+            final class Caller
+            {
+                public function onPut(): void
+                {
+                    $article = $this->resource->put('app://self/article');
+                    $body = $article->body;
+                }
+            }
+            """);
+
+        PhpType completedType = completedBodyType(caller);
+
+        assertTrue(completedType.getTypes().contains("array{updated: bool}"), completedType::toString);
+        assertTrue(completedType.isNullable(), completedType::toString);
+    }
+
+    @Test
+    void narrowsDirectResourceBodyAccess() {
+        addPhysicalPhpFile("src/Resource/App/Article.php", """
+            <?php
+            namespace MyVendor\\MyProject\\Resource\\App;
+
+            final class Article extends \\BEAR\\Resource\\ResourceObject
+            {
+                public function onGet(): static
+                {
+                    $this->body = ['id' => 1];
+
+                    return $this;
+                }
+            }
+            """);
+        PsiFile caller = fixture.addFileToProject("src/Resource/App/Caller.php", """
+            <?php
+            namespace MyVendor\\MyProject\\Resource\\App;
+
+            final class Caller
+            {
+                public function onGet(): void
+                {
+                    $body = $this->resource->get('app://self/article')->body;
+                }
+            }
+            """);
+
+        PhpType completedType = completedBodyType(caller);
+
+        assertTrue(completedType.getTypes().contains("array{id: int}"), completedType::toString);
+    }
+
     private PhpType completedType(PsiFile psiFile, String methodName) {
         return ApplicationManager.getApplication().runReadAction((Computable<PhpType>) () -> {
             MethodReference reference = methodReference(psiFile, methodName);
+            PhpType type = provider.getType(reference);
+            assertNotNull(type);
+            String signature = type.getTypes().iterator().next();
+            PhpType completed = provider.complete(signature, psiFile.getProject());
+            assertNotNull(completed, "signature=" + signature + ", basePath=" + psiFile.getProject().getBasePath());
+
+            return completed;
+        });
+    }
+
+    private PhpType completedBodyType(PsiFile psiFile) {
+        return ApplicationManager.getApplication().runReadAction((Computable<PhpType>) () -> {
+            FieldReference reference = bodyFieldReference(psiFile);
             PhpType type = provider.getType(reference);
             assertNotNull(type);
             String signature = type.getTypes().iterator().next();
@@ -182,6 +342,14 @@ class ResourceMethodTypeProviderFixtureTest {
         Collection<MethodReference> references = PsiTreeUtil.findChildrenOfType(psiFile, MethodReference.class);
         return references.stream()
             .filter(reference -> methodName.equals(reference.getName()))
+            .findFirst()
+            .orElseThrow();
+    }
+
+    private static FieldReference bodyFieldReference(PsiFile psiFile) {
+        Collection<FieldReference> references = PsiTreeUtil.findChildrenOfType(psiFile, FieldReference.class);
+        return references.stream()
+            .filter(reference -> "body".equals(reference.getName()))
             .findFirst()
             .orElseThrow();
     }

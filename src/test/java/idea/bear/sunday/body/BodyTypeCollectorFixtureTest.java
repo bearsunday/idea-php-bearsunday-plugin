@@ -59,7 +59,9 @@ class BodyTypeCollectorFixtureTest {
 
         BodyTypeCollection collection = collect(psiFile);
 
-        assertEquals(List.of("ArticleGetBody", "ArticlePostBody"), collection.typeNames());
+        assertEquals(List.of("ArticleBody", "ArticlePostBody"), collection.typeNames());
+        assertEquals("get", collection.declarations().get(0).resourceMethodName());
+        assertEquals("post", collection.declarations().get(1).resourceMethodName());
         assertEquals("array{id: int}", collection.declarations().get(0).bodyType().render());
         assertEquals("array{status: string}", collection.declarations().get(1).bodyType().render());
     }
@@ -84,7 +86,7 @@ class BodyTypeCollectorFixtureTest {
 
         BodyTypeCollection collection = collect(psiFile);
 
-        assertEquals(List.of("ArticleOffsetGetBody"), collection.typeNames());
+        assertEquals(List.of("ArticleOffsetBody"), collection.typeNames());
         assertEquals("array{a: int, b: list<int>, c: mixed}", collection.declarations().get(0).bodyType().render());
     }
 

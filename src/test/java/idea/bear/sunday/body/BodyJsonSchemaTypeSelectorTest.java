@@ -11,8 +11,8 @@ class BodyJsonSchemaTypeSelectorTest {
     @Test
     void prefersGetBodyForMethodlessSchemaFile() {
         BodyTypeCollection collection = new BodyTypeCollection(List.of(
-            new BodyTypeDeclaration("ArticlePostBody", BodyTypes.shape(List.of(new ShapeField("status", BodyTypes.STRING)))),
-            new BodyTypeDeclaration("ArticleGetBody", BodyTypes.shape(List.of(new ShapeField("id", BodyTypes.INT))))
+            new BodyTypeDeclaration("ArticlePostBody", BodyTypes.shape(List.of(new ShapeField("status", BodyTypes.STRING))), "post"),
+            new BodyTypeDeclaration("ArticleBody", BodyTypes.shape(List.of(new ShapeField("id", BodyTypes.INT))), "get")
         ));
 
         BodyType selected = BodyJsonSchemaTypeSelector.select(collection);
@@ -23,8 +23,8 @@ class BodyJsonSchemaTypeSelectorTest {
     @Test
     void fallsBackToUnionWhenGetBodyIsMissing() {
         BodyTypeCollection collection = new BodyTypeCollection(List.of(
-            new BodyTypeDeclaration("ArticlePostBody", BodyTypes.shape(List.of(new ShapeField("status", BodyTypes.STRING)))),
-            new BodyTypeDeclaration("ArticlePutBody", BodyTypes.shape(List.of(new ShapeField("id", BodyTypes.INT))))
+            new BodyTypeDeclaration("ArticlePostBody", BodyTypes.shape(List.of(new ShapeField("status", BodyTypes.STRING))), "post"),
+            new BodyTypeDeclaration("ArticlePutBody", BodyTypes.shape(List.of(new ShapeField("id", BodyTypes.INT))), "put")
         ));
 
         BodyType selected = BodyJsonSchemaTypeSelector.select(collection);

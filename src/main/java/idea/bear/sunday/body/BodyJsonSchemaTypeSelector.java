@@ -6,9 +6,7 @@ final class BodyJsonSchemaTypeSelector {
     }
 
     static BodyType select(BodyTypeCollection collection) {
-        return collection.declarations().stream()
-            .filter(declaration -> declaration.typeName().endsWith("GetBody"))
-            .findFirst()
+        return collection.declarationForResourceMethod("get")
             .map(BodyTypeDeclaration::bodyType)
             .orElseGet(() -> BodyTypes.union(collection.declarations().stream()
                 .map(BodyTypeDeclaration::bodyType)

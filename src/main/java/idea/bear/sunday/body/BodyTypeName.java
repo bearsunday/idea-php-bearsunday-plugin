@@ -15,7 +15,16 @@ public final class BodyTypeName {
     }
 
     public static String fromClassAndMethod(PhpClass phpClass, Method method) {
+        if (isGetMethod(method)) {
+            return fromClass(phpClass);
+        }
+
         return resourceName(phpClass) + methodSuffix(method) + "Body";
+    }
+
+    private static boolean isGetMethod(Method method) {
+        String methodName = method.getName();
+        return methodName != null && ("onGet".equalsIgnoreCase(methodName) || "get".equalsIgnoreCase(methodName));
     }
 
     private static String resourceName(PhpClass phpClass) {

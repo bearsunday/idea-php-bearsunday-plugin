@@ -20,6 +20,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -76,7 +77,8 @@ public final class BodyTypeCollector {
         for (Map.Entry<Method, MethodBodyState> entry : bodyTypesByMethod.entrySet()) {
             declarations.add(new BodyTypeDeclaration(
                 BodyTypeName.fromClassAndMethod(phpClass, entry.getKey()),
-                BodyTypes.union(entry.getValue().bodyTypes)
+                BodyTypes.union(entry.getValue().bodyTypes),
+                resourceMethodName(entry.getKey())
             ));
         }
 
@@ -195,6 +197,18 @@ public final class BodyTypeCollector {
         }
 
         return Optional.empty();
+    }
+
+    private static String resourceMethodName(Method method) {
+        String methodName = method.getName();
+        if (methodName == null || methodName.isBlank()) {
+            return "";
+        }
+        if (methodName.startsWith("on") && methodName.length() > 2) {
+            return methodName.substring(2).toLowerCase(Locale.ROOT);
+        }
+
+        return methodName.toLowerCase(Locale.ROOT);
     }
 
     private static final class MethodBodyState {
