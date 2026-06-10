@@ -74,6 +74,38 @@ public final class BodyTypes {
         return type;
     }
 
+    static String namedTypeName(BodyType type) {
+        if (type instanceof NamedType namedType) {
+            return namedType.name();
+        }
+
+        return null;
+    }
+
+    static BodyType listElementType(BodyType type) {
+        if (type instanceof ListType listType) {
+            return listType.elementType();
+        }
+
+        return null;
+    }
+
+    static List<ShapeField> shapeFields(BodyType type) {
+        if (type instanceof ShapeType shapeType) {
+            return shapeType.fields();
+        }
+
+        return null;
+    }
+
+    static List<BodyType> unionTypes(BodyType type) {
+        if (type instanceof UnionType unionType) {
+            return unionType.types();
+        }
+
+        return null;
+    }
+
     public static String renderFormatted(BodyType type) {
         return renderFormatted(type, 0, false);
     }

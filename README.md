@@ -22,6 +22,8 @@
 * Ray.QueryModule SQL goto
 * Aura.Router goto BEAR.Resource
 * Generate Psalm body type PHPDoc for BEAR.Resource body array shapes
+* Generate JSON Schema files from BEAR.Resource body array shapes
+* Infer concrete BEAR.Resource classes from literal `get('app://self/...')` calls
 
 <!-- Plugin description end -->
 ## Feature demos
@@ -34,6 +36,7 @@ completion, line markers, or the editor intention on the files below.
 | --- | --- | --- |
 | BEAR.Resource URI completion | `demo-app/src/Resource/App/UriDemo.php` | Invoke completion inside `uri('...')` arguments. |
 | BEAR.Resource goto | `demo-app/src/Resource/App/UriDemo.php`, `demo-app/src/Resource/App/Dashboard.php` | Cmd/Ctrl-click `app://self/user` or `/profile` to jump to the resource class. |
+| BEAR.Resource typed `get()` result | `demo-app/src/Resource/App/UriDemo.php`, `demo-app/src/Resource/App/User.php` | `get('app://self/user')` is inferred as the concrete `User` resource; complete keys after `$user->body['`. |
 | BEAR.Resource PHPDoc annotation completion | `demo-app/src/Resource/App/DocblockAnnotationDemo.php` | Complete PHPDoc annotation names, annotation parameters, and URI-valued `href`/`src` fields. |
 | BEAR.Resource JSON Schema goto | `demo-app/src/Resource/App/BodyTypeDemo.php` | Cmd/Ctrl-click `body-type-demo.json` to open `demo-app/var/json_schema/body-type-demo.json`. |
 | Incoming Link/Embed relation gutter | `demo-app/src/Resource/App/User.php`, `demo-app/src/Resource/App/Profile.php` | Use the gutter to find incoming relations from `Dashboard.php`. |
@@ -44,6 +47,7 @@ completion, line markers, or the editor intention on the files below.
 | Ray.QueryModule SQL goto | `demo-app/src/Query/LegacyPointQueryInterface.php` | Cmd/Ctrl-click `point_distance` in `@Query("point_distance")`. |
 | Aura.Router goto BEAR.Resource | `demo-app/aura.route.php` | Cmd/Ctrl-click `/index` or `/dashboard` to jump to the matching Page resource. |
 | Generate Psalm body type PHPDoc | `demo-app/src/Resource/App/BodyTypeDemo.php` | Run **Generate BEAR body type** on the resource class. |
+| Generate body JSON Schema | `demo-app/src/Resource/App/BodyTypeDemo.php` | Run **Generate BEAR body JSON Schema**; it writes `var/json_schema/body-type-demo.json` without a method name in the file. |
 
 ### Body type generator screenshots
 

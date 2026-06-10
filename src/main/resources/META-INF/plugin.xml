@@ -20,6 +20,8 @@
     <li>Ray.QueryModule SQL goto</li>
     <li>Aura.Router goto BEAR.Resource</li>
     <li>Generate Psalm body type PHPDoc for BEAR.Resource body array shapes</li>
+    <li>Generate JSON Schema files from BEAR.Resource body array shapes</li>
+    <li>Infer concrete BEAR.Resource classes from literal resource method calls</li>
   </ul>
   <h2>Links</h2>
   <ul>
@@ -46,6 +48,11 @@
       <className>idea.bear.sunday.body.GenerateBodyTypeIntention</className>
       <category>BEAR.Sunday</category>
     </intentionAction>
+    <intentionAction>
+      <language>PHP</language>
+      <className>idea.bear.sunday.body.GenerateBodyJsonSchemaIntention</className>
+      <category>BEAR.Sunday</category>
+    </intentionAction>
 
     <gotoDeclarationHandler implementation="idea.bear.sunday.router.RouterGotoDeclarationHandler"/>
     <gotoDeclarationHandler implementation="idea.bear.sunday.annotation.AnnotationOrAttributeGotoDeclarationHandler"/>
@@ -67,6 +74,10 @@
 
     <notificationGroup id="BEAR.Sunday" displayType="BALLOON"/>
 
+  </extensions>
+
+  <extensions defaultExtensionNs="com.jetbrains.php">
+    <typeProvider4 implementation="idea.bear.sunday.resource.ResourceMethodTypeProvider"/>
   </extensions>
 
   <depends>com.jetbrains.php</depends>
