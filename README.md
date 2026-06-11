@@ -21,7 +21,7 @@
 * Ray.MediaQuery SQL goto
 * Ray.QueryModule SQL goto
 * Aura.Router goto BEAR.Resource
-* Generate Psalm body type PHPDoc for BEAR.Resource body array shapes
+* Generate Psalm body type PHPDoc for BEAR.Resource body array shapes, including folder-level batch generation
 * Generate JSON Schema files from BEAR.Resource body array shapes
 * Infer concrete BEAR.Resource classes and method-specific body shapes from literal resource method calls
 
@@ -46,7 +46,7 @@ completion, line markers, or the editor intention on the files below.
 | Ray.MediaQuery SQL goto | `demo-app/src/Query/PointQueryInterface.php` | Cmd/Ctrl-click `point_distance` in `#[DbQuery(...)]` to open `demo-app/var/db/sql/point_distance.sql`. |
 | Ray.QueryModule SQL goto | `demo-app/src/Query/LegacyPointQueryInterface.php` | Cmd/Ctrl-click `point_distance` in `@Query("point_distance")`. |
 | Aura.Router goto BEAR.Resource | `demo-app/aura.route.php` | Cmd/Ctrl-click `/index` or `/dashboard` to jump to the matching Page resource. |
-| Generate Psalm body type PHPDoc | `demo-app/src/Resource/App/BodyTypeDemo.php` | Run **Generate BEAR body type** on the resource class. |
+| Generate Psalm body type PHPDoc | `demo-app/src/Resource/App/BodyTypeDemo.php` or `demo-app/src/Resource/App/` | Run **Generate BEAR body type** on one resource class, or from the Project View folder popup to process every ResourceObject under the selected folder. |
 | Generate body JSON Schema | `demo-app/src/Resource/App/BodyTypeDemo.php` | Run **Generate BEAR body JSON Schema**; it writes `var/json_schema/body-type-demo.json` without a method name in the file. |
 
 ### Body type generator screenshots

@@ -23,11 +23,11 @@ composer install
 | Ray.MediaQuery SQLジャンプ | `src/Query/PointQueryInterface.php` | `#[DbQuery('point_distance')]` の `point_distance` で Cmd/Ctrl+B を押します。 |
 | Ray.QueryModule SQLジャンプ | `src/Query/QueryModuleDemo.php`, `src/Query/LegacyPointQueryInterface.php` | `point_distance` で Cmd/Ctrl+B を押します。 |
 | Aura.Routerジャンプ | `aura.route.php` | `'/index'` / `'/dashboard'` で Cmd/Ctrl+B を押します。 |
-| Psalm body type PHPDoc生成 | `src/Resource/App/BodyTypeDemo.php` | **Generate BEAR body type** intentionを実行します。 |
+| Psalm body type PHPDoc生成 | `src/Resource/App/BodyTypeDemo.php`, `src/Resource/App/` | クラス上で **Generate BEAR body type** intentionを実行するか、Project Viewでフォルダを右クリックして同名アクションを実行します。配下のResourceObjectだけを一括処理します。 |
 
 ## Body type PHPDoc生成
 
-`src/Resource/App/BodyTypeDemo.php` で **Generate BEAR body type** を実行すると、`$this->body` への代入から class PHPDoc に `@psalm-type BodyTypeDemoBody = ...` / `@psalm-type BodyTypeDemoPostBody = ...` と `@property BodyTypeDemoBody|BodyTypeDemoPostBody|null $body` が追加されます。メソッド名なしの `Body` は GET 表現です。
+`src/Resource/App/BodyTypeDemo.php` で **Generate BEAR body type** を実行するか、Project Viewで `src/Resource/App/` を右クリックして同名アクションを実行すると、`$this->body` への代入から class PHPDoc に `@psalm-type BodyTypeDemoBody = ...` / `@psalm-type BodyTypeDemoPostBody = ...` と `@property BodyTypeDemoBody|BodyTypeDemoPostBody|null $body` が追加されます。メソッド名なしの `Body` は GET 表現です。
 
 スクリーンショット:
 

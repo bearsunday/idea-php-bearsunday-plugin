@@ -14,6 +14,10 @@ public final class BodyTypeName {
         return resourceName(phpClass) + "Body";
     }
 
+    public static String legacyGetFromClass(PhpClass phpClass) {
+        return resourceName(phpClass) + "GetBody";
+    }
+
     public static String fromClassAndMethod(PhpClass phpClass, Method method) {
         if (isGetMethod(method)) {
             return fromClass(phpClass);

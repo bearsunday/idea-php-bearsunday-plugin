@@ -19,7 +19,7 @@
     <li>Ray.MediaQuery SQL goto</li>
     <li>Ray.QueryModule SQL goto</li>
     <li>Aura.Router goto BEAR.Resource</li>
-    <li>Generate Psalm body type PHPDoc for BEAR.Resource body array shapes</li>
+    <li>Generate Psalm body type PHPDoc for BEAR.Resource body array shapes, including folder-level batch generation</li>
     <li>Generate JSON Schema files from BEAR.Resource body array shapes</li>
     <li>Infer concrete BEAR.Resource classes and method-specific body shapes from literal resource method calls</li>
   </ul>
@@ -86,6 +86,14 @@
   <depends optional="true" config-file="idea.bear.sunday-annotation.xml">de.espend.idea.php.annotation</depends>
 
   <actions>
+
+    <action id="idea.bear.sunday.body.GenerateBodyTypes"
+            class="idea.bear.sunday.body.GenerateBodyTypesAction"
+            text="Generate BEAR body type"
+            description="Generate Psalm body types for BEAR.Resource objects under selected files or directories">
+      <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+    </action>
+
     <action id="idea.bear.sunday.input.ExtractInputDto"
             class="idea.bear.sunday.input.ExtractInputDtoAction"
             text="Extract Input DTO..."
