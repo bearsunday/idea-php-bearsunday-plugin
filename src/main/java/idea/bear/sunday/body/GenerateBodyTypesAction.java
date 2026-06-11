@@ -2,6 +2,7 @@ package idea.bear.sunday.body;
 
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
+import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -12,6 +13,11 @@ import java.util.Arrays;
 public final class GenerateBodyTypesAction extends AnAction {
 
     private final BodyTypeBatchGenerator generator = new BodyTypeBatchGenerator();
+
+    @Override
+    public @NotNull ActionUpdateThread getActionUpdateThread() {
+        return ActionUpdateThread.BGT;
+    }
 
     @Override
     public void update(@NotNull AnActionEvent event) {
