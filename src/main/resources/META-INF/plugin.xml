@@ -3,6 +3,7 @@
   <name>BEAR.Sunday</name>
   <version>0.8</version>
   <vendor email="shingo4092@gmail.com">Shingo Kumagai</vendor>
+  <resource-bundle>messages.BearSundayBundle</resource-bundle>
 
   <description><![CDATA[
   <h2>Features</h2>
@@ -11,6 +12,7 @@
     <li>BEAR.Resource goto from URIs such as <code>app://self/user</code> to <code>src/Resource/App/User.php</code></li>
     <li>BEAR.Resource JSON Schema goto</li>
     <li>Incoming Link/Embed relation gutter for BEAR.Resource methods</li>
+    <li>Extract BEAR.Resource parameters to Ray.InputQuery DTO</li>
     <li>Ray.Aop bound interceptor gutter icon and navigation from attributes such as <code>#[Transactional]</code></li>
     <li>Ray.MediaQuery SQL goto</li>
     <li>Ray.QueryModule SQL goto</li>
@@ -65,6 +67,14 @@
   <depends optional="true" config-file="idea.bear.sunday-annotation.xml">de.espend.idea.php.annotation</depends>
 
   <actions>
+    <action id="idea.bear.sunday.input.ExtractInputDto"
+            class="idea.bear.sunday.input.ExtractInputDtoAction"
+            text="Extract Input DTO..."
+            description="Extract BEAR.Resource method parameters to a Ray.InputQuery DTO">
+      <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+      <add-to-group group-id="RefactoringMenu" anchor="last"/>
+    </action>
+
     <action id="idea.bear.sunday.aop.GoToBoundInterceptor"
             class="idea.bear.sunday.aop.GoToBoundInterceptorAction"
             text="Go to Bound Interceptor"

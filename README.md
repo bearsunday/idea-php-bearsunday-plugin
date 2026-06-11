@@ -14,6 +14,7 @@
 * BEAR.Resource goto from URIs such as `app://self/user` to `src/Resource/App/User.php`
 * BEAR.Resource JSON Schema goto
 * Incoming Link/Embed relation gutter for BEAR.Resource methods
+* Extract BEAR.Resource parameters to Ray.InputQuery DTO
 * Ray.Aop bound interceptor gutter icon and navigation from attributes such as `#[Transactional]`
 * Ray.MediaQuery SQL goto
 * Ray.QueryModule SQL goto
@@ -29,6 +30,10 @@
 
 * URI-Template Library (`com.damnhandy:handy-uri-templates:2.1.8`)
 * Apache Commons Text (`org.apache.commons:commons-text:1.12.0`)
+
+## Demo app
+
+`demo-app/` is a small BEAR.Sunday application for trying this plugin's BEAR.Resource, Ray.InputQuery, and Ray.MediaQuery support in PhpStorm. It is a local demo fixture for the plugin, not a standalone package release.
 
 ## Build
 
