@@ -45,6 +45,11 @@
     <codeInsight.lineMarkerProvider language="PHP" implementationClass="idea.bear.sunday.relation.ResourceIncomingRelationLineMarkerProvider"/>
     <intentionAction>
       <language>PHP</language>
+      <className>idea.bear.sunday.input.ExtractInputDtoIntention</className>
+      <category>BEAR.Sunday</category>
+    </intentionAction>
+    <intentionAction>
+      <language>PHP</language>
       <className>idea.bear.sunday.body.GenerateBodyTypeIntention</className>
       <category>BEAR.Sunday</category>
     </intentionAction>

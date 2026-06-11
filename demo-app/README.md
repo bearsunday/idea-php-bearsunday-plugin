@@ -18,7 +18,7 @@ composer install
 | JSON Schemaジャンプ | `src/Resource/App/SchemaDemo.php`, `src/Resource/App/BodyTypeDemo.php` | `point.json` / `point-params.json` / `body-type-demo.json` で Cmd/Ctrl+B を押します。 |
 | Link/Embed incoming gutter | `src/Resource/App/User.php`, `src/Resource/App/Profile.php`, `src/Resource/App/PointDto.php`, `src/Resource/Page/Index.php` | `onGet()` 左のBEARアイコンから参照元へ移動します。 |
 | Twig/Qiq embedded template navigation | `App/Dashboard.html.twig`, `App/Dashboard.php` | `user` / `$this->user` のgutterまたは Cmd/Ctrl+B で埋め込み先テンプレートへ移動します。 |
-| Input DTO抽出 | `src/Resource/App/Point.php` | `onGet(int $x, int $y)` にカーソルを置き、`Extract Input DTO...` を実行します。試すだけならDTO名は `PointDemoInput` にし、実行後にUndoします。 |
+| Input DTO抽出 | `src/Resource/App/Point.php` | `onGet(int $x, int $y)` にカーソルを置き、電球から `Extract Input DTO...` を実行します。試すだけならDTO名は `PointDemoInput` にし、実行後にUndoします。 |
 | Ray.Aop interceptorジャンプ | `src/Resource/App/PointDto.php`, `src/Resource/App/BodyTypeDemo.php` | `#[DemoLogged]` / `#[Audited]` 左のRay.Aopアイコン、または `Go to Bound Interceptor` を実行します。 |
 | Ray.MediaQuery SQLジャンプ | `src/Query/PointQueryInterface.php` | `#[DbQuery('point_distance')]` の `point_distance` で Cmd/Ctrl+B を押します。 |
 | Ray.QueryModule SQLジャンプ | `src/Query/QueryModuleDemo.php`, `src/Query/LegacyPointQueryInterface.php` | `point_distance` で Cmd/Ctrl+B を押します。 |
