@@ -2,6 +2,7 @@ package idea.bear.sunday.body;
 
 import com.jetbrains.php.lang.psi.elements.PhpClass;
 import com.jetbrains.php.lang.psi.elements.Method;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.Locale;
 
@@ -10,15 +11,15 @@ public final class BodyTypeName {
     private BodyTypeName() {
     }
 
-    public static String fromClass(PhpClass phpClass) {
+    public static String fromClass(@NotNull PhpClass phpClass) {
         return resourceName(phpClass) + "Body";
     }
 
-    public static String legacyGetFromClass(PhpClass phpClass) {
+    public static String legacyGetFromClass(@NotNull PhpClass phpClass) {
         return resourceName(phpClass) + "GetBody";
     }
 
-    public static String fromClassAndMethod(PhpClass phpClass, Method method) {
+    public static String fromClassAndMethod(@NotNull PhpClass phpClass, @NotNull Method method) {
         if (isGetMethod(method)) {
             return fromClass(phpClass);
         }
@@ -26,12 +27,12 @@ public final class BodyTypeName {
         return resourceName(phpClass) + methodSuffix(method) + "Body";
     }
 
-    private static boolean isGetMethod(Method method) {
+    private static boolean isGetMethod(@NotNull Method method) {
         String methodName = method.getName();
         return methodName != null && ("onGet".equalsIgnoreCase(methodName) || "get".equalsIgnoreCase(methodName));
     }
 
-    private static String resourceName(PhpClass phpClass) {
+    private static String resourceName(@NotNull PhpClass phpClass) {
         String name = phpClass.getName();
         if (name == null || name.isBlank()) {
             return "Resource";
@@ -40,7 +41,7 @@ public final class BodyTypeName {
         return name;
     }
 
-    private static String methodSuffix(Method method) {
+    private static String methodSuffix(@NotNull Method method) {
         String methodName = method.getName();
         if (methodName == null || methodName.isBlank()) {
             return "";

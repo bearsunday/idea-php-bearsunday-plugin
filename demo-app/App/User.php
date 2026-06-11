@@ -1,1 +1,1 @@
-<strong>{{= $this->name }}</strong>
+<strong>{{h $this->name }}</strong>

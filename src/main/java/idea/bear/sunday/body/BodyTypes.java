@@ -269,7 +269,29 @@ public final class BodyTypes {
                 return key;
             }
 
-            return "'" + key.replace("\\", "\\\\").replace("'", "\\'") + "'";
+            StringBuilder escaped = new StringBuilder(key.length());
+            for (int index = 0; index < key.length(); index++) {
+                char ch = key.charAt(index);
+                switch (ch) {
+                    case '\\' -> escaped.append("\\\\");
+                    case '\'' -> escaped.append("\\'");
+                    case '\n' -> escaped.append("\\n");
+                    case '\r' -> escaped.append("\\r");
+                    case '\t' -> escaped.append("\\t");
+                    case '\0' -> escaped.append("\\0");
+                    case '\u000B' -> escaped.append("\\v");
+                    case '\f' -> escaped.append("\\f");
+                    default -> {
+                        if (Character.isISOControl(ch)) {
+                            escaped.append(String.format("\\x%02X", (int) ch));
+                        } else {
+                            escaped.append(ch);
+                        }
+                    }
+                }
+            }
+
+            return "'" + escaped + "'";
         }
 
     }

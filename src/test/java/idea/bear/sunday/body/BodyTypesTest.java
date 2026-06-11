@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class BodyTypesTest {
 
@@ -105,6 +106,21 @@ class BodyTypesTest {
         ));
 
         assertEquals("array{'created-at': string}", type.render());
+    }
+
+    @Test
+    void escapesControlCharactersInQuotedKeys() {
+        BodyType type = BodyTypes.shape(List.of(
+            new ShapeField("line\nbreak\tkey\0", BodyTypes.STRING)
+        ));
+
+        assertEquals("array{'line\\nbreak\\tkey\\0': string}", type.render());
+    }
+
+    @Test
+    void shapeFieldRequiresKeyAndType() {
+        assertThrows(NullPointerException.class, () -> new ShapeField(null, BodyTypes.STRING));
+        assertThrows(NullPointerException.class, () -> new ShapeField("id", null));
     }
 
 }

@@ -2,6 +2,7 @@ package idea.bear.sunday.body;
 
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.util.PsiTreeUtil;
+import com.jetbrains.php.lang.parser.PhpElementTypes;
 import com.jetbrains.php.lang.psi.elements.ArrayCreationExpression;
 import com.jetbrains.php.lang.psi.elements.ArrayHashElement;
 import com.jetbrains.php.lang.psi.elements.PhpExpression;
@@ -121,7 +122,7 @@ public final class BodyTypeInferer {
     private List<PhpExpression> arrayValueExpressionsOf(ArrayCreationExpression arrayCreationExpression) {
         List<PhpExpression> values = new ArrayList<>();
         for (PsiElement child : arrayCreationExpression.getChildren()) {
-            if (!"Array value".equals(child.getNode().getElementType().toString())) {
+            if (child.getNode().getElementType() != PhpElementTypes.ARRAY_VALUE) {
                 continue;
             }
 
