@@ -49,6 +49,62 @@ completion, line markers, or the editor intention on the files below.
 | Generate Psalm body type PHPDoc | `demo-app/src/Resource/App/BodyTypeDemo.php` or `demo-app/src/Resource/App/` | Run **Generate BEAR body type** on one resource class, or from the Project View folder popup to process every ResourceObject under the selected folder. |
 | Generate body JSON Schema | `demo-app/src/Resource/App/BodyTypeDemo.php` | Run **Generate BEAR body JSON Schema**; it writes `var/json_schema/body-type-demo.json` without a method name in the file. |
 
+### Body type generator output
+
+Running **Generate BEAR body type** adds named Psalm array-shape aliases to the ResourceObject PHPDoc.
+The GET body uses the conventional methodless name (`ArticleBody`), while other methods include the
+HTTP method (`ArticlePostBody`, `ArticlePutBody`, ...). The `$body` property is declared as a union so
+Psalm, PHPStan, and PhpStorm can narrow the shape by resource method.
+
+```diff
+ use BEAR\Resource\ResourceObject;
+
++/**
++ * @psalm-type ArticleBody = array{
++ *     id: int,
++ *     title: string,
++ *     tags: list<string>
++ * }
++ * @psalm-type ArticlePostBody = array{
++ *     status: string,
++ *     id: int
++ * }
++ * @property ArticleBody|ArticlePostBody|null $body
++ */
+ final class Article extends ResourceObject
+ {
+     public function onGet(): static
+```
+
+Running **Generate BEAR body JSON Schema** uses the same inferred GET body shape and writes the
+project's conventional methodless schema path, for example `var/json_schema/article.json`.
+
+```diff
++{
++  "$schema": "https://json-schema.org/draft/2020-12/schema",
++  "type": "object",
++  "properties": {
++    "id": {
++      "type": "integer"
++    },
++    "title": {
++      "type": "string"
++    },
++    "tags": {
++      "type": "array",
++      "items": {
++        "type": "string"
++      }
++    }
++  },
++  "required": [
++    "id",
++    "title",
++    "tags"
++  ]
++}
+```
+
 ### Body type generator screenshots
 
 Before running the intention:
