@@ -12,6 +12,8 @@
     <li>BEAR.Resource goto from URIs such as <code>app://self/user</code> to <code>src/Resource/App/User.php</code></li>
     <li>BEAR.Resource JSON Schema goto</li>
     <li>Incoming Link/Embed relation gutter for BEAR.Resource methods</li>
+    <li><code>#[Embed]</code> template navigation: Cmd+click a Twig/Qiq variable to open the embedded template</li>
+    <li>BEAR.Resource &harr; template navigation: jump between a resource class and its Twig/Qiq template from the context menu</li>
     <li>Extract BEAR.Resource parameters to Ray.InputQuery DTO</li>
     <li>Ray.Aop bound interceptor gutter icon and navigation from attributes such as <code>#[Transactional]</code></li>
     <li>Ray.MediaQuery SQL goto</li>
