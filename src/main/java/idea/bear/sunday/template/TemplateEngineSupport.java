@@ -22,9 +22,11 @@ public interface TemplateEngineSupport {
     @Nullable
     String extractVariableName(@NotNull PsiElement element);
 
+    List<TemplateEngineSupport> SUPPORTS = List.of(TwigSupport.INSTANCE, QiqSupport.INSTANCE);
+
     @Nullable
     static TemplateEngineSupport forFile(@NotNull VirtualFile file, @NotNull Project project) {
-        for (TemplateEngineSupport support : List.of(TwigSupport.INSTANCE, QiqSupport.INSTANCE)) {
+        for (TemplateEngineSupport support : SUPPORTS) {
             if (support.accepts(file, project)) {
                 return support;
             }

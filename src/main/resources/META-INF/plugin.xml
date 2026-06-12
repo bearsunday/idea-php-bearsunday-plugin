@@ -83,6 +83,15 @@
       <add-to-group group-id="EditorPopupMenu" anchor="last"/>
       <add-to-group group-id="GoToMenu" anchor="last"/>
     </action>
+
+    <action id="idea.bear.sunday.template.GoToTemplateOrResource"
+            class="idea.bear.sunday.template.GoToTemplateOrResourceAction"
+            text="Go to Related Template or Resource"
+            description="Navigate between a BEAR.Resource class and its template (Twig/Qiq)"
+            icon="/icons/bear.png">
+      <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+      <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+    </action>
   </actions>
 
 </idea-plugin>
