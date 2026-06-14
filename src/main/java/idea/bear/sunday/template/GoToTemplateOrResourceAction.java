@@ -6,10 +6,8 @@ import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.actionSystem.Presentation;
-import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.ui.popup.JBPopup;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
@@ -19,15 +17,11 @@ import idea.bear.sunday.BearSundayBundle;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
  * Navigates between a BEAR.Resource class and its template (Twig or Qiq), in both directions,
  * from the Project View and editor context menus. The label is "Open Template" on a resource
  * file and "Open Resource" on a template; the item is hidden unless the counterpart actually
- * exists. A single match opens directly; multiple matches (e.g. both a Twig and a Qiq template)
- * are offered in a popup.
+ * exists.
  */
 public class GoToTemplateOrResourceAction extends AnAction {
 
@@ -65,18 +59,7 @@ public class GoToTemplateOrResourceAction extends AnAction {
         if (resolution == null) {
             return;
         }
-        PsiElement[] targets = resolution.targets();
-        if (targets.length == 1) {
-            NavigationUtil.activateFileWithPsiElement(targets[0], true);
-            return;
-        }
-        JBPopup popup = NavigationUtil.getPsiElementPopup(targets, resolution.popupTitle());
-        Editor editor = event.getData(CommonDataKeys.EDITOR);
-        if (editor != null) {
-            popup.showInBestPositionFor(editor);
-        } else {
-            popup.showInBestPositionFor(event.getDataContext());
-        }
+        NavigationUtil.activateFileWithPsiElement(resolution.target(), true);
     }
 
     /**
@@ -102,33 +85,28 @@ public class GoToTemplateOrResourceAction extends AnAction {
     static Resolution resolve(@NotNull VirtualFile file, @NotNull Project project) {
         String path = file.getPath();
         if (path.endsWith(".php") && path.contains(TemplateUtils.RESOURCE_DIR_SEGMENT)) {
-            return resolveTemplates(file, project);
+            return resolveTemplate(file, project);
         }
         return resolveResource(file, project);
     }
 
     @Nullable
-    private static Resolution resolveTemplates(@NotNull VirtualFile resourceFile, @NotNull Project project) {
+    private static Resolution resolveTemplate(@NotNull VirtualFile resourceFile, @NotNull Project project) {
         PhpClass resourceClass = TemplateUtils.findClass(project, resourceFile);
         if (resourceClass == null) {
             return null;
         }
-        // A resource class gives no hint which engine renders it, so collect every engine's templates.
+        // A resource is rendered by a single engine, so the first engine with a template wins.
         PsiManager psiManager = PsiManager.getInstance(project);
-        List<PsiElement> targets = new ArrayList<>();
         for (TemplateEngineSupport support : TemplateEngineSupport.SUPPORTS) {
             for (VirtualFile template : support.resolveTemplates(resourceClass)) {
                 PsiFile psiFile = psiManager.findFile(template);
                 if (psiFile != null) {
-                    targets.add(psiFile);
+                    return new Resolution(BearSundayBundle.message("action.goto.template.open"), psiFile);
                 }
             }
         }
-        return targets.isEmpty()
-                ? null
-                : new Resolution(BearSundayBundle.message("action.goto.template.open"),
-                        BearSundayBundle.message("action.goto.popup.templates"),
-                        targets.toArray(PsiElement.EMPTY_ARRAY));
+        return null;
     }
 
     @Nullable
@@ -141,11 +119,9 @@ public class GoToTemplateOrResourceAction extends AnAction {
         if (resourceClass == null) {
             return null;
         }
-        return new Resolution(BearSundayBundle.message("action.goto.resource.open"),
-                BearSundayBundle.message("action.goto.popup.resources"),
-                new PsiElement[]{resourceClass});
+        return new Resolution(BearSundayBundle.message("action.goto.resource.open"), resourceClass);
     }
 
-    record Resolution(@NotNull String actionText, @NotNull String popupTitle, PsiElement @NotNull [] targets) {
+    record Resolution(@NotNull String actionText, @NotNull PsiElement target) {
     }
 }

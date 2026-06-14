@@ -18,8 +18,7 @@ public class GoToTemplateOrResourceActionTest extends BasePlatformTestCase {
 
         assertNotNull(resolution);
         assertEquals("Open Template", resolution.actionText());
-        assertEquals(1, resolution.targets().length);
-        assertEquals("Index.html.twig", asPsiFile(resolution.targets()[0]).getName());
+        assertEquals("Index.html.twig", asPsiFile(resolution.target()).getName());
     }
 
     public void testTwigTemplateResolvesToResource() {
@@ -32,8 +31,7 @@ public class GoToTemplateOrResourceActionTest extends BasePlatformTestCase {
 
         assertNotNull(resolution);
         assertEquals("Open Resource", resolution.actionText());
-        assertEquals(1, resolution.targets().length);
-        assertEquals("Index", assertInstanceOf(resolution.targets()[0], PhpClass.class).getName());
+        assertEquals("Index", asPhpClass(resolution.target()).getName());
     }
 
     public void testQiqResourceResolvesToTemplate() {
@@ -46,8 +44,7 @@ public class GoToTemplateOrResourceActionTest extends BasePlatformTestCase {
 
         assertNotNull(resolution);
         assertEquals("Open Template", resolution.actionText());
-        assertEquals(1, resolution.targets().length);
-        assertEquals("User.php", asPsiFile(resolution.targets()[0]).getName());
+        assertEquals("User.php", asPsiFile(resolution.target()).getName());
     }
 
     public void testQiqTemplateResolvesToResource() {
@@ -60,8 +57,7 @@ public class GoToTemplateOrResourceActionTest extends BasePlatformTestCase {
 
         assertNotNull(resolution);
         assertEquals("Open Resource", resolution.actionText());
-        assertEquals(1, resolution.targets().length);
-        assertEquals("User", assertInstanceOf(resolution.targets()[0], PhpClass.class).getName());
+        assertEquals("User", asPhpClass(resolution.target()).getName());
     }
 
     public void testResourceWithoutTemplateResolvesToNull() {
@@ -84,5 +80,9 @@ public class GoToTemplateOrResourceActionTest extends BasePlatformTestCase {
 
     private PsiFile asPsiFile(PsiElement element) {
         return assertInstanceOf(element, PsiFile.class);
+    }
+
+    private PhpClass asPhpClass(PsiElement element) {
+        return assertInstanceOf(element, PhpClass.class);
     }
 }
