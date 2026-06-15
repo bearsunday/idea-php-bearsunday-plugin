@@ -19,7 +19,7 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Navigates between a BEAR.Resource class and its template (Twig or Qiq), in both directions,
- * from the Project View and editor context menus. The label is "Open Template" on a resource
+ * from the Project View, editor, and editor-tab context menus. The label is "Open Template" on a resource
  * file and "Open Resource" on a template; the item is hidden unless the counterpart actually
  * exists.
  */
