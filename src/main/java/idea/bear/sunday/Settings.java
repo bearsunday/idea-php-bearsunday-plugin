@@ -20,8 +20,6 @@ import java.util.Collection;
 
 public class Settings implements PersistentStateComponent<Settings> {
 
-    public boolean pluginEnabled = true;
-
     public static final String DEFAULT_AURA_ROUTE_FILE = "aura.route.php";
     public static final Collection<String> DEFAULT_RESOURCE_PATH = Arrays.asList(
             "src/Resource/Page",
