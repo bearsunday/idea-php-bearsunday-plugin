@@ -13,6 +13,7 @@
 * BEAR.Resource URI completion
 * BEAR.Resource goto from URIs such as `app://self/user` to `src/Resource/App/User.php`
 * BEAR.Resource JSON Schema goto
+* BEAR.Resource JSON Schema body key completion from `->body['<caret>']`
 * Incoming Link/Embed relation gutter for BEAR.Resource methods
 * Extract BEAR.Resource parameters to Ray.InputQuery DTO
 * Ray.Aop bound interceptor gutter icon and navigation from attributes such as `#[Transactional]`

@@ -11,6 +11,7 @@
     <li>BEAR.Resource URI completion</li>
     <li>BEAR.Resource goto from URIs such as <code>app://self/user</code> to <code>src/Resource/App/User.php</code></li>
     <li>BEAR.Resource JSON Schema goto</li>
+    <li>BEAR.Resource JSON Schema body key completion from <code>->body['<caret>']</code></li>
     <li>Incoming Link/Embed relation gutter for BEAR.Resource methods</li>
     <li>Extract BEAR.Resource parameters to Ray.InputQuery DTO</li>
     <li>Ray.Aop bound interceptor gutter icon and navigation from attributes such as <code>#[Transactional]</code></li>
@@ -36,6 +37,7 @@
 
     <completion.contributor language="PHP" implementationClass="idea.bear.sunday.resource.UriCompletionContributor"/>
     <completion.contributor language="PHP" implementationClass="idea.bear.sunday.resource.QueryCompletionContributor"/>
+    <completion.contributor language="PHP" implementationClass="idea.bear.sunday.jsonschema.JsonSchemaBodyCompletionContributor"/>
     <codeInsight.lineMarkerProvider language="PHP" implementationClass="idea.bear.sunday.aop.BoundInterceptorLineMarkerProvider"/>
     <codeInsight.lineMarkerProvider language="PHP" implementationClass="idea.bear.sunday.relation.ResourceIncomingRelationLineMarkerProvider"/>
 
