@@ -4,9 +4,12 @@ import com.intellij.codeInsight.completion.CompletionParameters;
 import com.intellij.codeInsight.completion.CompletionProvider;
 import com.intellij.codeInsight.completion.CompletionResultSet;
 import com.intellij.codeInsight.lookup.LookupElementBuilder;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Editor;
-import com.intellij.openapi.editor.impl.EditorImpl;
+import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.project.ProjectUtil;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.util.ProcessingContext;
 import org.apache.commons.lang3.StringUtils;
@@ -19,6 +22,8 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 
 public class ResourceCompletionProvider extends CompletionProvider<CompletionParameters> {
+
+    private static final Logger LOG = Logger.getInstance(ResourceCompletionProvider.class);
 
     private ArrayList<String> filePathList;
     private int targetCnt = -1;
@@ -36,16 +41,27 @@ public class ResourceCompletionProvider extends CompletionProvider<CompletionPar
 
         Editor editor = parameters.getEditor();
         Project project = element.getProject();
-        String editFile = ((EditorImpl) editor).getVirtualFile().getPath();
-        String baseDir = project.getBasePath() + "/src/Resource/";
+
+        VirtualFile projectDir = ProjectUtil.guessProjectDir(project);
+        if (projectDir == null) {
+            return;
+        }
+        String projectBasePath = projectDir.getPath();
+
+        // editor may be an EditorWindowImpl for injected fragments (e.g. Qiq tags),
+        // which is not an EditorImpl; resolve the file without casting.
+        VirtualFile editorFile = editor == null ? null
+            : FileDocumentManager.getInstance().getFile(editor.getDocument());
+        String editFile = editorFile == null ? "" : editorFile.getPath();
+
+        String baseDir = projectBasePath + "/src/Resource/";
 
         filePathList = new ArrayList<>();
 
         String[] schemeList = {"App", "Page"};
         for (String scheme : schemeList) {
-            Path dir = Paths.get(baseDir + scheme);
-
             try {
+                Path dir = Paths.get(baseDir + scheme);
                 Files.walkFileTree(dir, new SimpleFileVisitor<Path>() {
                     @Override
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs){
@@ -56,8 +72,12 @@ public class ResourceCompletionProvider extends CompletionProvider<CompletionPar
                         return FileVisitResult.CONTINUE;
                     }
                 });
-            } catch (IOException e) {
-                e.printStackTrace();
+            } catch (IOException | IllegalArgumentException e) {
+                // The resource directory may not exist in some projects; fall back to no
+                // completions rather than breaking completion. InvalidPathException (an
+                // IllegalArgumentException) is thrown by Paths.get when the project path
+                // contains characters invalid for the default filesystem.
+                LOG.warn("Unable to walk resource directory: " + baseDir + scheme, e);
             }
         }
 
@@ -97,14 +117,14 @@ public class ResourceCompletionProvider extends CompletionProvider<CompletionPar
                 || editFile.startsWith(baseDir + "Page") && scheme.equals("page")){
                 LookupElementBuilder lookupElementBuilder =
                     LookupElementBuilder.create(uri)
-                        .withTypeText(StringUtils.replace(file, project.getBasePath() + "/", ""), true);
+                        .withTypeText(StringUtils.replace(file, projectBasePath + "/", ""), true);
                 lookupElementBuilders.add(lookupElementBuilder);
             }
             uri = scheme + "://self" + uri;
             LookupElementBuilder lookupElementBuilder =
                 LookupElementBuilder.create(uri)
                     .withTypeText(
-                        StringUtils.replace(file, project.getBasePath() + "/", ""), true);
+                        StringUtils.replace(file, projectBasePath + "/", ""), true);
             lookupElementBuilders.add(lookupElementBuilder);
         }
         resultSet.addAllElements(lookupElementBuilders);
