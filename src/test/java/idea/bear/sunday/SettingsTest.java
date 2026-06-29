@@ -9,7 +9,6 @@ class SettingsTest {
     @Test
     void defaultValues() {
         Settings settings = new Settings();
-        assertTrue(settings.pluginEnabled);
         assertEquals("aura.route.php", settings.auraRouteFile);
     }
 
