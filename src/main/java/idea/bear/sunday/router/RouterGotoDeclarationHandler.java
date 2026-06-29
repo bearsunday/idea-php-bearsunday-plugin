@@ -32,8 +32,13 @@ public class RouterGotoDeclarationHandler implements GotoDeclarationHandler {
             return new PsiElement[0];
         }
 
+        VirtualFile virtualFile = editor.getVirtualFile();
+        if (virtualFile == null) {
+            return new PsiElement[0];
+        }
+
         Settings settings = Settings.getInstance(project);
-        if (!editor.getVirtualFile().getName().equals(settings.auraRouteFile)) {
+        if (!virtualFile.getName().equals(settings.auraRouteFile)) {
             return new PsiElement[0];
         }
 
