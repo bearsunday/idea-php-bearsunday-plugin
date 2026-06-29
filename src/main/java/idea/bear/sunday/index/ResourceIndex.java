@@ -78,11 +78,15 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
         if (baseDir == null) {
             return new PsiElement[0];
         }
-        if (editor == null) {
+        // pageContext (the current file's location) is only needed to resolve scheme-less URIs;
+        // explicit app:// and page:// URIs resolve without an Editor.
+        boolean requiresEditorContext = !uri.startsWith("app://") && !uri.startsWith("page://");
+        if (requiresEditorContext && editor == null) {
             return new PsiElement[0];
         }
 
-        VirtualFile editorFile = FileDocumentManager.getInstance().getFile(editor.getDocument());
+        VirtualFile editorFile = editor == null ? null
+            : FileDocumentManager.getInstance().getFile(editor.getDocument());
         boolean pageContext = editorFile != null
             && editorFile.getPath().startsWith(baseDir.getPath() + "/src/Resource/Page");
 

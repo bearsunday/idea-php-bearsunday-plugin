@@ -60,9 +60,8 @@ public class ResourceCompletionProvider extends CompletionProvider<CompletionPar
 
         String[] schemeList = {"App", "Page"};
         for (String scheme : schemeList) {
-            Path dir = Paths.get(baseDir + scheme);
-
             try {
+                Path dir = Paths.get(baseDir + scheme);
                 Files.walkFileTree(dir, new SimpleFileVisitor<Path>() {
                     @Override
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs){
@@ -75,10 +74,10 @@ public class ResourceCompletionProvider extends CompletionProvider<CompletionPar
                 });
             } catch (IOException | IllegalArgumentException e) {
                 // The resource directory may not exist in some projects; fall back to no
-                // completions rather than breaking completion. IllegalArgumentException is
-                // thrown by Paths.get when the project path contains characters invalid for
-                // the default filesystem.
-                LOG.warn("Unable to walk resource directory: " + dir, e);
+                // completions rather than breaking completion. InvalidPathException (an
+                // IllegalArgumentException) is thrown by Paths.get when the project path
+                // contains characters invalid for the default filesystem.
+                LOG.warn("Unable to walk resource directory: " + baseDir + scheme, e);
             }
         }
 
