@@ -35,6 +35,7 @@
     <fileBasedIndex implementation="idea.bear.sunday.relation.ResourceRelationIndex"/>
 
     <completion.contributor language="PHP" implementationClass="idea.bear.sunday.resource.UriCompletionContributor"/>
+    <completion.contributor language="PHP" implementationClass="idea.bear.sunday.resource.QueryCompletionContributor"/>
     <codeInsight.lineMarkerProvider language="PHP" implementationClass="idea.bear.sunday.aop.BoundInterceptorLineMarkerProvider"/>
     <codeInsight.lineMarkerProvider language="PHP" implementationClass="idea.bear.sunday.relation.ResourceIncomingRelationLineMarkerProvider"/>
 
