@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 ### Added
+- BEAR.Resource ↔ template navigation: jump between a resource class and its Twig/Qiq template from the Project View, editor, and editor-tab context menus (`Open Template` / `Open Resource`); hidden when no counterpart exists.
+- `#[Embed]` template navigation: Cmd+click a Twig/Qiq variable (`{{ embedded }}` / `{{= $this->embedded }}`) to open the embedded template, with a gutter icon on the matching line (#18).
 - Go to bound interceptor: bound Ray.Aop attributes (e.g. `#[Transactional]`) now show a BEAR gutter icon and can jump to interceptor class(es) bound in a module via `bindInterceptor()` from the icon or `Navigate > Go to Bound Interceptor` (#19). Standard PhpStorm declaration navigation remains available for the attribute class itself.
 - Incoming Link/Embed relation gutter: BEAR.Resource methods now show incoming static `#[Link]` / `#[Embed]` relations from other resources and navigate back to the source attribute declaration.
 

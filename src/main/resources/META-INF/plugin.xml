@@ -12,6 +12,8 @@
     <li>BEAR.Resource goto from URIs such as <code>app://self/user</code> to <code>src/Resource/App/User.php</code></li>
     <li>BEAR.Resource JSON Schema goto</li>
     <li>Incoming Link/Embed relation gutter for BEAR.Resource methods</li>
+    <li><code>#[Embed]</code> template navigation: Cmd+click a Twig/Qiq variable to open the embedded template</li>
+    <li>BEAR.Resource &harr; template navigation: jump between a resource class and its Twig/Qiq template from the context menu</li>
     <li>Extract BEAR.Resource parameters to Ray.InputQuery DTO</li>
     <li>Ray.Aop bound interceptor gutter icon and navigation from attributes such as <code>#[Transactional]</code></li>
     <li>Ray.MediaQuery SQL goto</li>
@@ -82,6 +84,16 @@
             icon="/icons/ray-aop.png">
       <add-to-group group-id="EditorPopupMenu" anchor="last"/>
       <add-to-group group-id="GoToMenu" anchor="last"/>
+    </action>
+
+    <action id="idea.bear.sunday.template.GoToTemplateOrResource"
+            class="idea.bear.sunday.template.GoToTemplateOrResourceAction"
+            text="Go to Related Template or Resource"
+            description="Navigate between a BEAR.Resource class and its template (Twig/Qiq)"
+            icon="/icons/bear.png">
+      <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+      <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+      <add-to-group group-id="EditorTabPopupMenu" anchor="last"/>
     </action>
   </actions>
 
