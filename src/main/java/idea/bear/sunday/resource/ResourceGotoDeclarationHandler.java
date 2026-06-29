@@ -4,6 +4,7 @@ import com.intellij.codeInsight.navigation.actions.GotoDeclarationHandler;
 import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
+import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.impl.source.tree.LeafPsiElement;
@@ -44,8 +45,9 @@ public class ResourceGotoDeclarationHandler implements GotoDeclarationHandler {
                 // which is not an EditorImpl; resolve the file without casting.
                 VirtualFile editorFile = editor == null ? null
                     : FileDocumentManager.getInstance().getFile(editor.getDocument());
-                if (editorFile != null && editorFile.getPath().startsWith(
-                    psiElement.getProject().getBasePath() + "/src/Resource/Page")
+                VirtualFile projectDir = ProjectUtil.guessProjectDir(psiElement.getProject());
+                if (editorFile != null && projectDir != null
+                    && editorFile.getPath().startsWith(projectDir.getPath() + "/src/Resource/Page")
                 ){
                     schema = "page";
                 }

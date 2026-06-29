@@ -78,6 +78,9 @@ public class ResourceIndex extends FileBasedIndexExtension<String, Resource> {
         if (baseDir == null) {
             return new PsiElement[0];
         }
+        if (editor == null) {
+            return new PsiElement[0];
+        }
 
         VirtualFile editorFile = FileDocumentManager.getInstance().getFile(editor.getDocument());
         boolean pageContext = editorFile != null
