@@ -35,12 +35,12 @@
     <fileBasedIndex implementation="idea.bear.sunday.relation.ResourceRelationIndex"/>
 
     <completion.contributor language="PHP" implementationClass="idea.bear.sunday.resource.UriCompletionContributor"/>
-    <completion.contributor language="PHP" order="first" id="BEARResourceAnnotationCompletionContributor" implementationClass="idea.bear.sunday.annotation.AnnotationCompletionContributor"/>
     <codeInsight.lineMarkerProvider language="PHP" implementationClass="idea.bear.sunday.aop.BoundInterceptorLineMarkerProvider"/>
     <codeInsight.lineMarkerProvider language="PHP" implementationClass="idea.bear.sunday.relation.ResourceIncomingRelationLineMarkerProvider"/>
 
     <gotoDeclarationHandler implementation="idea.bear.sunday.router.RouterGotoDeclarationHandler"/>
-    <gotoDeclarationHandler implementation="idea.bear.sunday.annotation.AnnotationOrAttributeGotoDeclarationHandler"/>
+    <gotoDeclarationHandler implementation="idea.bear.sunday.mediaquery.MediaQueryGotoDeclarationHandler"/>
+    <gotoDeclarationHandler implementation="idea.bear.sunday.jsonschema.JsonSchemaGotoDeclarationHandler"/>
     <gotoDeclarationHandler implementation="idea.bear.sunday.resource.ResourceGotoDeclarationHandler"/>
     <gotoDeclarationHandler implementation="idea.bear.sunday.template.EmbedQiqGotoDeclarationHandler"/>
 
@@ -64,7 +64,6 @@
   <depends>com.jetbrains.php</depends>
   <depends>com.jetbrains.twig</depends>
   <depends>com.intellij.modules.platform</depends>
-  <depends optional="true" config-file="idea.bear.sunday-annotation.xml">de.espend.idea.php.annotation</depends>
 
   <actions>
     <action id="idea.bear.sunday.input.ExtractInputDto"
