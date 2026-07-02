@@ -623,6 +623,9 @@ public final class ExtractInputDtoTextRefactoring {
             out.append(line).append("\n");
         }
         String newDoc = out.toString();
+        if (newDoc.endsWith("\n")) {
+            newDoc = newDoc.substring(0, newDoc.length() - 1);
+        }
         return hasMeaningfulDocLine(newDoc) ? newDoc : "";
     }
 

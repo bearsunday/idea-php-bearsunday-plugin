@@ -254,6 +254,38 @@ class ExtractInputDtoTextRefactoringTest {
     }
 
     @Test
+    void preservesMethodIndentationWhenDocCommentHasRemainingLines() {
+        String source = """
+            <?php
+            namespace MyVendor\\Todo\\Resource\\App;
+
+            final class Plot
+            {
+                /**
+                 * Summary line.
+                 * @param int $x X coordinate
+                 * @param int $y Y coordinate
+                 */
+                public function onGet(int $x, int $y): static
+                {
+                    return $this;
+                }
+            }
+            """;
+
+        ExtractInputDtoTextRefactoring.RefactoringResult result = refactoring.refactorResource(
+            source,
+            source.indexOf("onGet"),
+            Set.of("x"),
+            "Point",
+            "p",
+            "MyVendor\\Todo\\Input\\Point"
+        );
+
+        assertTrue(result.resourceText().contains("    public function onGet("), "method should keep its indentation");
+    }
+
+    @Test
     void detectsSelectedParameterNamesFromSelectionText() {
         String paramsText = "int $x, int $y, string $label = 'origin'";
         var params = refactoring.parseParams(paramsText);
