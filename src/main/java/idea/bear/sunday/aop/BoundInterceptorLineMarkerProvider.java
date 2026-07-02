@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class BoundInterceptorLineMarkerProvider extends RelatedItemLineMarkerProvider {
-    private static final Icon AOP_ICON = IconLoader.getIcon("/icons/ray-aop.png", BoundInterceptorLineMarkerProvider.class);
+    private static final Icon AOP_ICON = IconLoader.getIcon("/icons/ray-aop.svg", BoundInterceptorLineMarkerProvider.class);
 
     @Override
     public String getName() {
