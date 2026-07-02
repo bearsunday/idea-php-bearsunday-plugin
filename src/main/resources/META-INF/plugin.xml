@@ -10,14 +10,19 @@
   <ul>
     <li>BEAR.Resource URI completion</li>
     <li>BEAR.Resource goto from URIs such as <code>app://self/user</code> to <code>src/Resource/App/User.php</code></li>
+    <li>BEAR.Resource PHPDoc annotation completion</li>
     <li>BEAR.Resource JSON Schema goto</li>
     <li>BEAR.Resource JSON Schema body key completion from <code>->body['<caret>']</code></li>
     <li>Incoming Link/Embed relation gutter for BEAR.Resource methods</li>
+    <li>Embedded template navigation for Twig and Qiq</li>
     <li>Extract BEAR.Resource parameters to Ray.InputQuery DTO</li>
     <li>Ray.Aop bound interceptor gutter icon and navigation from attributes such as <code>#[Transactional]</code></li>
     <li>Ray.MediaQuery SQL goto</li>
     <li>Ray.QueryModule SQL goto</li>
     <li>Aura.Router goto BEAR.Resource</li>
+    <li>Generate Psalm body type PHPDoc for BEAR.Resource body array shapes, including folder-level batch generation</li>
+    <li>Generate JSON Schema files from BEAR.Resource body array shapes</li>
+    <li>Infer concrete BEAR.Resource classes and method-specific body shapes from literal resource method calls</li>
   </ul>
   <h2>Links</h2>
   <ul>
@@ -40,6 +45,21 @@
     <completion.contributor language="PHP" implementationClass="idea.bear.sunday.jsonschema.JsonSchemaBodyCompletionContributor"/>
     <codeInsight.lineMarkerProvider language="PHP" implementationClass="idea.bear.sunday.aop.BoundInterceptorLineMarkerProvider"/>
     <codeInsight.lineMarkerProvider language="PHP" implementationClass="idea.bear.sunday.relation.ResourceIncomingRelationLineMarkerProvider"/>
+    <intentionAction>
+      <language>PHP</language>
+      <className>idea.bear.sunday.input.ExtractInputDtoIntention</className>
+      <category>BEAR.Sunday</category>
+    </intentionAction>
+    <intentionAction>
+      <language>PHP</language>
+      <className>idea.bear.sunday.body.GenerateBodyTypeIntention</className>
+      <category>BEAR.Sunday</category>
+    </intentionAction>
+    <intentionAction>
+      <language>PHP</language>
+      <className>idea.bear.sunday.body.GenerateBodyJsonSchemaIntention</className>
+      <category>BEAR.Sunday</category>
+    </intentionAction>
 
     <gotoDeclarationHandler implementation="idea.bear.sunday.router.RouterGotoDeclarationHandler"/>
     <gotoDeclarationHandler implementation="idea.bear.sunday.mediaquery.MediaQueryGotoDeclarationHandler"/>
@@ -64,11 +84,23 @@
 
   </extensions>
 
+  <extensions defaultExtensionNs="com.jetbrains.php">
+    <typeProvider4 implementation="idea.bear.sunday.resource.ResourceMethodTypeProvider"/>
+  </extensions>
+
   <depends>com.jetbrains.php</depends>
   <depends>com.jetbrains.twig</depends>
   <depends>com.intellij.modules.platform</depends>
 
   <actions>
+
+    <action id="idea.bear.sunday.body.GenerateBodyTypes"
+            class="idea.bear.sunday.body.GenerateBodyTypesAction"
+            text="Generate BEAR body type"
+            description="Generate Psalm body types for BEAR.Resource objects under selected files or directories">
+      <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+    </action>
+
     <action id="idea.bear.sunday.input.ExtractInputDto"
             class="idea.bear.sunday.input.ExtractInputDtoAction"
             text="Extract Input DTO..."
