@@ -72,7 +72,8 @@ public class ExtractInputDtoAction extends AnAction {
         }
 
         Set<String> initiallySelectedNames = selectedNames(editor, params);
-        ExtractInputDtoDialog dialog = new ExtractInputDtoDialog(project, params, initiallySelectedNames);
+        String defaultDtoClass = defaultDtoClassName(editor);
+        ExtractInputDtoDialog dialog = new ExtractInputDtoDialog(project, params, initiallySelectedNames, defaultDtoClass);
         if (!dialog.showAndGet()) {
             return;
         }
@@ -163,6 +164,15 @@ public class ExtractInputDtoAction extends AnAction {
         }
         String path = file.getPath();
         return path.endsWith(".php") && (path.contains("/src/Resource/App/") || path.contains("/src/Resource/Page/"));
+    }
+
+    private static String defaultDtoClassName(Editor editor) {
+        VirtualFile file = FileDocumentManager.getInstance().getFile(editor.getDocument());
+        if (file == null) {
+            return "Input";
+        }
+        String name = file.getNameWithoutExtension();
+        return name + "Input";
     }
 
     private Set<String> selectedNames(Editor editor, List<ExtractInputDtoTextRefactoring.ParamInfo> params) {

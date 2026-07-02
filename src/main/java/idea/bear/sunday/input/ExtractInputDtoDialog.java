@@ -26,14 +26,15 @@ final class ExtractInputDtoDialog extends DialogWrapper {
     private static final Pattern BY_REFERENCE = Pattern.compile("&\\s*\\$");
     private static final Pattern PHP_IDENTIFIER = Pattern.compile("[A-Za-z_\\x80-\\xff][A-Za-z0-9_\\x80-\\xff]*");
 
-    private final JBTextField className = new JBTextField("Input", 24);
+    private final JBTextField className;
     private final JBTextField variableName = new JBTextField("input", 24);
     private final List<ParamCheckBox> parameterBoxes = new ArrayList<>();
     private boolean variableNameManuallyEdited;
     private boolean updatingVariableName;
 
-    ExtractInputDtoDialog(Project project, List<ExtractInputDtoTextRefactoring.ParamInfo> params, Set<String> initiallySelected) {
+    ExtractInputDtoDialog(Project project, List<ExtractInputDtoTextRefactoring.ParamInfo> params, Set<String> initiallySelected, String defaultClassName) {
         super(project);
+        className = new JBTextField(defaultClassName, 24);
         setTitle(BearSundayBundle.message("input.dialog.title"));
         boolean hasInitialSelection = !initiallySelected.isEmpty();
         for (ExtractInputDtoTextRefactoring.ParamInfo param : params) {
