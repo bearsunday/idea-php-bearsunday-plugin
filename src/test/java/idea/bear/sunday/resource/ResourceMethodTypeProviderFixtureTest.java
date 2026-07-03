@@ -173,6 +173,50 @@ class ResourceMethodTypeProviderFixtureTest {
     }
 
     @Test
+    void ignoresConcatenatedUri() {
+        PsiFile caller = fixture.addFileToProject("src/Resource/App/Caller.php", """
+            <?php
+            namespace MyVendor\\MyProject\\Resource\\App;
+
+            final class Caller
+            {
+                public function onGet(string $prefix): void
+                {
+                    $resource = $this->resource->get($prefix . '/user');
+                }
+            }
+            """);
+
+        ApplicationManager.getApplication().runReadAction(() -> {
+            MethodReference reference = methodReference(caller, "get");
+            assertNull(provider.getType(reference));
+        });
+    }
+
+    @Test
+    void ignoresResourceBodyAfterReassignment() {
+        PsiFile caller = fixture.addFileToProject("src/Resource/App/Caller.php", """
+            <?php
+            namespace MyVendor\\MyProject\\Resource\\App;
+
+            final class Caller
+            {
+                public function onGet(): void
+                {
+                    $article = $this->resource->get('app://self/article');
+                    $article = null;
+                    $body = $article->body;
+                }
+            }
+            """);
+
+        ApplicationManager.getApplication().runReadAction(() -> {
+            FieldReference reference = bodyFieldReference(caller);
+            assertNull(provider.getType(reference));
+        });
+    }
+
+    @Test
     void narrowsGetBodyTypeFromLocalResourceVariable() {
         addPhysicalPhpFile("src/Resource/App/Article.php", """
             <?php

@@ -59,8 +59,10 @@ public final class BodyTypeInferer {
 
     private BodyType inferArray(ArrayCreationExpression arrayCreationExpression, Map<String, BodyType> localTypes) {
         List<ArrayElementType> elements = new ArrayList<>();
+        List<BodyType> valueTypes = new ArrayList<>();
         Set<Integer> handledValueOffsets = new HashSet<>();
         int nextImplicitIndex = 0;
+        boolean dynamicKey = false;
         for (ArrayHashElement hashElement : hashElementsOf(arrayCreationExpression)) {
             PhpPsiElement value = hashElement.getValue();
             if (!(value instanceof PhpExpression valueExpression)) {
@@ -68,27 +70,36 @@ public final class BodyTypeInferer {
             }
             handledValueOffsets.add(valueExpression.getTextRange().getStartOffset());
 
-            String key = keyOf(hashElement.getKey()).orElse(null);
-            boolean listKey;
-            if (key == null) {
-                key = String.valueOf(nextImplicitIndex);
-                listKey = true;
-                nextImplicitIndex++;
-            } else {
-                listKey = isListKey(key, nextImplicitIndex);
-                if (isIntegerKey(key)) {
-                    nextImplicitIndex = Math.max(nextImplicitIndex, Integer.parseInt(key) + 1);
-                }
+            BodyType valueType = infer(valueExpression, localTypes);
+            valueTypes.add(valueType);
+
+            Optional<String> resolvedKey = keyOf(hashElement.getKey());
+            if (resolvedKey.isEmpty()) {
+                dynamicKey = true;
+                continue;
             }
-            elements.add(new ArrayElementType(key, infer(valueExpression, localTypes), listKey));
+
+            String key = resolvedKey.get();
+            boolean listKey = isListKey(key, nextImplicitIndex);
+            if (isIntegerKey(key)) {
+                nextImplicitIndex = Math.max(nextImplicitIndex, Integer.parseInt(key) + 1);
+            }
+            elements.add(new ArrayElementType(key, valueType, listKey));
         }
         for (PhpExpression valueExpression : arrayValueExpressionsOf(arrayCreationExpression)) {
             if (handledValueOffsets.contains(valueExpression.getTextRange().getStartOffset())) {
                 continue;
             }
-            String key = String.valueOf(nextImplicitIndex);
-            elements.add(new ArrayElementType(key, infer(valueExpression, localTypes), true));
+            BodyType valueType = infer(valueExpression, localTypes);
+            valueTypes.add(valueType);
+            elements.add(new ArrayElementType(String.valueOf(nextImplicitIndex), valueType, true));
             nextImplicitIndex++;
+        }
+
+        // A non-literal key (e.g. `[$key => ...]` or `[SOME_CONST => ...]`) cannot be a Psalm shape
+        // field, so fall back to a generic array instead of emitting an invalid `array{$key: ...}`.
+        if (dynamicKey) {
+            return BodyTypes.map(BodyTypes.union(valueTypes));
         }
 
         if (elements.isEmpty()) {
@@ -148,7 +159,7 @@ public final class BodyTypeInferer {
             return Optional.of(text.replace("_", "").replaceFirst("^\\+", ""));
         }
 
-        return Optional.of(text);
+        return Optional.empty();
     }
 
     private boolean isListKey(String key, int expectedIndex) {

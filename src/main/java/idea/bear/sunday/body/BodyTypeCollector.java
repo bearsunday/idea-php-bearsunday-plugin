@@ -1,5 +1,10 @@
 package idea.bear.sunday.body;
 
+import com.intellij.openapi.util.Key;
+import com.intellij.psi.util.CachedValue;
+import com.intellij.psi.util.CachedValueProvider;
+import com.intellij.psi.util.CachedValuesManager;
+import com.intellij.psi.util.PsiModificationTracker;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.jetbrains.php.lang.psi.elements.ArrayAccessExpression;
 import com.jetbrains.php.lang.psi.elements.ArrayIndex;
@@ -23,13 +28,33 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 public final class BodyTypeCollector {
 
     private static final String RESOURCE_OBJECT_FQN = "\\BEAR\\Resource\\ResourceObject";
+    private static final Set<String> RESOURCE_METHOD_NAMES = Set.of(
+        "onget", "onpost", "onput", "onpatch", "ondelete", "onhead", "onoptions"
+    );
+    private static final Key<CachedValue<Optional<BodyTypeCollection>>> CACHE_KEY =
+        Key.create("bear.sunday.body.type.collection");
     private final BodyTypeInferer inferer = new BodyTypeInferer();
 
+    /**
+     * Collect body types for a class. The result is cached on the class and reused until any PSI
+     * change, so repeated calls (e.g. an intention's {@code isAvailable} on every caret move plus
+     * its {@code invoke}) do not re-run the full traversal.
+     */
     public Optional<BodyTypeCollection> collect(PhpClass phpClass) {
+        return CachedValuesManager.getManager(phpClass.getProject()).getCachedValue(
+            phpClass,
+            CACHE_KEY,
+            () -> CachedValueProvider.Result.create(collectUncached(phpClass), PsiModificationTracker.MODIFICATION_COUNT),
+            false
+        );
+    }
+
+    private Optional<BodyTypeCollection> collectUncached(PhpClass phpClass) {
         if (!isResourceObject(phpClass)) {
             return Optional.empty();
         }
@@ -111,7 +136,16 @@ public final class BodyTypeCollector {
             return Optional.empty();
         }
 
+        if (!isResourceMethod(method)) {
+            return Optional.empty();
+        }
+
         return Optional.of(method);
+    }
+
+    private boolean isResourceMethod(Method method) {
+        String name = method.getName();
+        return name != null && RESOURCE_METHOD_NAMES.contains(name.toLowerCase(Locale.ROOT));
     }
 
     private boolean isThisBodyAssignment(AssignmentExpression assignment) {

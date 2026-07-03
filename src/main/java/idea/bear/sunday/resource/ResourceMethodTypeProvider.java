@@ -34,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Base64;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -150,21 +151,17 @@ public final class ResourceMethodTypeProvider implements PhpTypeProvider4 {
         }
 
         int fieldOffset = fieldReference.getTextRange().getStartOffset();
+        // Consider only the most recent assignment: a later reassignment (e.g. `$x = null;`)
+        // must invalidate an earlier `$x = $this->resource->get(...)` rather than being skipped.
         return PsiTreeUtil.findChildrenOfType(function, AssignmentExpression.class).stream()
             .filter(assignment -> assignment.getTextRange().getStartOffset() < fieldOffset)
             .filter(assignment -> PsiTreeUtil.getParentOfType(assignment, Function.class) == function)
             .filter(assignment -> assignsToVariable(assignment, variableName))
-            .sorted((left, right) -> Integer.compare(
-                right.getTextRange().getStartOffset(),
-                left.getTextRange().getStartOffset()
-            ))
+            .max(Comparator.comparingInt(assignment -> assignment.getTextRange().getStartOffset()))
             .map(AssignmentExpression::getValue)
             .filter(MethodReference.class::isInstance)
             .map(MethodReference.class::cast)
-            .map(methodReference -> resourceRequest(methodReference, fieldReference))
-            .filter(Optional::isPresent)
-            .map(Optional::get)
-            .findFirst();
+            .flatMap(methodReference -> resourceRequest(methodReference, fieldReference));
     }
 
     private static boolean assignsToVariable(AssignmentExpression assignment, String variableName) {
@@ -212,15 +209,13 @@ public final class ResourceMethodTypeProvider implements PhpTypeProvider4 {
     }
 
     private static @Nullable String stringArgument(@Nullable PsiElement element) {
-        if (element == null) {
-            return null;
-        }
+        // Only a direct string literal is a reliable URI. Descendant literals would wrongly match
+        // dynamic arguments such as `$prefix . '/user'`.
         if (element instanceof StringLiteralExpression stringLiteralExpression) {
             return stringLiteralExpression.getContents();
         }
 
-        StringLiteralExpression stringLiteralExpression = PsiTreeUtil.findChildOfType(element, StringLiteralExpression.class);
-        return stringLiteralExpression == null ? null : stringLiteralExpression.getContents();
+        return null;
     }
 
     private static boolean pageContext(PsiElement element) {

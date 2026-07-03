@@ -109,12 +109,21 @@ class BodyTypesTest {
     }
 
     @Test
-    void escapesControlCharactersInQuotedKeys() {
+    void fallsBackToGenericArrayForControlCharacterKeys() {
         BodyType type = BodyTypes.shape(List.of(
             new ShapeField("line\nbreak\tkey\0", BodyTypes.STRING)
         ));
 
-        assertEquals("array{'line\\nbreak\\tkey\\0': string}", type.render());
+        // Psalm cannot faithfully represent a control-character shape key, so the whole shape
+        // degrades to a generic array keyed by array-key.
+        assertEquals("array<array-key, string>", type.render());
+    }
+
+    @Test
+    void rendersGenericArray() {
+        BodyType type = BodyTypes.map(BodyTypes.union(List.of(BodyTypes.INT, BodyTypes.STRING)));
+
+        assertEquals("array<array-key, int|string>", type.render());
     }
 
     @Test

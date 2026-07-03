@@ -30,6 +30,10 @@ public final class BodyTypes {
         return new ListType(elementType);
     }
 
+    public static BodyType map(BodyType valueType) {
+        return new MapType(valueType);
+    }
+
     public static BodyType shape(List<ShapeField> fields) {
         return new ShapeType(List.copyOf(fields));
     }
@@ -133,6 +137,9 @@ public final class BodyTypes {
         if (type instanceof ListType listType) {
             return containsShape(listType.elementType());
         }
+        if (type instanceof MapType mapType) {
+            return containsShape(mapType.valueType());
+        }
         if (type instanceof UnionType unionType) {
             return unionType.types().stream().anyMatch(BodyTypes::containsShape);
         }
@@ -216,12 +223,49 @@ public final class BodyTypes {
 
     }
 
+    private record MapType(BodyType valueType) implements FormattableBodyType {
+
+        private MapType {
+            Objects.requireNonNull(valueType);
+        }
+
+        @Override
+        public String render() {
+            return "array<array-key, " + valueType.render() + ">";
+        }
+
+        @Override
+        public String renderFormatted(int level, boolean forceMultiline) {
+            String value = BodyTypes.renderFormatted(
+                valueType,
+                level,
+                forceMultiline || containsShape(valueType) || render().length() > MAX_INLINE_LENGTH
+            );
+            if (!isMultiline(value)) {
+                return "array<array-key, " + value + ">";
+            }
+
+            String[] lines = value.split("\n", -1);
+            StringBuilder formatted = new StringBuilder("array<array-key, ").append(lines[0]);
+            for (int i = 1; i < lines.length - 1; i++) {
+                formatted.append("\n").append(lines[i]);
+            }
+            formatted.append("\n").append(lines[lines.length - 1]).append(">");
+
+            return formatted.toString();
+        }
+
+    }
+
     private record ShapeType(List<ShapeField> fields) implements FormattableBodyType {
 
         @Override
         public String render() {
             if (fields.isEmpty()) {
                 return "array{}";
+            }
+            if (hasUnsafeKey()) {
+                return fallback().render();
             }
 
             return fields.stream()
@@ -231,6 +275,10 @@ public final class BodyTypes {
 
         @Override
         public String renderFormatted(int level, boolean forceMultiline) {
+            if (hasUnsafeKey()) {
+                return BodyTypes.renderFormatted(fallback(), level, forceMultiline);
+            }
+
             String compact = render();
             if (fields.isEmpty() || (!forceMultiline && !shouldRenderMultiline(compact))) {
                 return compact;
@@ -262,6 +310,27 @@ public final class BodyTypes {
             return compact.length() > MAX_INLINE_LENGTH || fields.stream()
                 .map(ShapeField::type)
                 .anyMatch(type -> type instanceof UnionType || containsShape(type));
+        }
+
+        // A shape field key that contains control characters cannot be represented faithfully as a
+        // Psalm shape key (Psalm reads `'a\nb'` as a literal backslash-n, not a newline), so the
+        // whole shape degrades to a generic array keyed by array-key.
+        private boolean hasUnsafeKey() {
+            return fields.stream().anyMatch(field -> !isPsalmSafeKey(field.key()));
+        }
+
+        private BodyType fallback() {
+            return map(union(fields.stream().map(ShapeField::type).toList()));
+        }
+
+        private static boolean isPsalmSafeKey(String key) {
+            for (int index = 0; index < key.length(); index++) {
+                if (Character.isISOControl(key.charAt(index))) {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private static String renderKey(String key) {

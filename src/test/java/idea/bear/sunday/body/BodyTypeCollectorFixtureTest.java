@@ -131,6 +131,32 @@ class BodyTypeCollectorFixtureTest {
         assertEquals("array{foo: int}", collection.declarations().get(0).bodyType().render());
     }
 
+    @Test
+    void ignoresBodyAssignmentsOutsideResourceMethods() {
+        PsiFile psiFile = fixture.addFileToProject("Report.php", """
+            <?php
+            final class Report extends \\BEAR\\Resource\\ResourceObject
+            {
+                public function onGet(): static
+                {
+                    $this->body = ['id' => 1];
+
+                    return $this;
+                }
+
+                private function prepare(): void
+                {
+                    $this->body = ['leaked' => true];
+                }
+            }
+            """);
+
+        BodyTypeCollection collection = collect(psiFile);
+
+        assertEquals(List.of("ReportBody"), collection.typeNames());
+        assertEquals("array{id: int}", collection.declarations().get(0).bodyType().render());
+    }
+
     private static BodyTypeCollection collect(PsiFile psiFile) {
         return ApplicationManager.getApplication().runReadAction((Computable<BodyTypeCollection>) () -> {
             PhpClass phpClass = PsiTreeUtil.findChildOfType(psiFile, PhpClass.class);

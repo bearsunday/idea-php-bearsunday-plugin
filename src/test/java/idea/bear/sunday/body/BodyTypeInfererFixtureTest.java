@@ -99,6 +99,29 @@ class BodyTypeInfererFixtureTest {
         );
     }
 
+    @Test
+    void fallsBackToGenericArrayForDynamicKeys() {
+        PsiFile psiFile = fixture.addFileToProject("DynamicKeyBody.php", """
+            <?php
+            final class DynamicKeyBody
+            {
+                public function onGet(string $key): static
+                {
+                    $this->body = [
+                        $key => 1,
+                        'label' => 'x',
+                    ];
+
+                    return $this;
+                }
+            }
+            """);
+
+        BodyType bodyType = inferAssignedBody(psiFile);
+
+        assertEquals("array<array-key, int|string>", bodyType.render());
+    }
+
     private static BodyType inferAssignedBody(PsiFile psiFile) {
         return ApplicationManager.getApplication().runReadAction((Computable<BodyType>) () -> {
             AssignmentExpression assignment = PsiTreeUtil.findChildOfType(psiFile, AssignmentExpression.class);
