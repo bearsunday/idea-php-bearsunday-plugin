@@ -1,6 +1,8 @@
 package idea.bear.sunday.body;
 
 import com.intellij.codeInsight.intention.PsiElementBaseIntentionAction;
+import com.intellij.notification.NotificationGroupManager;
+import com.intellij.notification.NotificationType;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
@@ -58,7 +60,22 @@ public class GenerateBodyJsonSchemaIntention extends PsiElementBaseIntentionActi
         BodyType schemaType = BodyJsonSchemaTypeSelector.select(bodyTypes.get());
         String schema = BodyJsonSchemaRenderer.render(schemaType) + "\n";
 
-        WriteCommandAction.runWriteCommandAction(project, TEXT, null, () -> writeSchema(schemaPath, schema));
+        String displayPath = BodyJsonSchemaPath.relativeDisplayPath(project, schemaPath);
+        try {
+            WriteCommandAction.runWriteCommandAction(project, TEXT, null, () -> writeSchema(schemaPath, schema));
+        } catch (IllegalStateException exception) {
+            notify(project, NotificationType.ERROR, "Failed to generate " + displayPath);
+            return;
+        }
+
+        notify(project, NotificationType.INFORMATION, "Generated " + displayPath);
+    }
+
+    private static void notify(Project project, NotificationType type, String content) {
+        NotificationGroupManager.getInstance()
+            .getNotificationGroup("BEAR.Sunday")
+            .createNotification(TEXT, content, type)
+            .notify(project);
     }
 
     @Override
