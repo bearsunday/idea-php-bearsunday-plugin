@@ -46,9 +46,31 @@ class ResourceRelationTest {
     }
 
     @Test
+    void sourceShortName() {
+        assertEquals("Dashboard", relation().sourceShortName());
+    }
+
+    @Test
+    void attributeSummary() {
+        assertEquals(
+            "#[Embed(rel=\"user\", src=\"app://self/user{?id}\")]",
+            relation().attributeSummary()
+        );
+    }
+
+    @Test
+    void attributeSummaryWithoutRel() {
+        ResourceRelation link = new ResourceRelation(
+            "Link", "", "app://self/dashboard", "\\MyVendor\\Todo\\Resource\\App\\Dashboard",
+            "page://self/index", "onGet", "page://self/index", "src/Resource/App/Dashboard.php", 42
+        );
+        assertEquals("#[Link(href=\"page://self/index\")]", link.attributeSummary());
+    }
+
+    @Test
     void popupText() {
         assertEquals(
-            "Embed rel=\"user\" from Dashboard.php  src=\"app://self/user{?id}\"",
+            "Dashboard  #[Embed(rel=\"user\", src=\"app://self/user{?id}\")]",
             relation().popupText()
         );
     }

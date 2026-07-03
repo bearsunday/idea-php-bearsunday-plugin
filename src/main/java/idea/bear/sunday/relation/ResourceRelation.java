@@ -15,16 +15,24 @@ public record ResourceRelation(
 ) {
 
     public String popupText() {
-        String relText = rel.isBlank() ? "" : " rel=\"" + rel + "\"";
-        String targetArgument = kind.equals("Embed") ? "src" : "href";
-
-        return kind + relText
-            + " from " + sourceFileName()
-            + "  " + targetArgument + "=\"" + rawTargetUri + "\"";
+        return sourceShortName() + "  " + attributeSummary();
     }
 
-    private String sourceFileName() {
-        int index = sourceFilePath.lastIndexOf('/');
-        return index >= 0 ? sourceFilePath.substring(index + 1) : sourceFilePath;
+    /** Short PHP class name of the referencing resource, e.g. {@code RelationDemo}. */
+    public String sourceShortName() {
+        int index = sourceFqn.lastIndexOf('\\');
+        return index >= 0 ? sourceFqn.substring(index + 1) : sourceFqn;
+    }
+
+    /** PHP-attribute-style summary of the relation, e.g. {@code #[Embed(rel="dto", src="app://self/point-dto")]}. */
+    public String attributeSummary() {
+        String targetArgument = kind.equals("Embed") ? "src" : "href";
+        StringBuilder summary = new StringBuilder("#[").append(kind).append('(');
+        if (!rel.isBlank()) {
+            summary.append("rel=\"").append(rel).append("\", ");
+        }
+        summary.append(targetArgument).append("=\"").append(rawTargetUri).append("\")]");
+
+        return summary.toString();
     }
 }
