@@ -8,6 +8,7 @@ public final class RouterUtil {
     }
 
     public static String toResourceFileName(String resourceName) {
-        return WordUtils.capitalizeFully(resourceName, '/', '-').replace("-", "") + ".php";
+        String capitalized = WordUtils.capitalizeFully(resourceName, '/', '-');
+        return (capitalized == null ? null : capitalized.replace("-", "")) + ".php";
     }
 }

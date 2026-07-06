@@ -150,6 +150,7 @@ public class UriUtil {
     }
 
     private static String capitalizePath(String path) {
-        return WordUtils.capitalize(path, URI_PATH_DELIMITERS).replace("-", "");
+        String capitalized = WordUtils.capitalize(path, URI_PATH_DELIMITERS);
+        return capitalized == null ? null : capitalized.replace("-", "");
     }
 }
