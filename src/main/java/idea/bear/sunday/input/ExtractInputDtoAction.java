@@ -11,6 +11,7 @@ import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import idea.bear.sunday.BearSundayBundle;
 import org.jetbrains.annotations.NotNull;
@@ -91,7 +92,7 @@ public class ExtractInputDtoAction extends AnAction {
         }
 
         VirtualFile resourceFile = FileDocumentManager.getInstance().getFile(document);
-        VirtualFile baseDir = project.getBaseDir();
+        VirtualFile baseDir = ProjectUtil.guessProjectDir(project);
         if (resourceFile == null || baseDir == null) {
             HintManager.getInstance().showErrorHint(editor, BearSundayBundle.message("input.error.resolve.files"));
             return;
