@@ -25,7 +25,7 @@ import java.util.List;
 
 public class ResourceIncomingRelationLineMarkerProvider extends RelatedItemLineMarkerProvider {
 
-    private static final Icon BEAR_ICON = IconLoader.getIcon("/icons/bear.png", ResourceIncomingRelationLineMarkerProvider.class);
+    private static final Icon BEAR_ICON = IconLoader.getIcon("/icons/bear.svg", ResourceIncomingRelationLineMarkerProvider.class);
 
     @Override
     public String getName() {
