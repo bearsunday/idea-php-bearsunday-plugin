@@ -15,6 +15,8 @@
 * BEAR.Resource JSON Schema goto
 * BEAR.Resource JSON Schema body key completion from `->body['<caret>']`
 * Incoming Link/Embed relation gutter for BEAR.Resource methods
+* `#[Embed]` template navigation: Cmd+click a Twig/Qiq variable to open the embedded template
+* BEAR.Resource ↔ template navigation: jump between a resource class and its Twig/Qiq template from the context menu
 * Extract BEAR.Resource parameters to Ray.InputQuery DTO
 * Ray.Aop bound interceptor gutter icon and navigation from attributes such as `#[Transactional]`
 * Ray.MediaQuery SQL goto
