@@ -27,12 +27,12 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("junit:junit:4.13.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testRuntimeOnly("org.junit.vintage:junit-vintage-engine")
 
     intellijPlatform {
         phpstorm(properties("platformVersion"))
         bundledPlugin("com.jetbrains.php")
         bundledPlugin("com.jetbrains.twig")
-        plugin("de.espend.idea.php.annotation", "12.0.1")
         testFramework(TestFrameworkType.Platform)
         pluginVerifier()
     }
