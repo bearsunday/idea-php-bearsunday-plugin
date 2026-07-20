@@ -10,7 +10,6 @@
   <ul>
     <li>BEAR.Resource URI completion</li>
     <li>BEAR.Resource goto from URIs such as <code>app://self/user</code> to <code>src/Resource/App/User.php</code></li>
-    <li>BEAR.Resource PHPDoc annotation completion</li>
     <li>BEAR.Resource JSON Schema goto</li>
     <li>BEAR.Resource JSON Schema body key completion from <code>->body['<caret>']</code></li>
     <li>Incoming Link/Embed relation gutter for BEAR.Resource methods</li>

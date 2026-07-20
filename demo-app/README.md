@@ -14,7 +14,6 @@ composer install
 | --- | --- | --- |
 | BEAR.Resource URI補完 | `src/Resource/App/UriDemo.php` | `uri('...')` の文字列内で補完を実行します。 |
 | BEAR.Resourceジャンプ | `src/Resource/App/UriDemo.php`, `src/Resource/App/RelationDemo.php`, `src/Resource/App/Dashboard.php` | `app://self/...` や `/profile` で Cmd/Ctrl+B を押します。 |
-| BEAR.Resource PHPDoc annotation補完 | `src/Resource/App/DocblockAnnotationDemo.php` | `@Link(...)` のannotation名、引数名、`href` 値を補完します。 |
 | JSON Schemaジャンプ | `src/Resource/App/SchemaDemo.php`, `src/Resource/App/BodyTypeDemo.php` | `point.json` / `point-params.json` / `body-type-demo.json` で Cmd/Ctrl+B を押します。 |
 | Link/Embed incoming gutter | `src/Resource/App/User.php`, `src/Resource/App/Profile.php`, `src/Resource/App/PointDto.php`, `src/Resource/Page/Index.php` | `onGet()` 左のBEARアイコンから参照元へ移動します。 |
 | Twig/Qiq embedded template navigation | `App/Dashboard.html.twig`, `App/Dashboard.php` | `user` / `$this->user` のgutterまたは Cmd/Ctrl+B で埋め込み先テンプレートへ移動します。 |

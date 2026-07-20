@@ -12,7 +12,6 @@
 
 * BEAR.Resource URI completion
 * BEAR.Resource goto from URIs such as `app://self/user` to `src/Resource/App/User.php`
-* BEAR.Resource PHPDoc annotation completion
 * BEAR.Resource JSON Schema goto
 * BEAR.Resource JSON Schema body key completion from `->body['<caret>']`
 * Incoming Link/Embed relation gutter for BEAR.Resource methods
@@ -39,7 +38,6 @@ completion, line markers, or the editor intention on the files below.
 | BEAR.Resource URI completion | `demo-app/src/Resource/App/UriDemo.php` | Invoke completion inside `uri('...')` arguments. |
 | BEAR.Resource goto | `demo-app/src/Resource/App/UriDemo.php`, `demo-app/src/Resource/App/Dashboard.php` | Cmd/Ctrl-click `app://self/user` or `/profile` to jump to the resource class. |
 | BEAR.Resource typed resource result | `demo-app/src/Resource/App/UriDemo.php`, `demo-app/src/Resource/App/User.php` | `get('app://self/user')` is inferred as the concrete `User` resource; `$user->body` is narrowed to the GET body shape, while `put()`/`post()` use their method-specific body shapes. |
-| BEAR.Resource PHPDoc annotation completion | `demo-app/src/Resource/App/DocblockAnnotationDemo.php` | Complete PHPDoc annotation names, annotation parameters, and URI-valued `href`/`src` fields. |
 | BEAR.Resource JSON Schema goto | `demo-app/src/Resource/App/BodyTypeDemo.php` | Cmd/Ctrl-click `body-type-demo.json` to open `demo-app/var/json_schema/body-type-demo.json`. |
 | Incoming Link/Embed relation gutter | `demo-app/src/Resource/App/User.php`, `demo-app/src/Resource/App/Profile.php` | Use the gutter to find incoming relations from `Dashboard.php`. |
 | Embedded template navigation for Twig/Qiq | `demo-app/App/Dashboard.html.twig`, `demo-app/App/Dashboard.php` | Cmd/Ctrl-click or use the gutter on `user` / `$this->user` to jump to the embedded user template. |
