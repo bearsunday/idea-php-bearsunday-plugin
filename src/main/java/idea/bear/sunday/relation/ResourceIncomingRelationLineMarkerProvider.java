@@ -3,9 +3,11 @@ package idea.bear.sunday.relation;
 import com.intellij.codeInsight.daemon.RelatedItemLineMarkerInfo;
 import com.intellij.codeInsight.daemon.RelatedItemLineMarkerProvider;
 import com.intellij.codeInsight.navigation.NavigationGutterIconBuilder;
+import com.intellij.ide.util.PsiElementListCellRenderer;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;
+import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.util.IconLoader;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -15,13 +17,16 @@ import com.intellij.psi.PsiManager;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.jetbrains.php.lang.psi.elements.Method;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import javax.swing.Icon;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class ResourceIncomingRelationLineMarkerProvider extends RelatedItemLineMarkerProvider {
 
@@ -81,6 +86,11 @@ public class ResourceIncomingRelationLineMarkerProvider extends RelatedItemLineM
             .thenComparing(target -> target.relation().rel())
             .thenComparing(target -> target.relation().rawTargetUri()));
 
+        Map<PsiElement, ResourceRelation> relationByElement = new HashMap<>();
+        for (ResourceRelationTarget target : targets) {
+            relationByElement.putIfAbsent(target.element(), target.relation());
+        }
+
         NavigationGutterIconBuilder<ResourceRelationTarget> builder = NavigationGutterIconBuilder.create(
             BEAR_ICON,
             target -> Collections.singletonList(target.element())
@@ -89,6 +99,7 @@ public class ResourceIncomingRelationLineMarkerProvider extends RelatedItemLineM
         result.add(builder
             .setTargets(targets)
             .setNamer(target -> target.relation().popupText())
+            .setCellRenderer((Computable<PsiElementListCellRenderer<?>>) () -> new IncomingRelationCellRenderer(relationByElement))
             .setTooltipText(buildTooltip(targets.size()))
             .setPopupTitle("Incoming Resource Relations")
             .setEmptyPopupText("No incoming resource relations found")
@@ -168,5 +179,48 @@ public class ResourceIncomingRelationLineMarkerProvider extends RelatedItemLineM
     }
 
     private record ResourceRelationTarget(ResourceRelation relation, PsiElement element) {
+    }
+
+    /**
+     * Renders each popup row as "<source class>  #[Embed(...)]" so multiple references to the
+     * same resource are distinguishable. {@code NavigationGutterIconBuilder}'s namer is only used
+     * for Related Symbol navigation, not for the gutter-click popup, which renders the target
+     * PsiElement instead; hence this dedicated cell renderer.
+     */
+    private static final class IncomingRelationCellRenderer extends PsiElementListCellRenderer<PsiElement> {
+
+        private final Map<PsiElement, ResourceRelation> relationByElement;
+
+        private IncomingRelationCellRenderer(Map<PsiElement, ResourceRelation> relationByElement) {
+            this.relationByElement = relationByElement;
+        }
+
+        @Override
+        public String getElementText(PsiElement element) {
+            ResourceRelation relation = relationByElement.get(element);
+            if (relation != null) {
+                return relation.sourceShortName();
+            }
+
+            PsiFile file = element.getContainingFile();
+            return file != null ? file.getName() : element.getText();
+        }
+
+        @Override
+        @Nullable
+        protected String getContainerText(PsiElement element, String name) {
+            ResourceRelation relation = relationByElement.get(element);
+            return relation != null ? relation.attributeSummary() : null;
+        }
+
+        @Override
+        protected Icon getIcon(PsiElement element) {
+            return BEAR_ICON;
+        }
+
+        @Override
+        protected int getIconFlags() {
+            return 0;
+        }
     }
 }
