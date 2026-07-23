@@ -1,0 +1,50 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "integer"
+    },
+    "name": {
+      "type": "string"
+    },
+    "posts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ]
+      }
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "score": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "active",
+        "score"
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "posts",
+    "meta"
+  ]
+}

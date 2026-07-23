@@ -42,16 +42,23 @@ public class ExtractInputDtoAction extends AnAction {
     public void update(@NotNull AnActionEvent event) {
         Project project = event.getProject();
         Editor editor = event.getData(CommonDataKeys.EDITOR);
-        boolean enabled = project != null && editor != null && !DumbService.isDumb(project)
-            && isResourceFile(editor)
-            && refactoring.findMethodAtOffset(editor.getDocument().getText(), editor.getCaretModel().getOffset()) != null;
-        event.getPresentation().setEnabledAndVisible(enabled);
+        event.getPresentation().setEnabledAndVisible(isAvailable(project, editor));
     }
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent event) {
         Project project = event.getProject();
         Editor editor = event.getData(CommonDataKeys.EDITOR);
+        perform(project, editor);
+    }
+
+    boolean isAvailable(Project project, Editor editor) {
+        return project != null && editor != null && !DumbService.isDumb(project)
+            && isResourceFile(editor)
+            && refactoring.findMethodAtOffset(editor.getDocument().getText(), editor.getCaretModel().getOffset()) != null;
+    }
+
+    void perform(Project project, Editor editor) {
         if (project == null || editor == null || DumbService.isDumb(project) || !isResourceFile(editor)) {
             return;
         }

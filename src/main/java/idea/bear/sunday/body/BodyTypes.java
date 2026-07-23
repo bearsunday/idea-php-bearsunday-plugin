@@ -1,0 +1,408 @@
+package idea.bear.sunday.body;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
+public final class BodyTypes {
+
+    private static final int MAX_INLINE_LENGTH = 100;
+    private static final String INDENT = "    ";
+
+    public static final BodyType MIXED = named("mixed");
+    public static final BodyType STRING = named("string");
+    public static final BodyType INT = named("int");
+    public static final BodyType FLOAT = named("float");
+    public static final BodyType BOOL = named("bool");
+    public static final BodyType NULL = named("null");
+
+    private BodyTypes() {
+    }
+
+    public static BodyType named(String name) {
+        return new NamedType(name);
+    }
+
+    public static BodyType list(BodyType elementType) {
+        return new ListType(elementType);
+    }
+
+    public static BodyType map(BodyType valueType) {
+        return new MapType(valueType);
+    }
+
+    public static BodyType shape(List<ShapeField> fields) {
+        return new ShapeType(List.copyOf(fields));
+    }
+
+    public static BodyType union(List<BodyType> types) {
+        List<BodyType> flattened = new ArrayList<>();
+        for (BodyType type : types) {
+            if (type instanceof UnionType unionType) {
+                flattened.addAll(unionType.types());
+                continue;
+            }
+            flattened.add(type);
+        }
+
+        Map<String, BodyType> unique = new LinkedHashMap<>();
+        for (BodyType type : flattened) {
+            unique.put(type.render(), type);
+        }
+
+        if (unique.isEmpty()) {
+            return MIXED;
+        }
+        if (unique.size() == 1) {
+            return unique.values().iterator().next();
+        }
+
+        return new UnionType(List.copyOf(unique.values()));
+    }
+
+    public static BodyType withShapeField(BodyType type, ShapeField field) {
+        Objects.requireNonNull(type);
+        Objects.requireNonNull(field);
+        if (type instanceof ShapeType shapeType) {
+            return shape(withShapeField(shapeType.fields(), field));
+        }
+        if (type instanceof UnionType unionType) {
+            return union(unionType.types().stream()
+                .map(branch -> withShapeField(branch, field))
+                .toList());
+        }
+
+        return type;
+    }
+
+    static String namedTypeName(BodyType type) {
+        if (type instanceof NamedType namedType) {
+            return namedType.name();
+        }
+
+        return null;
+    }
+
+    static BodyType listElementType(BodyType type) {
+        if (type instanceof ListType listType) {
+            return listType.elementType();
+        }
+
+        return null;
+    }
+
+    static List<ShapeField> shapeFields(BodyType type) {
+        if (type instanceof ShapeType shapeType) {
+            return shapeType.fields();
+        }
+
+        return null;
+    }
+
+    static List<BodyType> unionTypes(BodyType type) {
+        if (type instanceof UnionType unionType) {
+            return unionType.types();
+        }
+
+        return null;
+    }
+
+    public static String renderFormatted(BodyType type) {
+        return renderFormatted(type, 0, false);
+    }
+
+    private static String renderFormatted(BodyType type, int level, boolean forceMultiline) {
+        if (type instanceof FormattableBodyType formattableType) {
+            return formattableType.renderFormatted(level, forceMultiline);
+        }
+
+        return type.render();
+    }
+
+    private static String indent(int level) {
+        return INDENT.repeat(Math.max(0, level));
+    }
+
+    private static boolean isMultiline(String text) {
+        return text.contains("\n");
+    }
+
+    private static boolean containsShape(BodyType type) {
+        if (type instanceof ShapeType) {
+            return true;
+        }
+        if (type instanceof ListType listType) {
+            return containsShape(listType.elementType());
+        }
+        if (type instanceof MapType mapType) {
+            return containsShape(mapType.valueType());
+        }
+        if (type instanceof UnionType unionType) {
+            return unionType.types().stream().anyMatch(BodyTypes::containsShape);
+        }
+
+        return false;
+    }
+
+    private static List<ShapeField> withShapeField(List<ShapeField> fields, ShapeField field) {
+        List<ShapeField> merged = new ArrayList<>();
+        boolean replaced = false;
+        for (ShapeField existing : fields) {
+            if (existing.key().equals(field.key())) {
+                merged.add(field);
+                replaced = true;
+                continue;
+            }
+            merged.add(existing);
+        }
+        if (!replaced) {
+            merged.add(field);
+        }
+
+        return merged;
+    }
+
+    private interface FormattableBodyType extends BodyType {
+
+        String renderFormatted(int level, boolean forceMultiline);
+
+    }
+
+    private record NamedType(String name) implements FormattableBodyType {
+
+        private NamedType {
+            Objects.requireNonNull(name);
+        }
+
+        @Override
+        public String render() {
+            return name;
+        }
+
+        @Override
+        public String renderFormatted(int level, boolean forceMultiline) {
+            return render();
+        }
+
+    }
+
+    private record ListType(BodyType elementType) implements FormattableBodyType {
+
+        private ListType {
+            Objects.requireNonNull(elementType);
+        }
+
+        @Override
+        public String render() {
+            return "list<" + elementType.render() + ">";
+        }
+
+        @Override
+        public String renderFormatted(int level, boolean forceMultiline) {
+            String element = BodyTypes.renderFormatted(
+                elementType,
+                level,
+                forceMultiline || containsShape(elementType) || render().length() > MAX_INLINE_LENGTH
+            );
+            if (!isMultiline(element)) {
+                return "list<" + element + ">";
+            }
+
+            String[] lines = element.split("\n", -1);
+            StringBuilder formatted = new StringBuilder("list<").append(lines[0]);
+            for (int i = 1; i < lines.length - 1; i++) {
+                formatted.append("\n").append(lines[i]);
+            }
+            formatted.append("\n").append(lines[lines.length - 1]).append(">");
+
+            return formatted.toString();
+        }
+
+    }
+
+    private record MapType(BodyType valueType) implements FormattableBodyType {
+
+        private MapType {
+            Objects.requireNonNull(valueType);
+        }
+
+        @Override
+        public String render() {
+            return "array<array-key, " + valueType.render() + ">";
+        }
+
+        @Override
+        public String renderFormatted(int level, boolean forceMultiline) {
+            String value = BodyTypes.renderFormatted(
+                valueType,
+                level,
+                forceMultiline || containsShape(valueType) || render().length() > MAX_INLINE_LENGTH
+            );
+            if (!isMultiline(value)) {
+                return "array<array-key, " + value + ">";
+            }
+
+            String[] lines = value.split("\n", -1);
+            StringBuilder formatted = new StringBuilder("array<array-key, ").append(lines[0]);
+            for (int i = 1; i < lines.length - 1; i++) {
+                formatted.append("\n").append(lines[i]);
+            }
+            formatted.append("\n").append(lines[lines.length - 1]).append(">");
+
+            return formatted.toString();
+        }
+
+    }
+
+    private record ShapeType(List<ShapeField> fields) implements FormattableBodyType {
+
+        @Override
+        public String render() {
+            if (fields.isEmpty()) {
+                return "array{}";
+            }
+            if (hasUnsafeKey()) {
+                return fallback().render();
+            }
+
+            return fields.stream()
+                .map(field -> renderKey(field.key()) + ": " + field.type().render())
+                .collect(Collectors.joining(", ", "array{", "}"));
+        }
+
+        @Override
+        public String renderFormatted(int level, boolean forceMultiline) {
+            if (hasUnsafeKey()) {
+                return BodyTypes.renderFormatted(fallback(), level, forceMultiline);
+            }
+
+            String compact = render();
+            if (fields.isEmpty() || (!forceMultiline && !shouldRenderMultiline(compact))) {
+                return compact;
+            }
+
+            StringBuilder formatted = new StringBuilder("array{");
+            for (int i = 0; i < fields.size(); i++) {
+                ShapeField field = fields.get(i);
+                String fieldType = BodyTypes.renderFormatted(field.type(), level + 1, containsShape(field.type()));
+                String[] lines = fieldType.split("\n", -1);
+                String comma = i == fields.size() - 1 ? "" : ",";
+
+                formatted.append("\n")
+                    .append(indent(level + 1))
+                    .append(renderKey(field.key()))
+                    .append(": ")
+                    .append(lines[0]);
+
+                for (int line = 1; line < lines.length; line++) {
+                    formatted.append("\n").append(lines[line]);
+                }
+                formatted.append(comma);
+            }
+
+            return formatted.append("\n").append(indent(level)).append("}").toString();
+        }
+
+        private boolean shouldRenderMultiline(String compact) {
+            return compact.length() > MAX_INLINE_LENGTH || fields.stream()
+                .map(ShapeField::type)
+                .anyMatch(type -> type instanceof UnionType || containsShape(type));
+        }
+
+        // A shape field key that contains control characters cannot be represented faithfully as a
+        // Psalm shape key (Psalm reads `'a\nb'` as a literal backslash-n, not a newline), so the
+        // whole shape degrades to a generic array keyed by array-key.
+        private boolean hasUnsafeKey() {
+            return fields.stream().anyMatch(field -> !isPsalmSafeKey(field.key()));
+        }
+
+        private BodyType fallback() {
+            return map(union(fields.stream().map(ShapeField::type).toList()));
+        }
+
+        private static boolean isPsalmSafeKey(String key) {
+            for (int index = 0; index < key.length(); index++) {
+                if (Character.isISOControl(key.charAt(index))) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static String renderKey(String key) {
+            if (key.matches("[A-Za-z_][A-Za-z0-9_]*") || key.matches("0|[1-9][0-9]*")) {
+                return key;
+            }
+
+            StringBuilder escaped = new StringBuilder(key.length());
+            for (int index = 0; index < key.length(); index++) {
+                char ch = key.charAt(index);
+                switch (ch) {
+                    case '\\' -> escaped.append("\\\\");
+                    case '\'' -> escaped.append("\\'");
+                    case '\n' -> escaped.append("\\n");
+                    case '\r' -> escaped.append("\\r");
+                    case '\t' -> escaped.append("\\t");
+                    case '\0' -> escaped.append("\\0");
+                    case '\u000B' -> escaped.append("\\v");
+                    case '\f' -> escaped.append("\\f");
+                    default -> {
+                        if (Character.isISOControl(ch)) {
+                            escaped.append(String.format("\\x%02X", (int) ch));
+                        } else {
+                            escaped.append(ch);
+                        }
+                    }
+                }
+            }
+
+            return "'" + escaped + "'";
+        }
+
+    }
+
+    private record UnionType(List<BodyType> types) implements FormattableBodyType {
+
+        @Override
+        public String render() {
+            return types.stream()
+                .map(BodyType::render)
+                .collect(Collectors.joining("|"));
+        }
+
+        @Override
+        public String renderFormatted(int level, boolean forceMultiline) {
+            String compact = render();
+            if (!forceMultiline && compact.length() <= MAX_INLINE_LENGTH && types.stream().noneMatch(BodyTypes::containsShape)) {
+                return compact;
+            }
+
+            StringBuilder formatted = new StringBuilder();
+            for (int i = 0; i < types.size(); i++) {
+                String branch = BodyTypes.renderFormatted(types.get(i), level, containsShape(types.get(i)));
+                if (i == 0) {
+                    formatted.append(branch);
+                    continue;
+                }
+
+                appendUnionBranch(formatted, branch);
+            }
+
+            return formatted.toString();
+        }
+
+        private static void appendUnionBranch(StringBuilder formatted, String branch) {
+            String[] lines = branch.split("\n", -1);
+            formatted.append("|").append(lines[0]);
+            for (int i = 1; i < lines.length; i++) {
+                formatted.append("\n").append(lines[i]);
+            }
+        }
+
+    }
+
+}
