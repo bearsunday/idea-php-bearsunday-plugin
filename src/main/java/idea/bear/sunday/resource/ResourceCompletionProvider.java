@@ -117,14 +117,14 @@ public class ResourceCompletionProvider extends CompletionProvider<CompletionPar
                 || editFile.startsWith(baseDir + "Page") && scheme.equals("page")){
                 LookupElementBuilder lookupElementBuilder =
                     LookupElementBuilder.create(uri)
-                        .withTypeText(StringUtils.replace(file, projectBasePath + "/", ""), true);
+                        .withTypeText(file.replace(projectBasePath + "/", ""), true);
                 lookupElementBuilders.add(lookupElementBuilder);
             }
             uri = scheme + "://self" + uri;
             LookupElementBuilder lookupElementBuilder =
                 LookupElementBuilder.create(uri)
                     .withTypeText(
-                        StringUtils.replace(file, projectBasePath + "/", ""), true);
+                        file.replace(projectBasePath + "/", ""), true);
             lookupElementBuilders.add(lookupElementBuilder);
         }
         resultSet.addAllElements(lookupElementBuilders);

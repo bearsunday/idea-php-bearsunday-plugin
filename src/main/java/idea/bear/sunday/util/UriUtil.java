@@ -5,7 +5,6 @@ import com.damnhandy.uri.template.UriTemplateComponent;
 import com.damnhandy.uri.template.impl.UriTemplateParser;
 import com.intellij.openapi.diagnostic.Logger;
 import com.jetbrains.php.lang.psi.elements.PhpClass;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.text.WordUtils;
 import org.jetbrains.annotations.Nullable;
 
@@ -151,6 +150,7 @@ public class UriUtil {
     }
 
     private static String capitalizePath(String path) {
-        return StringUtils.remove(WordUtils.capitalize(path, URI_PATH_DELIMITERS), "-");
+        String capitalized = WordUtils.capitalize(path, URI_PATH_DELIMITERS);
+        return capitalized == null ? null : capitalized.replace("-", "");
     }
 }

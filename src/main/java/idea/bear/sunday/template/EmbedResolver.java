@@ -11,7 +11,6 @@ import com.intellij.psi.PsiManager;
 import com.jetbrains.php.lang.psi.elements.Method;
 import com.jetbrains.php.lang.psi.elements.PhpAttribute;
 import com.jetbrains.php.lang.psi.elements.PhpClass;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.text.WordUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -66,7 +65,7 @@ public final class EmbedResolver {
             return null;
         }
         String classRel = WordUtils.capitalize(scheme)
-                + StringUtils.remove(WordUtils.capitalizeFully(path, new char[]{'/', '-'}), "-");
+                + WordUtils.capitalizeFully(path, new char[]{'/', '-'}).replace("-", "");
         if (classRel.endsWith("/")) {
             classRel += "Index";
         }
