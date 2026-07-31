@@ -109,12 +109,12 @@ public final class ResourceMethodTypeProvider implements PhpTypeProvider4 {
     private @Nullable PhpType completeRequest(SignedResourceRequest request, Project project) {
         if (SIGNATURE_RESOURCE.equals(request.kind())) {
             return resolveResourceClass(project, request.uri())
-                .map(phpClass -> PhpType.from(phpClass.getFQN()))
+                .map(phpClass -> new PhpType().add(phpClass.getFQN()))
                 .orElse(null);
         }
         if (SIGNATURE_BODY.equals(request.kind())) {
             return resolveBodyType(project, request)
-                .map(declaration -> PhpType.from(declaration.bodyType().render(), PhpType._NULL))
+                .map(declaration -> new PhpType().add(declaration.bodyType().render()).add(PhpType._NULL))
                 .orElse(null);
         }
 
@@ -305,9 +305,14 @@ public final class ResourceMethodTypeProvider implements PhpTypeProvider4 {
         String fileName = className + ".php";
         String expectedSuffix = "/" + relPath;
         try {
-            for (PsiFile psiFile : FilenameIndex.getFilesByName(project, fileName, GlobalSearchScope.allScope(project))) {
-                VirtualFile virtualFile = psiFile.getVirtualFile();
-                if (virtualFile == null || !virtualFile.getPath().replace('\\', '/').endsWith(expectedSuffix)) {
+            PsiManager psiManager = PsiManager.getInstance(project);
+            for (VirtualFile virtualFile : FilenameIndex.getVirtualFilesByName(fileName, GlobalSearchScope.allScope(project))) {
+                if (!virtualFile.getPath().replace('\\', '/').endsWith(expectedSuffix)) {
+                    continue;
+                }
+
+                PsiFile psiFile = psiManager.findFile(virtualFile);
+                if (psiFile == null) {
                     continue;
                 }
 
