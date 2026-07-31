@@ -34,6 +34,10 @@ composer install
 - `../docs/images/body-type-generator-after.png`
 - `../docs/images/phpstorm-body-type-demo-real.png`
 
+## ALPS プロファイル
+
+`alps.json` と `profile.alps.xml` は同一内容の ALPS プロファイルです（JSON/XML 正規化のパリティ確認用に両形式を用意。ファイル名も検出パターン `alps.json` / `*.alps.xml` の両方をカバーします）。descriptor は `src/Resource` 配下の実リソース（User / Profile / Point / Dashboard）と、`Dashboard` の `#[Embed]` / `#[Link]` の rel（user / profile）に対応しています。`Point` descriptor は `var/json_schema/point.json` へ `describedby` リンクを張っています。issue #28 の MCP ツール群のフィクスチャ・手動確認の土台です。
+
 ## 動作確認用コマンド
 
 ```sh

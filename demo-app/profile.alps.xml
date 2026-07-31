@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<alps version="1.0">
+    <title>MyProject Demo API</title>
+    <doc>ALPS profile for the plugin demo app. Descriptors mirror the resources under src/Resource.</doc>
+    <link rel="describedby" href="README.md"/>
+    <link rel="profile" href="https://alps.io/spec/"/>
+
+    <descriptor id="id" type="semantic" def="https://schema.org/identifier"/>
+    <descriptor id="name" type="semantic" def="https://schema.org/name"/>
+    <descriptor id="bio" type="semantic">
+        <doc>Short profile text.</doc>
+    </descriptor>
+    <descriptor id="title" type="semantic" def="https://schema.org/name"/>
+    <descriptor id="x" type="semantic">
+        <doc>X coordinate.</doc>
+    </descriptor>
+    <descriptor id="y" type="semantic">
+        <doc>Y coordinate.</doc>
+    </descriptor>
+    <descriptor id="squaredDistance" type="semantic">
+        <doc>x^2 + y^2 of the point.</doc>
+    </descriptor>
+
+    <descriptor id="User" type="semantic">
+        <doc>User detail state. app://self/user</doc>
+        <descriptor href="#id"/>
+        <descriptor href="#name"/>
+    </descriptor>
+    <descriptor id="Profile" type="semantic">
+        <doc>Profile detail state. app://self/profile</doc>
+        <descriptor href="#id"/>
+        <descriptor href="#bio"/>
+    </descriptor>
+    <descriptor id="Point" type="semantic" tag="demo">
+        <doc>Point calculation state. app://self/point</doc>
+        <link rel="describedby" href="var/json_schema/point.json"/>
+        <descriptor href="#x"/>
+        <descriptor href="#y"/>
+        <descriptor href="#squaredDistance"/>
+    </descriptor>
+    <descriptor id="Dashboard" type="semantic">
+        <doc>Dashboard state embedding the user and linking to the profile. app://self/dashboard</doc>
+        <descriptor href="#id"/>
+        <descriptor href="#title"/>
+        <descriptor href="#goUser"/>
+        <descriptor href="#goProfile"/>
+    </descriptor>
+
+    <descriptor id="goUser" type="safe" rt="#User" rel="https://bearsunday.github.io/rels/user">
+        <doc>Embedded as rel=user from Dashboard.</doc>
+    </descriptor>
+    <descriptor id="goProfile" type="safe" rt="#Profile" rel="profile">
+        <doc>Linked as rel=profile from Dashboard.</doc>
+    </descriptor>
+    <descriptor id="goPoint" type="safe" rt="#Point"/>
+</alps>
