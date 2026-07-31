@@ -5,7 +5,7 @@ fun environment(key: String) = providers.environmentVariable(key)
 
 plugins {
     id("java")
-    id("org.jetbrains.kotlin.jvm") version "1.9.25"
+    id("org.jetbrains.kotlin.jvm") version "2.1.20"
     id("org.jetbrains.intellij.platform") version "2.2.1"
 }
 
@@ -33,6 +33,7 @@ dependencies {
         phpstorm(properties("platformVersion"))
         bundledPlugin("com.jetbrains.php")
         bundledPlugin("com.jetbrains.twig")
+        bundledPlugin("com.intellij.mcpServer")
         testFramework(TestFrameworkType.Platform)
         pluginVerifier()
     }
@@ -85,6 +86,12 @@ intellijPlatformTesting {
 java {
     sourceCompatibility = JavaVersion.toVersion(properties("javaVersion").get())
     targetCompatibility = JavaVersion.toVersion(properties("javaVersion").get())
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget(properties("javaVersion").get())
+    }
 }
 
 tasks {
