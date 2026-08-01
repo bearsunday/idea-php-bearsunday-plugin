@@ -11,6 +11,7 @@ import idea.bear.sunday.alps.AlpsLinkResolver;
 import idea.bear.sunday.alps.AlpsParseException;
 import idea.bear.sunday.alps.AlpsProfile;
 import idea.bear.sunday.alps.AlpsProfileDetector;
+import idea.bear.sunday.mcp.facts.BodyShapeFactsService.BodyLookup;
 import idea.bear.sunday.mcp.facts.SchemaFactsService.SchemaMatch;
 import idea.bear.sunday.util.UriUtil;
 import org.jetbrains.annotations.Nullable;
@@ -18,12 +19,15 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * Puts the field names a resource declares in its JSON Schema next to the ones its ALPS profile
- * describes. The comparison is presence-only: it reports which side names a field, never whether
- * the two agree on its meaning.
+ * describes and the ones its code actually assigns to {@code $this->body}. The comparison is
+ * presence-only: it reports which side names a field, never whether the sides agree on its
+ * meaning. A field is reported as "only in" a side when no other available side names it.
  */
 @Service(Service.Level.PROJECT)
 public final class ContractCompareService {
@@ -56,8 +60,12 @@ public final class ContractCompareService {
 
         SchemaMatch schemaMatch = firstReadableSchema(normalizedUri, resolvedMethod);
         AlpsFields alpsFields = alpsFields(normalizedUri);
+        BodyLookup bodyLookup = BodyShapeFactsService.lookUp(project, normalizedUri, resolvedMethod);
         List<String> schemaSide = schemaMatch == null ? null : SchemaFactsService.propertyNames(schemaMatch.raw());
         List<String> alpsSide = alpsFields == null ? null : alpsFields.fields();
+        List<String> bodySide = bodyLookup.bodyType() == null
+            ? null
+            : BodyShapeFactsService.fieldNames(bodyLookup.bodyType());
 
         JsonObject payload = new JsonObject();
         payload.addProperty("kind", "presence-only");
@@ -65,11 +73,8 @@ public final class ContractCompareService {
         payload.addProperty("method", resolvedMethod);
         payload.add("schema", schemaJson(schemaMatch, schemaSide));
         payload.add("alps", alpsJson(alpsFields));
-        payload.add("body", bodyJson());
-        if (schemaSide != null && alpsSide != null) {
-            payload.add("onlyInSchema", stringArray(missing(schemaSide, alpsSide)));
-            payload.add("onlyInAlps", stringArray(missing(alpsSide, schemaSide)));
-        }
+        payload.add("body", bodyJson(bodyLookup, bodySide));
+        addOnlyIn(payload, schemaSide, alpsSide, bodySide);
 
         return Envelope.ok(Provenance.derived(normalizedUri), payload).toJson();
     }
@@ -157,24 +162,63 @@ public final class ContractCompareService {
         return json;
     }
 
-    private static JsonObject bodyJson() {
+    private static JsonObject bodyJson(BodyLookup lookup, @Nullable List<String> fields) {
         JsonObject json = new JsonObject();
-        json.addProperty("available", false);
-        json.addProperty("reason", "M3");
+        if (fields == null) {
+            json.addProperty("available", false);
+            json.addProperty("reason", lookup.reason());
+
+            return json;
+        }
+        json.addProperty("available", true);
+        json.add("fields", stringArray(fields));
 
         return json;
     }
 
-    private static List<String> missing(List<String> fields, List<String> other) {
-        Set<String> known = new LinkedHashSet<>(other);
+    /**
+     * Reported only once at least two sides exist: with a single side every field would trivially
+     * be "only" there.
+     */
+    private static void addOnlyIn(
+        JsonObject payload,
+        @Nullable List<String> schemaSide,
+        @Nullable List<String> alpsSide,
+        @Nullable List<String> bodySide
+    ) {
+        long available = Stream.of(schemaSide, alpsSide, bodySide).filter(Objects::nonNull).count();
+        if (available < 2) {
+            return;
+        }
+        addOnlyIn(payload, "onlyInSchema", schemaSide, alpsSide, bodySide);
+        addOnlyIn(payload, "onlyInAlps", alpsSide, schemaSide, bodySide);
+        addOnlyIn(payload, "onlyInBody", bodySide, schemaSide, alpsSide);
+    }
+
+    private static void addOnlyIn(
+        JsonObject payload,
+        String key,
+        @Nullable List<String> side,
+        @Nullable List<String> otherA,
+        @Nullable List<String> otherB
+    ) {
+        if (side == null) {
+            return;
+        }
+        Set<String> others = new LinkedHashSet<>();
+        if (otherA != null) {
+            others.addAll(otherA);
+        }
+        if (otherB != null) {
+            others.addAll(otherB);
+        }
         List<String> only = new ArrayList<>();
-        for (String field : fields) {
-            if (!known.contains(field)) {
+        for (String field : side) {
+            if (!others.contains(field)) {
                 only.add(field);
             }
         }
-
-        return only;
+        payload.add(key, stringArray(only));
     }
 
     /** {@code app://self/blog-posting} names the {@code BlogPosting} descriptor. */

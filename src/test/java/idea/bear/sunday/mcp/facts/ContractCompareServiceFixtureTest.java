@@ -19,6 +19,7 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ContractCompareServiceFixtureTest {
 
@@ -33,6 +34,24 @@ class ContractCompareServiceFixtureTest {
         {
             public function onGet(int $x = 0): static
             {
+                return $this;
+            }
+        }
+        """;
+
+    private static final String POINT_WITH_BODY = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Resource\\App;
+
+        use BEAR\\Resource\\ResourceObject;
+
+        final class Point extends ResourceObject
+        {
+            public function onGet(int $x = 0): static
+            {
+                $this->body = ['x' => 1, 'w' => 'west'];
+
                 return $this;
             }
         }
@@ -100,6 +119,24 @@ class ContractCompareServiceFixtureTest {
         assertEquals("[\"x\",\"y\"]", envelope.getAsJsonObject("alps").getAsJsonArray("fields").toString());
         assertEquals("[\"z\"]", envelope.getAsJsonArray("onlyInSchema").toString());
         assertEquals("[]", envelope.getAsJsonArray("onlyInAlps").toString());
+        assertFalse(envelope.has("onlyInBody"));
+    }
+
+    @Test
+    void reportsTheFieldsOnlyOneOfTheThreeSidesDeclares() {
+        addPhysicalFile("src/Resource/App/Point.php", POINT_WITH_BODY);
+        addPhysicalFile("var/json_schema/point.json", POINT_SCHEMA);
+        addPhysicalFile("alps.json", PROFILE);
+
+        JsonObject envelope = envelope(facts().compare("app://self/point", "get"));
+
+        assertEquals("ok", envelope.get("status").getAsString());
+        JsonObject body = envelope.getAsJsonObject("body");
+        assertTrue(body.get("available").getAsBoolean());
+        assertEquals("[\"x\",\"w\"]", body.getAsJsonArray("fields").toString());
+        assertEquals("[\"z\"]", envelope.getAsJsonArray("onlyInSchema").toString());
+        assertEquals("[]", envelope.getAsJsonArray("onlyInAlps").toString());
+        assertEquals("[\"w\"]", envelope.getAsJsonArray("onlyInBody").toString());
     }
 
     @Test
@@ -126,11 +163,13 @@ class ContractCompareServiceFixtureTest {
     }
 
     @Test
-    void marksTheBodySideAsPlannedForTheNextMilestone() {
+    void reportsTheBodySideAsUnavailableWhenTheMethodAssignsNoBody() {
+        addPhysicalFile("src/Resource/App/Point.php", POINT);
+
         JsonObject body = envelope(facts().compare("app://self/point", null)).getAsJsonObject("body");
 
         assertFalse(body.get("available").getAsBoolean());
-        assertEquals("M3", body.get("reason").getAsString());
+        assertTrue(body.get("reason").getAsString().contains("No body declaration for method get"));
     }
 
     private static JsonObject envelope(String json) {

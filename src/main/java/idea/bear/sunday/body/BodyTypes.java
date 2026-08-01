@@ -94,7 +94,7 @@ public final class BodyTypes {
         return null;
     }
 
-    static List<ShapeField> shapeFields(BodyType type) {
+    public static List<ShapeField> shapeFields(BodyType type) {
         if (type instanceof ShapeType shapeType) {
             return shapeType.fields();
         }
@@ -102,7 +102,7 @@ public final class BodyTypes {
         return null;
     }
 
-    static List<BodyType> unionTypes(BodyType type) {
+    public static List<BodyType> unionTypes(BodyType type) {
         if (type instanceof UnionType unionType) {
             return unionType.types();
         }

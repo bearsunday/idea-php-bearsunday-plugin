@@ -7,6 +7,7 @@ import com.intellij.mcpserver.project
 import com.intellij.openapi.project.Project
 import idea.bear.sunday.mcp.facts.AlpsFactsService
 import idea.bear.sunday.mcp.facts.ApiDocFactsService
+import idea.bear.sunday.mcp.facts.BodyShapeFactsService
 import idea.bear.sunday.mcp.facts.ContractCompareService
 import idea.bear.sunday.mcp.facts.LinkSuggestService
 import idea.bear.sunday.mcp.facts.ResourceFactsService
@@ -109,10 +110,23 @@ class BearSundayMcpToolset : McpToolset {
 
     @McpTool
     @McpDescription(
+        "Read-only. Returns the shape of the body a resource method assigns to \$this->body, inferred from " +
+            "the resource class: \"rendered\" and \"formatted\" carry the Psalm type (e.g. \"array{id: int, " +
+            "title: string}\"), \"fields\" the top-level keys with their types. A body built differently on " +
+            "different paths is a union and answers with \"branches\" instead, one entry per branch. method " +
+            "accepts \"get\" or \"onGet\" and defaults to \"get\". The shape is what the code builds, not what " +
+            "the resource promises; a method with no statically readable body answers with status=not_found."
+    )
+    suspend fun bear_resource_body_shape(uri: String, method: String = "get"): String =
+        BodyShapeFactsService.getInstance(project()).shape(uri, method)
+
+    @McpTool
+    @McpDescription(
         "Read-only. Puts the field names of a resource's response JSON Schema next to the ones its ALPS " +
-            "descriptor names, and reports which side has fields the other does not (onlyInSchema / " +
-            "onlyInAlps). The comparison is presence-only: it never claims the two agree on meaning. A side " +
-            "that does not exist is reported with \"available\": false, which is an answer, not an error."
+            "descriptor names and the ones its code assigns to \$this->body, and reports the fields no other " +
+            "side names (onlyInSchema / onlyInAlps / onlyInBody, present once at least two sides exist). The " +
+            "comparison is presence-only: it never claims the sides agree on meaning. A side that does not " +
+            "exist is reported with \"available\": false, which is an answer, not an error."
     )
     suspend fun bear_contract_compare(uri: String, method: String = "get"): String =
         ContractCompareService.getInstance(project()).compare(uri, method)
