@@ -30,6 +30,19 @@ public final class ResourceClassResolver {
     }
 
     public static Optional<PhpClass> resolve(Project project, String normalizedUri) {
+        return resolve(project, normalizedUri, true);
+    }
+
+    /**
+     * Same as {@link #resolve(Project, String)} but never triggers a synchronous VFS refresh,
+     * which the platform forbids under a read lock on a background thread. Callers that run
+     * inside {@code ReadAction} off the EDT (e.g. MCP tools) must use this variant.
+     */
+    public static Optional<PhpClass> resolveCached(Project project, String normalizedUri) {
+        return resolve(project, normalizedUri, false);
+    }
+
+    private static Optional<PhpClass> resolve(Project project, String normalizedUri, boolean refresh) {
         VirtualFile baseDir = projectBaseDir(project);
         if (baseDir == null) {
             return Optional.empty();
@@ -40,9 +53,11 @@ public final class ResourceClassResolver {
             return Optional.empty();
         }
 
-        Optional<PhpClass> nioClass = resolveFromNioPath(project, relPath);
-        if (nioClass.isPresent()) {
-            return nioClass;
+        if (refresh) {
+            Optional<PhpClass> nioClass = resolveFromNioPath(project, relPath);
+            if (nioClass.isPresent()) {
+                return nioClass;
+            }
         }
 
         VirtualFile targetFile = baseDir.findFileByRelativePath(relPath);

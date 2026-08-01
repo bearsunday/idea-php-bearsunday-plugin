@@ -69,7 +69,7 @@ public final class SchemaFactsService {
         if (normalizedUri == null) {
             return List.of();
         }
-        Optional<PhpClass> resolved = ResourceClassResolver.resolve(project, normalizedUri);
+        Optional<PhpClass> resolved = ResourceClassResolver.resolveCached(project, normalizedUri);
         if (resolved.isEmpty()) {
             return List.of();
         }
@@ -114,7 +114,7 @@ public final class SchemaFactsService {
         payload.add("matches", array);
         Provenance provenance = matches.isEmpty()
             ? Provenance.derived(isSet(resourceUri) ? resourceUri : schemaFile)
-            : Provenance.ofFile(matches.get(0).file().getPath(), FactsFiles.isUnsaved(matches.get(0).file()));
+            : Provenance.ofFile(FactsFiles.relativePath(project, matches.get(0).file()), FactsFiles.isUnsaved(matches.get(0).file()));
 
         return Envelope.ok(provenance, payload).toJson();
     }
@@ -148,7 +148,8 @@ public final class SchemaFactsService {
     private static List<String> declaredSchemaFiles(Method method, String kind) {
         boolean request = KIND_REQUEST.equals(kind);
         String argumentName = request ? "params" : "schema";
-        int argumentIndex = request ? 1 : 0;
+        // #[JsonSchema] constructor order is (schema, key, params, target): params sits at index 2.
+        int argumentIndex = request ? 2 : 0;
         List<String> fileNames = new ArrayList<>();
         for (PhpAttribute attribute : method.getAttributes()) {
             if (!JSON_SCHEMA.equals(attributeShortName(attribute))) {
@@ -179,7 +180,7 @@ public final class SchemaFactsService {
     /** Every configured schema directory that holds a file of this name. */
     List<SchemaMatch> byFileName(String fileName, String kind, String source) {
         // The answer carries the file contents, so a name may never leave the schema directories.
-        if (fileName.contains("..")) {
+        if (fileName.contains("..") || fileName.indexOf('/') >= 0 || fileName.indexOf('\\') >= 0) {
             return List.of();
         }
         List<SchemaMatch> matches = new ArrayList<>();

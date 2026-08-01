@@ -69,9 +69,12 @@ public final class LinkSuggestService {
             if (targets.isEmpty()) {
                 continue;
             }
+            ApiDocFactsService apiDoc = ApiDocFactsService.getInstance(project);
+            Set<String> openApiPaths = apiDoc.pathKeys();
+            VirtualFile openApiFile = apiDoc.openApiFile();
             JsonArray suggestions = new JsonArray();
             for (AlpsDescriptor target : targets) {
-                suggestions.addAll(suggestionsFor(target, profile, file));
+                suggestions.addAll(suggestionsFor(target, profile, file, openApiPaths, openApiFile));
             }
 
             return Envelope.ok(provenanceOf(file), payload(suggestions)).toJson();
@@ -86,7 +89,8 @@ public final class LinkSuggestService {
         return Envelope.ok(provenanceOf(firstReadable), payload(new JsonArray())).toJson();
     }
 
-    private JsonArray suggestionsFor(AlpsDescriptor descriptor, AlpsProfile profile, VirtualFile profileFile) {
+    private JsonArray suggestionsFor(AlpsDescriptor descriptor, AlpsProfile profile, VirtualFile profileFile,
+                                     Set<String> openApiPaths, @Nullable VirtualFile openApiFile) {
         JsonArray suggestions = new JsonArray();
         String id = descriptor.id();
         if (id == null) {
@@ -95,7 +99,7 @@ public final class LinkSuggestService {
         Set<String> declared = declaredLinks(descriptor, profile, profileFile);
         String name = Names.kebab(id);
         addSchemaSuggestion(suggestions, declared, id, name);
-        addOpenApiSuggestion(suggestions, declared, id, name);
+        addOpenApiSuggestion(suggestions, declared, id, name, openApiPaths, openApiFile);
 
         return suggestions;
     }
@@ -118,13 +122,12 @@ public final class LinkSuggestService {
         ));
     }
 
-    private void addOpenApiSuggestion(JsonArray suggestions, Set<String> declared, String id, String name) {
-        ApiDocFactsService apiDoc = ApiDocFactsService.getInstance(project);
+    private void addOpenApiSuggestion(JsonArray suggestions, Set<String> declared, String id, String name,
+                                      Set<String> openApiPaths, @Nullable VirtualFile file) {
         String path = "/" + name;
-        if (!apiDoc.pathKeys().contains(path)) {
+        if (!openApiPaths.contains(path)) {
             return;
         }
-        VirtualFile file = apiDoc.openApiFile();
         if (file == null || declared.contains(key(REL_RELATED, file.getPath()))) {
             return;
         }

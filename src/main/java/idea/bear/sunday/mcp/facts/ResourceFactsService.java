@@ -59,7 +59,7 @@ public final class ResourceFactsService {
         if (normalizedUri == null) {
             return Envelope.notFound("Unsupported resource URI: " + uri).toJson();
         }
-        Optional<PhpClass> resolved = ResourceClassResolver.resolve(project, normalizedUri);
+        Optional<PhpClass> resolved = ResourceClassResolver.resolveCached(project, normalizedUri);
         if (resolved.isEmpty()) {
             return Envelope.notFound("Resource class not found for " + normalizedUri).toJson();
         }
@@ -80,7 +80,7 @@ public final class ResourceFactsService {
         payload.add("resource", resource);
         Provenance provenance = file == null
             ? Provenance.derived(normalizedUri)
-            : Provenance.ofPsi(file.getPath(), FactsFiles.isUnsaved(file));
+            : Provenance.ofPsi(FactsFiles.relativePath(project, file), FactsFiles.isUnsaved(file));
 
         return Envelope.ok(provenance, payload).toJson();
     }

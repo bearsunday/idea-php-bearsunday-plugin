@@ -65,7 +65,8 @@ final class FactsFiles {
         }
         try {
             return VfsUtilCore.loadText(file);
-        } catch (IOException exception) {
+        } catch (IOException | IllegalArgumentException exception) {
+            // IllegalArgumentException: binary file without a decompiler; treat as unreadable.
             return null;
         }
     }
