@@ -12,7 +12,6 @@ import com.intellij.openapi.vfs.VirtualFile;
 import idea.bear.sunday.alps.AlpsDescriptor;
 import idea.bear.sunday.alps.AlpsLink;
 import idea.bear.sunday.alps.AlpsLinkResolver;
-import idea.bear.sunday.alps.AlpsNormalizer;
 import idea.bear.sunday.alps.AlpsParseException;
 import idea.bear.sunday.alps.AlpsProfile;
 import idea.bear.sunday.alps.AlpsProfileDetector;
@@ -26,7 +25,6 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * Answers ALPS questions as JSON envelopes for the MCP tools. Every answer is read-only and
@@ -226,7 +224,7 @@ public final class AlpsFactsService {
         if (targetId == null || descriptor.rel() == null) {
             return implementations;
         }
-        String resourceName = toKebabCase(targetId);
+        String resourceName = Names.kebab(targetId);
         try {
             for (String uri : List.of("app://self/" + resourceName, "page://self/" + resourceName)) {
                 String resourcePath = UriUtil.toSupportedResourceRelativePath(uri, false);
@@ -387,11 +385,7 @@ public final class AlpsFactsService {
     }
 
     private AlpsProfile parse(VirtualFile file) {
-        String text = AlpsProfileDetector.getInstance(project).contentOf(file);
-
-        return file.getName().toLowerCase(Locale.ROOT).endsWith(".xml")
-            ? AlpsNormalizer.fromXml(text, file.getPath())
-            : AlpsNormalizer.fromJson(text, file.getPath());
+        return AlpsProfileDetector.getInstance(project).parse(file);
     }
 
     private Provenance provenanceOf(VirtualFile file) {
@@ -456,23 +450,6 @@ public final class AlpsFactsService {
         String trimmed = value.trim();
 
         return trimmed.startsWith("#") ? trimmed.substring(1) : trimmed;
-    }
-
-    private static String toKebabCase(String id) {
-        StringBuilder kebab = new StringBuilder();
-        for (int i = 0; i < id.length(); i++) {
-            char character = id.charAt(i);
-            if (Character.isUpperCase(character)) {
-                if (i > 0) {
-                    kebab.append('-');
-                }
-                kebab.append(Character.toLowerCase(character));
-            } else {
-                kebab.append(character);
-            }
-        }
-
-        return kebab.toString();
     }
 
     private static void addIfPresent(JsonObject json, String key, @Nullable String value) {

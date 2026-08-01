@@ -14,6 +14,7 @@ import org.jetbrains.annotations.NotNull;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -68,6 +69,15 @@ public final class AlpsProfileDetector {
 
     public boolean isUnsaved(VirtualFile file) {
         return FileDocumentManager.getInstance().isFileModified(file);
+    }
+
+    /** Parses a profile in the format its file name implies. Must be called inside a read action. */
+    public AlpsProfile parse(VirtualFile file) {
+        String text = contentOf(file);
+
+        return file.getName().toLowerCase(Locale.ROOT).endsWith(".xml")
+            ? AlpsNormalizer.fromXml(text, file.getPath())
+            : AlpsNormalizer.fromJson(text, file.getPath());
     }
 
     private List<VirtualFile> scan() {

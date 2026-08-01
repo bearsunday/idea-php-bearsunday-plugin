@@ -47,6 +47,10 @@ public final class Envelope {
         return error(Status.parse_error, detail);
     }
 
+    public static Envelope engineUnavailable(String detail) {
+        return error(Status.engine_unavailable, detail);
+    }
+
     public String toJson() {
         return root.toString();
     }

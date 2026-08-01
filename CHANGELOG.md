@@ -8,6 +8,7 @@
 - Go to bound interceptor: bound Ray.Aop attributes (e.g. `#[Transactional]`) now show a BEAR gutter icon and can jump to interceptor class(es) bound in a module via `bindInterceptor()` from the icon or `Navigate > Go to Bound Interceptor` (#19). Standard PhpStorm declaration navigation remains available for the attribute class itself.
 - Incoming Link/Embed relation gutter: BEAR.Resource methods now show incoming static `#[Link]` / `#[Embed]` relations from other resources and navigate back to the source attribute declaration.
 - MCP tools for ALPS profiles: `bear_alps_profile_read`, `bear_alps_descriptor_lookup`, `bear_alps_transition_lookup` and `bear_alps_links_resolve` answer read-only questions about the project's ALPS profiles (JSON and XML) through the bundled MCP server, matching transitions against `#[Link]` / `#[Embed]` declarations (#28).
+- MCP tools for resources and contracts: `bear_resource_describe`, `bear_schema_lookup`, `bear_apidoc_operation_lookup`, `bear_contract_compare` and `bear_alps_links_suggest` answer read-only questions about resource classes, their JSON Schema files, the generated OpenAPI document, and the fields the schema and the ALPS profile each name (#28).
 
 ### Changed
 - Ray.Aop bound-interceptor gutter/action now uses a dedicated AOP icon instead of the BEAR resource icon.

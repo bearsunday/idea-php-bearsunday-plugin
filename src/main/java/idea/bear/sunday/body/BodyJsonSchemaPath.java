@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
-final class BodyJsonSchemaPath {
+public final class BodyJsonSchemaPath {
 
     private static final String RESOURCE_APP = "\\Resource\\App\\";
     private static final String RESOURCE_PAGE = "\\Resource\\Page\\";
@@ -18,7 +18,7 @@ final class BodyJsonSchemaPath {
     private BodyJsonSchemaPath() {
     }
 
-    static @Nullable Path fromClass(Project project, PhpClass phpClass) {
+    public static @Nullable Path fromClass(Project project, PhpClass phpClass) {
         String basePath = project.getBasePath();
         if (basePath == null) {
             return null;
