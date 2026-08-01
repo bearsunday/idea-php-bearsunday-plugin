@@ -1,5 +1,5 @@
 <idea-plugin>
     <extensions defaultExtensionNs="com.intellij">
-        <mcpServer.mcpToolset implementation="idea.bear.sunday.mcp.BearSundaySpikeToolset"/>
+        <mcpServer.mcpToolset implementation="idea.bear.sunday.mcp.BearSundayMcpToolset"/>
     </extensions>
 </idea-plugin>
