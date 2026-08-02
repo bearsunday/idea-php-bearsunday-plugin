@@ -223,7 +223,7 @@ public final class LinkSuggestService {
         return payload;
     }
 
-    private static Provenance provenanceOf(VirtualFile file) {
-        return Provenance.ofFile(file.getPath(), FactsFiles.isUnsaved(file));
+    private Provenance provenanceOf(VirtualFile file) {
+        return Provenance.ofFile(FactsFiles.relativePath(project, file), FactsFiles.isUnsaved(file));
     }
 }
