@@ -179,8 +179,10 @@ public final class SchemaFactsService {
 
     /** Every configured schema directory that holds a file of this name. */
     List<SchemaMatch> byFileName(String fileName, String kind, String source) {
-        // The answer carries the file contents, so a name may never leave the schema directories.
-        if (fileName.contains("..") || fileName.indexOf('/') >= 0 || fileName.indexOf('\\') >= 0) {
+        // The answer carries the file contents, so a name may never leave the schema
+        // directories. Subpaths like "admin/user.json" are legitimate #[JsonSchema] values,
+        // so "/" stays allowed; ".." (escape), "\" and absolute paths are not.
+        if (fileName.contains("..") || fileName.indexOf('\\') >= 0 || fileName.startsWith("/")) {
             return List.of();
         }
         List<SchemaMatch> matches = new ArrayList<>();

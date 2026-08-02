@@ -114,25 +114,41 @@ public final class ContractCompareService {
                 continue;
             }
 
-            return new AlpsFields(descriptorId, FactsFiles.relativePath(project, file), fieldsOf(descriptor));
+            return new AlpsFields(descriptorId, FactsFiles.relativePath(project, file), fieldsOf(descriptor, profile));
         }
 
         return null;
     }
 
-    private static List<String> fieldsOf(AlpsDescriptor descriptor) {
+    private static List<String> fieldsOf(AlpsDescriptor descriptor, AlpsProfile profile) {
         List<String> fields = new ArrayList<>();
         for (AlpsDescriptor child : descriptor.children()) {
             if (child.isTransition()) {
                 continue;
             }
-            String name = child.id() != null ? child.id() : stripHash(child.href());
+            String name = child.id() != null ? child.id() : localFieldName(child.href(), profile);
             if (name != null && !name.isBlank()) {
                 fields.add(name);
             }
         }
 
         return fields;
+    }
+
+    /**
+     * A reference child names a field only when it points inside this profile at a
+     * non-transition descriptor; references to transitions (a state's outgoing links) and
+     * into other files are not fields.
+     */
+    @Nullable
+    private static String localFieldName(@Nullable String href, AlpsProfile profile) {
+        if (href == null || !href.startsWith("#")) {
+            return null;
+        }
+        String id = href.substring(1);
+        AlpsDescriptor target = AlpsLinkResolver.findById(profile.descriptors(), id);
+
+        return target != null && target.isTransition() ? null : id;
     }
 
     private static JsonObject schemaJson(@Nullable SchemaMatch match, @Nullable List<String> fields) {

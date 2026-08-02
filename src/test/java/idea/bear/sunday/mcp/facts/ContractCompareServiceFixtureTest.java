@@ -78,9 +78,11 @@ class ContractCompareServiceFixtureTest {
                 "descriptor": [
                   {"id": "x", "type": "semantic"},
                   {"id": "y", "type": "semantic"},
-                  {"id": "goPoint", "type": "safe", "rt": "#Point"}
+                  {"id": "goPoint", "type": "safe", "rt": "#Point"},
+                  {"href": "#goNext"}
                 ]
-              }
+              },
+              {"id": "goNext", "type": "safe", "rt": "#Point"}
             ]
           }
         }

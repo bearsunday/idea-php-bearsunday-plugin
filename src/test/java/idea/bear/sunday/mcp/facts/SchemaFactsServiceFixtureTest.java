@@ -147,6 +147,42 @@ class SchemaFactsServiceFixtureTest {
     }
 
     @Test
+    void resolvesAnAttributeSchemaInASubdirectory() {
+        addPhysicalFile("src/Resource/App/AdminDemo.php", """
+            <?php
+            namespace MyVendor\\MyProject\\Resource\\App;
+
+            use BEAR\\Resource\\Annotation\\JsonSchema;
+            use BEAR\\Resource\\ResourceObject;
+
+            final class AdminDemo extends ResourceObject
+            {
+                #[JsonSchema(schema: 'admin/point.json')]
+                public function onGet(): static
+                {
+                    return $this;
+                }
+            }
+            """);
+        addPhysicalFile("var/json_schema/admin/point.json", POINT_SCHEMA);
+
+        JsonObject match = envelope(facts().lookup("app://self/admin-demo", null, null, null))
+            .getAsJsonArray("matches").get(0).getAsJsonObject();
+
+        assertEquals("var/json_schema/admin/point.json", match.get("path").getAsString());
+        assertEquals("attribute", match.get("source").getAsString());
+    }
+
+    @Test
+    void rejectsASchemaFileArgumentThatLeavesTheSchemaDirectories() {
+        addPhysicalFile("var/json_schema/point.json", POINT_SCHEMA);
+
+        JsonObject envelope = envelope(facts().lookup(null, null, "../json_schema/point.json", null));
+
+        assertEquals(0, envelope.getAsJsonArray("matches").size());
+    }
+
+    @Test
     void answersWithAnEmptyListWhenNoSchemaExists() {
         addPhysicalFile("src/Resource/App/Point.php", POINT);
 

@@ -205,7 +205,7 @@ public final class AlpsFactsService {
         for (var entry : descriptorJson(descriptor).entrySet()) {
             json.add(entry.getKey(), entry.getValue());
         }
-        JsonArray implementations = implementationsJson(descriptor);
+        JsonArray implementations = implementationsJson(descriptor, parentId);
         if (implementations.size() > 0) {
             json.add("implementations", implementations);
         }
@@ -216,9 +216,11 @@ public final class AlpsFactsService {
     /**
      * Matches an ALPS transition against BEAR.Resource {@code #[Link]} / {@code #[Embed]}
      * declarations by convention: the target descriptor id names the resource
-     * ({@code BlogPosting} -> {@code app://self/blog-posting}).
+     * ({@code BlogPosting} -> {@code app://self/blog-posting}). A nested transition only
+     * matches relations declared by its containing state, so another resource pointing at the
+     * same target with the same rel is not misattributed.
      */
-    private JsonArray implementationsJson(AlpsDescriptor descriptor) {
+    private JsonArray implementationsJson(AlpsDescriptor descriptor, @Nullable String parentId) {
         JsonArray implementations = new JsonArray();
         String targetId = localId(descriptor.rt());
         if (targetId == null || descriptor.rel() == null) {
@@ -232,7 +234,7 @@ public final class AlpsFactsService {
                     continue;
                 }
                 for (ResourceRelation relation : ResourceRelationIndex.findIncoming(resourcePath, project)) {
-                    if (relMatches(descriptor.rel(), relation.rel())) {
+                    if (relMatches(descriptor.rel(), relation.rel()) && sourceMatches(relation, parentId)) {
                         implementations.add(relationJson(relation));
                     }
                 }
@@ -243,6 +245,18 @@ public final class AlpsFactsService {
         }
 
         return implementations;
+    }
+
+    private static boolean sourceMatches(ResourceRelation relation, @Nullable String parentId) {
+        if (parentId == null) {
+            return true;
+        }
+        String sourceUri = relation.sourceUri();
+        if (sourceUri == null) {
+            return false;
+        }
+
+        return lastSegment(sourceUri).equals(Names.kebab(parentId));
     }
 
     private static JsonObject relationJson(ResourceRelation relation) {
@@ -389,17 +403,17 @@ public final class AlpsFactsService {
     }
 
     private Provenance provenanceOf(VirtualFile file) {
-        return Provenance.ofFile(file.getPath(), AlpsProfileDetector.getInstance(project).isUnsaved(file));
+        return Provenance.ofFile(FactsFiles.relativePath(project, file), AlpsProfileDetector.getInstance(project).isUnsaved(file));
     }
 
     private static String missingProfileDetail(@Nullable String profilePath) {
         return isSet(profilePath) ? "ALPS profile not found: " + profilePath : NO_PROFILE;
     }
 
-    private static List<String> paths(List<VirtualFile> files) {
+    private List<String> paths(List<VirtualFile> files) {
         List<String> paths = new ArrayList<>();
         for (VirtualFile file : files) {
-            paths.add(file.getPath());
+            paths.add(FactsFiles.relativePath(project, file));
         }
 
         return paths;
@@ -439,7 +453,8 @@ public final class AlpsFactsService {
             return rt.substring(1);
         }
 
-        return rt.contains("/") ? null : rt;
+        // A remaining "#" or "/" means a reference into another file (Foo.json#Foo), not a local id.
+        return rt.contains("/") || rt.contains("#") ? null : rt;
     }
 
     @Nullable

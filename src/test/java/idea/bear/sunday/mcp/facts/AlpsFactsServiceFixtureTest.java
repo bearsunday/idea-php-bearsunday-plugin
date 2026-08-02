@@ -76,7 +76,7 @@ class AlpsFactsServiceFixtureTest {
         assertEquals(2, profile.getAsJsonArray("descriptors").size());
         assertEquals(1, profile.getAsJsonArray("descriptors").get(0).getAsJsonObject().getAsJsonArray("descriptors").size());
         assertEquals("saved", envelope.getAsJsonObject("provenance").get("fresh").getAsString());
-        assertTrue(envelope.getAsJsonObject("provenance").get("path").getAsString().endsWith("/alps.json"));
+        assertEquals("alps.json", envelope.getAsJsonObject("provenance").get("path").getAsString());
     }
 
     @Test

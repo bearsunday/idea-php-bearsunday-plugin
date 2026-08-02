@@ -19,6 +19,29 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AlpsNormalizerTest {
 
     @Test
+    void rejectsDescriptorsNestedBeyondTheDepthLimit() {
+        StringBuilder nested = new StringBuilder("{\"id\": \"d\"");
+        for (int i = 0; i < 70; i++) {
+            nested.insert(nested.length(), ", \"descriptor\": [{\"id\": \"d" + i + "\"");
+        }
+        String json = "{\"alps\": {\"descriptor\": [" + nested + "}]".repeat(70) + "}]}}";
+
+        AlpsParseException exception =
+            assertThrows(AlpsParseException.class, () -> AlpsNormalizer.fromJson(json, "alps.json"));
+        assertTrue(exception.getMessage().contains("nested deeper"), exception.getMessage());
+    }
+
+    @Test
+    void trimsJsonDocsLikeXmlDocs() {
+        AlpsProfile profile = AlpsNormalizer.fromJson("""
+            {"alps": {"doc": {"value": "  padded  "}, "descriptor": [{"id": "A", "doc": "   "}]}}
+            """, "alps.json");
+
+        assertEquals("padded", profile.doc());
+        assertNull(profile.descriptors().get(0).doc());
+    }
+
+    @Test
     void readsTopLevelDescriptorsOfJsonProfile() {
         AlpsProfile profile = AlpsNormalizer.fromJson(fixture("alps.json"), "/project/alps.json");
 

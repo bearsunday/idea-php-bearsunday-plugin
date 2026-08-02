@@ -29,10 +29,13 @@ public final class AlpsLinkResolver {
         }
 
         // A relative href may carry a fragment (Foo.json#bar); only the file part is resolvable.
+        // ".." is never followed: existence outside the project is not this tool's to answer.
         int fragment = href.indexOf('#');
         String filePart = fragment < 0 ? href : href.substring(0, fragment);
         VirtualFile parent = profileFile.getParent();
-        VirtualFile target = parent == null || filePart.isEmpty() ? null : parent.findFileByRelativePath(filePart);
+        VirtualFile target = parent == null || filePart.isEmpty() || filePart.contains("..")
+            ? null
+            : parent.findFileByRelativePath(filePart);
 
         return new ResolvedLink(link.rel(), href, target == null ? null : target.getPath(), target != null, false);
     }

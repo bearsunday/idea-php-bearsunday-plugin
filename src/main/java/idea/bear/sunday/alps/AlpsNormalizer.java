@@ -28,6 +28,8 @@ import java.util.List;
 public final class AlpsNormalizer {
 
     private static final String DEFAULT_TYPE = "semantic";
+    // Keeps adversarial nesting from escaping as a StackOverflowError instead of a parse error.
+    private static final int MAX_DEPTH = 64;
 
     private AlpsNormalizer() {
     }
@@ -52,7 +54,7 @@ public final class AlpsNormalizer {
             readString(profile, "title"),
             readDoc(profile),
             readJsonLinks(profile),
-            readJsonDescriptors(profile, json),
+            readJsonDescriptors(profile, json, 0),
             sourcePath,
             false
         );
@@ -68,22 +70,25 @@ public final class AlpsNormalizer {
             childText(root, "title"),
             childText(root, "doc"),
             readXmlLinks(root),
-            readXmlDescriptors(root, xml),
+            readXmlDescriptors(root, xml, 0),
             sourcePath,
             true
         );
     }
 
-    private static List<AlpsDescriptor> readJsonDescriptors(JsonObject parent, String raw) {
+    private static List<AlpsDescriptor> readJsonDescriptors(JsonObject parent, String raw, int depth) {
+        if (depth > MAX_DEPTH) {
+            throw new AlpsParseException("Descriptors nested deeper than " + MAX_DEPTH + " levels");
+        }
         List<AlpsDescriptor> descriptors = new ArrayList<>();
         for (JsonObject object : readObjects(parent, "descriptor")) {
-            descriptors.add(toJsonDescriptor(object, raw));
+            descriptors.add(toJsonDescriptor(object, raw, depth));
         }
 
         return List.copyOf(descriptors);
     }
 
-    private static AlpsDescriptor toJsonDescriptor(JsonObject object, String raw) {
+    private static AlpsDescriptor toJsonDescriptor(JsonObject object, String raw, int depth) {
         String id = readString(object, "id");
 
         return new AlpsDescriptor(
@@ -97,7 +102,7 @@ public final class AlpsNormalizer {
             readString(object, "tag"),
             readString(object, "title"),
             readJsonLinks(object),
-            readJsonDescriptors(object, raw),
+            readJsonDescriptors(object, raw, depth + 1),
             id == null ? -1 : raw.indexOf('"' + id + '"')
         );
     }
@@ -137,15 +142,21 @@ public final class AlpsNormalizer {
             return null;
         }
         if (doc.isJsonPrimitive()) {
-            return doc.getAsString();
+            return blankToNull(doc.getAsString());
         }
         if (doc.isJsonObject()) {
             JsonElement value = doc.getAsJsonObject().get("value");
 
-            return value != null && value.isJsonPrimitive() ? value.getAsString() : null;
+            return value != null && value.isJsonPrimitive() ? blankToNull(value.getAsString()) : null;
         }
 
         return null;
+    }
+
+    /** JSON docs normalize like XML docs: trimmed, and blank collapses to absent. */
+    @Nullable
+    private static String blankToNull(String value) {
+        return value.isBlank() ? null : value.trim();
     }
 
     @Nullable
@@ -155,16 +166,19 @@ public final class AlpsNormalizer {
         return element != null && element.isJsonPrimitive() ? element.getAsString() : null;
     }
 
-    private static List<AlpsDescriptor> readXmlDescriptors(Element parent, String raw) {
+    private static List<AlpsDescriptor> readXmlDescriptors(Element parent, String raw, int depth) {
+        if (depth > MAX_DEPTH) {
+            throw new AlpsParseException("Descriptors nested deeper than " + MAX_DEPTH + " levels");
+        }
         List<AlpsDescriptor> descriptors = new ArrayList<>();
         for (Element element : childElements(parent, "descriptor")) {
-            descriptors.add(toXmlDescriptor(element, raw));
+            descriptors.add(toXmlDescriptor(element, raw, depth));
         }
 
         return List.copyOf(descriptors);
     }
 
-    private static AlpsDescriptor toXmlDescriptor(Element element, String raw) {
+    private static AlpsDescriptor toXmlDescriptor(Element element, String raw, int depth) {
         String id = attribute(element, "id");
 
         return new AlpsDescriptor(
@@ -178,7 +192,7 @@ public final class AlpsNormalizer {
             attribute(element, "tag"),
             attribute(element, "title"),
             readXmlLinks(element),
-            readXmlDescriptors(element, raw),
+            readXmlDescriptors(element, raw, depth + 1),
             id == null ? -1 : raw.indexOf("id=\"" + id + '"')
         );
     }
