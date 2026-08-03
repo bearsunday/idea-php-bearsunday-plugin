@@ -180,7 +180,12 @@ public final class ApiDocFactsService {
         return List.copyOf(candidates);
     }
 
-    /** The {@code docDir} element of {@code apidoc.xml}, or {@code null} when unreadable. */
+    /**
+     * The {@code docDir} element of {@code apidoc.xml}, or {@code null} when it is unreadable or
+     * points outside the project. The answer carries the document contents, so a {@code docDir}
+     * that escapes through {@code ..} or names an absolute location is dropped and only the
+     * conventional {@code docs} directory is left.
+     */
     @Nullable
     private String docDir() {
         VirtualFile apiDoc = FactsFiles.find(project, APIDOC_FILE);
@@ -199,8 +204,13 @@ public final class ApiDocFactsService {
             return null;
         }
         String normalized = docDir.startsWith("./") ? docDir.substring(2) : docDir;
+        normalized = normalized.endsWith("/") ? normalized.substring(0, normalized.length() - 1) : normalized;
 
-        return normalized.endsWith("/") ? normalized.substring(0, normalized.length() - 1) : normalized;
+        return normalized.isEmpty() || leavesProject(normalized) ? null : normalized;
+    }
+
+    private static boolean leavesProject(String docDir) {
+        return docDir.contains("..") || docDir.indexOf('\\') >= 0 || docDir.startsWith("/");
     }
 
     @Nullable

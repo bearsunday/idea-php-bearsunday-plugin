@@ -76,7 +76,7 @@ public final class ResourceMethodTypeProvider implements PhpTypeProvider4 {
         }
 
         return Optional.of(decodedRequest.get())
-            .flatMap(request -> ResourceClassResolver.resolve(project, request.uri()))
+            .flatMap(request -> ResourceClassResolver.resolveCached(project, request.uri()))
             .map(List::of)
             .orElse(null);
     }
@@ -99,7 +99,7 @@ public final class ResourceMethodTypeProvider implements PhpTypeProvider4 {
 
     private @Nullable PhpType completeRequest(SignedResourceRequest request, Project project) {
         if (SIGNATURE_RESOURCE.equals(request.kind())) {
-            return ResourceClassResolver.resolve(project, request.uri())
+            return ResourceClassResolver.resolveCached(project, request.uri())
                 .map(phpClass -> PhpType.from(phpClass.getFQN()))
                 .orElse(null);
         }
@@ -113,7 +113,7 @@ public final class ResourceMethodTypeProvider implements PhpTypeProvider4 {
     }
 
     private Optional<BodyTypeDeclaration> resolveBodyType(Project project, SignedResourceRequest request) {
-        return ResourceClassResolver.resolve(project, request.uri())
+        return ResourceClassResolver.resolveCached(project, request.uri())
             .flatMap(bodyTypeCollector::collect)
             .flatMap(collection -> collection.declarationForResourceMethod(request.method()));
     }

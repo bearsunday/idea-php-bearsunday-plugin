@@ -34,6 +34,16 @@ class ApiDocFactsServiceFixtureTest {
         </apidoc>
         """;
 
+    private static final String APIDOC_LEAVING_THE_PROJECT = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <apidoc>
+            <appName>MyVendor\\MyProject</appName>
+            <scheme>app</scheme>
+            <docDir>../../other/docs</docDir>
+            <format>html,openapi</format>
+        </apidoc>
+        """;
+
     private static final String OPENAPI = """
         {
           "openapi": "3.0.0",
@@ -114,6 +124,19 @@ class ApiDocFactsServiceFixtureTest {
 
         assertEquals("engine_unavailable", envelope.get("status").getAsString());
         assertTrue(envelope.get("error").getAsString().contains("docs/openapi.json"));
+    }
+
+    @Test
+    void ignoresADocDirThatLeavesTheProject() {
+        addPhysicalFile("apidoc.xml", APIDOC_LEAVING_THE_PROJECT);
+
+        JsonObject envelope = envelope(facts().operationLookup("/point", "get", null));
+
+        assertEquals("engine_unavailable", envelope.get("status").getAsString());
+        assertEquals(
+            "OpenAPI document not found. Looked at: docs/openapi.json. Generate it with bear/api-doc.",
+            envelope.get("error").getAsString()
+        );
     }
 
     @Test

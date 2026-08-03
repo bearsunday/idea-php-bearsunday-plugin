@@ -6,6 +6,8 @@ import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiFile;
+import com.jetbrains.php.lang.psi.elements.PhpClass;
 import idea.bear.sunday.alps.AlpsDescriptor;
 import idea.bear.sunday.alps.AlpsLinkResolver;
 import idea.bear.sunday.alps.AlpsParseException;
@@ -32,8 +34,6 @@ import java.util.stream.Stream;
 @Service(Service.Level.PROJECT)
 public final class ContractCompareService {
 
-    private static final String DEFAULT_METHOD = "get";
-
     private final Project project;
 
     public ContractCompareService(Project project) {
@@ -56,7 +56,9 @@ public final class ContractCompareService {
         if (normalizedUri == null) {
             return Envelope.notFound("Unsupported resource URI: " + uri).toJson();
         }
-        String resolvedMethod = method == null || method.isBlank() ? DEFAULT_METHOD : method.trim();
+        // Normalized once here so the reported method and every lookup below name the same
+        // resource method that bear_resource_body_shape would name for the same input.
+        String resolvedMethod = BodyShapeFactsService.resourceMethodName(method);
 
         SchemaMatch schemaMatch = firstReadableSchema(normalizedUri, resolvedMethod);
         AlpsFields alpsFields = alpsFields(normalizedUri);
@@ -75,8 +77,32 @@ public final class ContractCompareService {
         payload.add("alps", alpsJson(alpsFields));
         payload.add("body", bodyJson(bodyLookup, bodySide));
         addOnlyIn(payload, schemaSide, alpsSide, bodySide);
+        Provenance provenance = Provenance.derived(normalizedUri, anyUnsaved(schemaMatch, alpsFields, bodyLookup));
 
-        return Envelope.ok(Provenance.derived(normalizedUri), payload).toJson();
+        return Envelope.ok(provenance, payload).toJson();
+    }
+
+    /** The comparison reads the editor, so one unsaved contributing source makes it unsaved. */
+    private static boolean anyUnsaved(
+        @Nullable SchemaMatch schemaMatch,
+        @Nullable AlpsFields alpsFields,
+        BodyLookup bodyLookup
+    ) {
+        return isUnsaved(schemaMatch == null ? null : schemaMatch.file())
+            || isUnsaved(alpsFields == null ? null : alpsFields.file())
+            || isUnsaved(bodyFile(bodyLookup));
+    }
+
+    private static boolean isUnsaved(@Nullable VirtualFile file) {
+        return file != null && FactsFiles.isUnsaved(file);
+    }
+
+    @Nullable
+    private static VirtualFile bodyFile(BodyLookup lookup) {
+        PhpClass phpClass = lookup.phpClass();
+        PsiFile psiFile = phpClass == null ? null : phpClass.getContainingFile();
+
+        return psiFile == null ? null : psiFile.getVirtualFile();
     }
 
     @Nullable
@@ -114,7 +140,7 @@ public final class ContractCompareService {
                 continue;
             }
 
-            return new AlpsFields(descriptorId, FactsFiles.relativePath(project, file), fieldsOf(descriptor, profile));
+            return new AlpsFields(descriptorId, FactsFiles.relativePath(project, file), file, fieldsOf(descriptor, profile));
         }
 
         return null;
@@ -148,7 +174,7 @@ public final class ContractCompareService {
         String id = href.substring(1);
         AlpsDescriptor target = AlpsLinkResolver.findById(profile.descriptors(), id);
 
-        return target != null && target.isTransition() ? null : id;
+        return target != null && !target.isTransition() ? id : null;
     }
 
     private static JsonObject schemaJson(@Nullable SchemaMatch match, @Nullable List<String> fields) {
@@ -266,6 +292,6 @@ public final class ContractCompareService {
         return array;
     }
 
-    private record AlpsFields(String descriptorId, String profilePath, List<String> fields) {
+    private record AlpsFields(String descriptorId, String profilePath, VirtualFile file, List<String> fields) {
     }
 }

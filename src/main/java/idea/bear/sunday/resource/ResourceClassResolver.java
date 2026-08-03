@@ -43,16 +43,13 @@ public final class ResourceClassResolver {
     }
 
     private static Optional<PhpClass> resolve(Project project, String normalizedUri, boolean refresh) {
-        VirtualFile baseDir = projectBaseDir(project);
-        if (baseDir == null) {
-            return Optional.empty();
-        }
-
         String relPath = UriUtil.toResourceRelativePath(normalizedUri, false);
         if (relPath == null) {
             return Optional.empty();
         }
 
+        // Every stage is a fallback for the one before it: a stage that finds nothing hands over
+        // rather than ending the lookup, so a missing file still reaches the index stages.
         if (refresh) {
             Optional<PhpClass> nioClass = resolveFromNioPath(project, relPath);
             if (nioClass.isPresent()) {
@@ -60,19 +57,9 @@ public final class ResourceClassResolver {
             }
         }
 
-        VirtualFile targetFile = baseDir.findFileByRelativePath(relPath);
-        if (targetFile == null) {
-            return Optional.empty();
-        }
-
-        PsiFile psiFile = PsiManager.getInstance(project).findFile(targetFile);
-        if (psiFile == null) {
-            return Optional.empty();
-        }
-
-        PhpClass phpClass = PsiTreeUtil.findChildOfType(psiFile, PhpClass.class);
-        if (phpClass != null) {
-            return Optional.of(phpClass);
+        Optional<PhpClass> fileClass = resolveFromVirtualFile(project, relPath);
+        if (fileClass.isPresent()) {
+            return fileClass;
         }
 
         Optional<PhpClass> indexedClass = resolveFromIndex(project, relPath);
@@ -99,6 +86,21 @@ public final class ResourceClassResolver {
 
         String basePath = project.getBasePath();
         return basePath == null ? null : LocalFileSystem.getInstance().findFileByNioFile(Path.of(basePath));
+    }
+
+    private static Optional<PhpClass> resolveFromVirtualFile(Project project, String relPath) {
+        VirtualFile baseDir = projectBaseDir(project);
+        VirtualFile targetFile = baseDir == null ? null : baseDir.findFileByRelativePath(relPath);
+        if (targetFile == null) {
+            return Optional.empty();
+        }
+
+        PsiFile psiFile = PsiManager.getInstance(project).findFile(targetFile);
+        if (psiFile == null) {
+            return Optional.empty();
+        }
+
+        return Optional.ofNullable(PsiTreeUtil.findChildOfType(psiFile, PhpClass.class));
     }
 
     private static Optional<PhpClass> resolveFromNioPath(Project project, String relPath) {

@@ -88,6 +88,22 @@ class ContractCompareServiceFixtureTest {
         }
         """;
 
+    private static final String PROFILE_WITH_DANGLING_HREF = """
+        {
+          "alps": {
+            "descriptor": [
+              {
+                "id": "Point",
+                "descriptor": [
+                  {"id": "x", "type": "semantic"},
+                  {"href": "#nope"}
+                ]
+              }
+            ]
+          }
+        }
+        """;
+
     private CodeInsightTestFixture fixture;
 
     @BeforeEach
@@ -172,6 +188,26 @@ class ContractCompareServiceFixtureTest {
 
         assertFalse(body.get("available").getAsBoolean());
         assertTrue(body.get("reason").getAsString().contains("No body declaration for method get"));
+    }
+
+    @Test
+    void doesNotReportAnUnresolvedReferenceAsAnAlpsField() {
+        addPhysicalFile("src/Resource/App/Point.php", POINT);
+        addPhysicalFile("alps.json", PROFILE_WITH_DANGLING_HREF);
+
+        JsonObject alps = envelope(facts().compare("app://self/point", "get")).getAsJsonObject("alps");
+
+        assertEquals("[\"x\"]", alps.getAsJsonArray("fields").toString());
+    }
+
+    @Test
+    void namesTheMethodTheWayTheBodyShapeToolDoes() {
+        addPhysicalFile("src/Resource/App/Point.php", POINT_WITH_BODY);
+
+        JsonObject envelope = envelope(facts().compare("app://self/point", "onGet"));
+
+        assertEquals("get", envelope.get("method").getAsString());
+        assertTrue(envelope.getAsJsonObject("body").get("available").getAsBoolean());
     }
 
     private static JsonObject envelope(String json) {

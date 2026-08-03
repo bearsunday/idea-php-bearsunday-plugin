@@ -6,8 +6,8 @@ import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.vfs.LocalFileSystem;
+import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import idea.bear.sunday.alps.AlpsDescriptor;
 import idea.bear.sunday.alps.AlpsLink;
@@ -92,6 +92,9 @@ public final class AlpsFactsService {
             return Envelope.notFound(missingProfileDetail(profilePath)).toJson();
         }
         String parseError = null;
+        // A broken profile only decides the answer when no profile could be read at all, the
+        // same order of precedence firstMatching() applies.
+        boolean anyReadable = false;
         for (VirtualFile file : files) {
             AlpsProfile profile;
             try {
@@ -100,6 +103,7 @@ public final class AlpsFactsService {
                 parseError = parseError == null ? exception.getMessage() : parseError;
                 continue;
             }
+            anyReadable = true;
             AlpsDescriptor descriptor = AlpsLinkResolver.findById(profile.descriptors(), wanted);
             if (descriptor != null) {
                 JsonObject payload = new JsonObject();
@@ -109,9 +113,9 @@ public final class AlpsFactsService {
             }
         }
 
-        return parseError != null
-            ? Envelope.parseError(parseError).toJson()
-            : Envelope.notFound("Descriptor not found: " + wanted).toJson();
+        return anyReadable
+            ? Envelope.notFound("Descriptor not found: " + wanted).toJson()
+            : Envelope.parseError(parseError).toJson();
     }
 
     private String lookupTransitions(@Nullable String from, @Nullable String rel, @Nullable String rt, @Nullable String profilePath) {
@@ -383,19 +387,28 @@ public final class AlpsFactsService {
         return file == null ? List.of() : List.of(file);
     }
 
+    /**
+     * The answer carries the profile contents and its path, so a caller-given path may never
+     * leave the project: whatever it resolves to has to sit under the project base directory,
+     * mirroring the schema directory guard in {@link SchemaFactsService#byFileName}.
+     */
     @Nullable
     private VirtualFile resolveProfileFile(String profilePath) {
+        VirtualFile baseDir = FactsFiles.baseDir(project);
+        if (baseDir == null) {
+            return null;
+        }
+        VirtualFile file;
         try {
             Path path = Path.of(profilePath);
-            if (path.isAbsolute()) {
-                return LocalFileSystem.getInstance().findFileByNioFile(path);
-            }
+            file = path.isAbsolute()
+                ? LocalFileSystem.getInstance().findFileByNioFile(path)
+                : baseDir.findFileByRelativePath(profilePath);
         } catch (InvalidPathException exception) {
             return null;
         }
-        VirtualFile root = ProjectUtil.guessProjectDir(project);
 
-        return root == null ? null : root.findFileByRelativePath(profilePath);
+        return file != null && VfsUtilCore.isAncestor(baseDir, file, false) ? file : null;
     }
 
     private AlpsProfile parse(VirtualFile file) {

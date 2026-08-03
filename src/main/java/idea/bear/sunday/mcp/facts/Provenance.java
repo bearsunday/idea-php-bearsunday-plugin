@@ -24,6 +24,14 @@ public record Provenance(String source, String path, @Nullable Integer offset, S
 
     /** An answer combined from several sources; {@code path} names what it is about, not a file. */
     public static Provenance derived(String path) {
-        return new Provenance(SOURCE_DERIVED, path, null, FRESH_SAVED);
+        return derived(path, false);
+    }
+
+    /**
+     * Same, for an answer whose sources can be read from the editor: {@code unsaved} is true when
+     * any contributing source has in-editor changes that are not on disk yet.
+     */
+    public static Provenance derived(String path, boolean unsaved) {
+        return new Provenance(SOURCE_DERIVED, path, null, unsaved ? FRESH_UNSAVED : FRESH_SAVED);
     }
 }

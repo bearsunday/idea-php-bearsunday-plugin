@@ -12,6 +12,7 @@
 - MCP tool `bear_resource_body_shape` returns the Psalm shape of the body a resource method assigns to `$this->body` (branches when it differs per path), and `bear_contract_compare` now compares that body against the JSON Schema and the ALPS profile as a third side (`onlyInBody`) (#28).
 
 ### Changed
+- Minimum supported PhpStorm version is now **2025.2** (`since-build = 252`), the release that bundles the MCP server the tools plug into
 - Ray.Aop bound-interceptor gutter/action now uses a dedicated AOP icon instead of the BEAR resource icon.
 - BEAR and Ray gutter icons now use transparent backgrounds.
 - Incoming resource relation gutters moved from the resource class name to the target resource method (`#[Embed]` always maps to `onGet`; `#[Link]` maps from its `method` argument and defaults to `onGet`).

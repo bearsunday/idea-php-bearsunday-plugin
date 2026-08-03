@@ -12,6 +12,7 @@ import com.intellij.testFramework.fixtures.TestFixtureBuilder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -87,6 +88,17 @@ class AlpsFactsServiceFixtureTest {
 
         assertEquals("ok", envelope.get("status").getAsString());
         assertEquals("Demo", envelope.getAsJsonObject("profile").get("title").getAsString());
+    }
+
+    @Test
+    void refusesAnAbsolutePathOutsideTheProject(@TempDir Path outside) throws IOException {
+        Path profile = outside.resolve("alps.json");
+        Files.writeString(profile, PROFILE, StandardCharsets.UTF_8);
+        assertNotNull(LocalFileSystem.getInstance().refreshAndFindFileByNioFile(profile));
+
+        JsonObject envelope = envelope(facts().profileRead(profile.toString()));
+
+        assertEquals("not_found", envelope.get("status").getAsString());
     }
 
     @Test
