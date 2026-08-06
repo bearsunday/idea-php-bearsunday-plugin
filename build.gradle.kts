@@ -63,13 +63,6 @@ intellijPlatform {
     }
 
     pluginVerification {
-        // The MCP toolset sits behind an optional dependency on com.intellij.mcpServer
-        // (plugin.xml -> bearsunday-mcp.xml), and BearSundayMcpToolset is referenced only by
-        // that module's extension declaration, so the class is never loaded while the MCP
-        // Server plugin is absent. Plugin Verifier resolves the plugin without its optional
-        // dependencies and reports those references as unresolved; the file lists exactly
-        // that one problem. The file format allows neither comments nor blank lines.
-        ignoredProblemsFile = file("verifier-ignored-problems.txt")
         ides {
             recommended()
         }

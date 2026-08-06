@@ -3,7 +3,6 @@ package idea.bear.sunday.mcp
 import com.intellij.mcpserver.McpToolset
 import com.intellij.mcpserver.annotations.McpDescription
 import com.intellij.mcpserver.annotations.McpTool
-import com.intellij.mcpserver.project
 import com.intellij.openapi.project.Project
 import idea.bear.sunday.mcp.facts.AlpsFactsService
 import idea.bear.sunday.mcp.facts.ApiDocFactsService
@@ -22,10 +21,7 @@ class BearSundayMcpToolset : McpToolset {
 
     @McpTool
     @McpDescription("Spike tool: returns the current project name to verify BEAR.Sunday MCP toolset registration.")
-    suspend fun bear_spike_ping(): String {
-        val project = coroutineContext.project
-        return "BEAR.Sunday MCP spike OK: project=" + project.name
-    }
+    suspend fun bear_spike_ping(): String = "BEAR.Sunday MCP spike OK: project=" + project().name
 
     @McpTool
     @McpDescription(
@@ -142,7 +138,7 @@ class BearSundayMcpToolset : McpToolset {
     suspend fun bear_alps_links_suggest(descriptorId: String? = null, resourceUri: String? = null): String =
         LinkSuggestService.getInstance(project()).suggest(descriptorId, resourceUri)
 
-    private suspend fun facts(): AlpsFactsService = AlpsFactsService.getInstance(coroutineContext.project)
+    private suspend fun facts(): AlpsFactsService = AlpsFactsService.getInstance(project())
 
-    private suspend fun project(): Project = coroutineContext.project
+    private suspend fun project(): Project = McpProjectContext.of(coroutineContext)
 }
