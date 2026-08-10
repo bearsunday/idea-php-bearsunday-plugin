@@ -65,7 +65,7 @@ public final class ResourceAttributeIndexService {
     }
 
     private String indexAttributes(@Nullable String attribute, @Nullable String method, @Nullable String resourceRoot) {
-        String root = normalizeRoot(resourceRoot);
+        String root = FactsFiles.normalizeRoot(resourceRoot, DEFAULT_RESOURCE_ROOT);
         if (root == null) {
             return Envelope.notFound("Unsupported resource root: " + resourceRoot).toJson();
         }
@@ -256,35 +256,6 @@ public final class ResourceAttributeIndexService {
         files.sort(Comparator.comparing(VirtualFile::getPath));
 
         return files;
-    }
-
-    /**
-     * The resource root as a project-relative path. The answer reaches into the file tree, so a
-     * root that escapes the project, or that walks back up to it, is refused rather than read:
-     * {@code "."} resolves to the project itself and would parse every PHP file in it, vendor
-     * directories included.
-     */
-    @Nullable
-    private static String normalizeRoot(@Nullable String resourceRoot) {
-        if (resourceRoot == null || resourceRoot.isBlank()) {
-            return DEFAULT_RESOURCE_ROOT;
-        }
-        String trimmed = resourceRoot.trim().replace('\\', '/');
-        if (trimmed.startsWith("/")) {
-            return null;
-        }
-        List<String> segments = new ArrayList<>();
-        for (String segment : trimmed.split("/")) {
-            if (segment.isEmpty()) {
-                continue;
-            }
-            if (".".equals(segment) || "..".equals(segment)) {
-                return null;
-            }
-            segments.add(segment);
-        }
-
-        return segments.isEmpty() ? null : String.join("/", segments);
     }
 
     /**

@@ -8,6 +8,7 @@ import idea.bear.sunday.mcp.facts.AlpsFactsService
 import idea.bear.sunday.mcp.facts.ApiDocFactsService
 import idea.bear.sunday.mcp.facts.BodyShapeFactsService
 import idea.bear.sunday.mcp.facts.ContractCompareService
+import idea.bear.sunday.mcp.facts.DiBindingLookupService
 import idea.bear.sunday.mcp.facts.LinkSuggestService
 import idea.bear.sunday.mcp.facts.ResourceAttributeIndexService
 import idea.bear.sunday.mcp.facts.ResourceFactsService
@@ -93,6 +94,41 @@ class BearSundayMcpToolset : McpToolset {
         method: String? = null,
         resourceRoot: String? = null
     ): String = ResourceAttributeIndexService.getInstance(project()).index(attribute, method, resourceRoot)
+
+    @McpTool
+    @McpDescription(
+        "Read-only. Finds the Ray.Di bindings a project's modules declare, as JSON: which implementation an " +
+            "interface is bound to, and the module file and line that binds it. This is what a text search " +
+            "cannot follow -- an injected \"#[Named('category')] SurrogateKeyInterface\" names neither the " +
+            "implementation class nor anything the implementation contains, so grepping for either misses the " +
+            "wiring. interfaceName filters by the class given to bind(), as a class name " +
+            "(\"\\\\My\\\\SurrogateKeyInterface\") or a short name (\"SurrogateKeyInterface\", matched against " +
+            "the last segment); qualifier filters by what annotatedWith() names, either a #[Named] string " +
+            "(matched exactly) or a qualifier attribute class (by class or short name); moduleRoot is " +
+            "project-relative and defaults to \"src\", so pass e.g. \"vendor/bear/package/src\" to read " +
+            "framework bindings. Each binding carries \"boundBy\" -- the Ray.Di method that gave it its target " +
+            "(\"to\", \"toProvider\", \"toConstructor\", \"toInstance\", \"toNull\", \"untargeted\" for a bind() " +
+            "with no target, \"unknown\" for a chain continued somewhere this could not follow) -- and a " +
+            "\"resolution\": \"static\" when the binding itself names the implementation class (bind()->to()), " +
+            "otherwise \"dynamic-unresolved\", which means only that THIS TOOL does not name the implementation, " +
+            "not that no implementation exists. Those are reported, never dropped, with the class their argument " +
+            "names under \"targetClass\". A binding a filter could not be applied to, because the element being " +
+            "filtered is the one whose value the source does not state (annotatedWith(\$this->qualifier), " +
+            "annotatedWith(\"{\$this->prefix}_dsn\")), goes to \"unresolved\" rather than being silently " +
+            "excluded, as do rename() calls, which move a binding to another interface or qualifier and are " +
+            "reported rather than applied. Each \"unresolved\" entry says which of those it is under " +
+            "\"reason\": \"interface-unreadable\", \"qualifier-unreadable\", \"chain-unreadable\" or " +
+            "\"rename-not-applied\". \"scan\" reports how much was read, including \"filesSkipped\" when a " +
+            "root was too large to read whole, so an empty answer says how far it looked. Limits: bindings are " +
+            "collected project-wide, NOT resolved against a context string, so a binding an installed module " +
+            "overrides is still listed; MultiBinder bindings and bindInterceptor()/bindPriorityInterceptor() " +
+            "are not read at all."
+    )
+    suspend fun bear_di_binding_lookup(
+        interfaceName: String? = null,
+        qualifier: String? = null,
+        moduleRoot: String? = null
+    ): String = DiBindingLookupService.getInstance(project()).lookup(interfaceName, qualifier, moduleRoot)
 
     @McpTool
     @McpDescription(
