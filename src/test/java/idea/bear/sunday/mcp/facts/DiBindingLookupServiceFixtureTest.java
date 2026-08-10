@@ -305,7 +305,11 @@ class DiBindingLookupServiceFixtureTest {
         }
         """;
 
-    /** A rename of something that is not a binding: the receiver is not a module. */
+    /**
+     * Two renames of something that is not a binding: one whose receiver is not a module, and one
+     * called on {@code $this} by a class that declares no {@code configure()}, so it is no module
+     * either. Both extend something, which is all the bind guard asks of a class.
+     */
     private static final String MOVE_FILE = """
         <?php
 
@@ -316,6 +320,14 @@ class DiBindingLookupServiceFixtureTest {
             public function move(string $from, string $to): void
             {
                 $this->filesystem->rename($from, $to);
+            }
+        }
+
+        final class MoveTable extends AbstractTable
+        {
+            public function move(string $from, string $to): void
+            {
+                $this->rename($from, $to);
             }
         }
         """;

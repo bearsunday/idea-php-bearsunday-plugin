@@ -49,6 +49,7 @@ public final class DiBindingLookupService {
 
     private static final String BIND = "bind";
     private static final String RENAME = "rename";
+    private static final String CONFIGURE = "configure";
     private static final String ANNOTATED_WITH = "annotatedWith";
     private static final String IN = "in";
     private static final String TO = "to";
@@ -192,7 +193,22 @@ public final class DiBindingLookupService {
             && call.getClassReference() instanceof Variable
             && arguments >= 2
             && arguments <= 4
-            && isModuleLike(call, RENAME);
+            && isModuleLike(call, RENAME)
+            && declaresConfigure(call);
+    }
+
+    /**
+     * Whether the class a call sits in declares {@code configure()}, which every concrete Ray.Di
+     * module does because {@code AbstractModule} declares it abstract. Only the rename path asks:
+     * {@code rename} is an ordinary method name, and {@code $this->rename($from, $to)} on a class
+     * that merely extends something would otherwise be published as a Ray.Di rename that may have
+     * moved the binding the caller asked about -- a warning about nothing. A trait declares no
+     * {@code configure()} and is admitted on the same reasoning as in {@link #isModuleLike}.
+     */
+    private static boolean declaresConfigure(PsiElement call) {
+        PhpClass phpClass = PsiTreeUtil.getParentOfType(call, PhpClass.class);
+
+        return phpClass != null && (phpClass.isTrait() || phpClass.findOwnMethodByName(CONFIGURE) != null);
     }
 
     /**
