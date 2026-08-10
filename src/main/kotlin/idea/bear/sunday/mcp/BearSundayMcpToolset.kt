@@ -78,14 +78,14 @@ class BearSundayMcpToolset : McpToolset {
             "file's use statements to the class it names, so this answers \"which resources does this attribute " +
             "really apply to\" where a text search cannot: the same short name can alias different classes in " +
             "different files. attribute filters by class name (\"\\\\BEAR\\\\Resource\\\\Annotation\\\\JsonSchema\") " +
-            "or by short name (\"JsonSchema\", matched against the last segment of the resolved class name); " +
-            "method filters by \"onGet\" or \"get\" and then reports method attributes only; resourceRoot is " +
+            "or by short name (\"JsonSchema\", matched against the last segment of the class name); method " +
+            "filters by \"onGet\" or \"get\" and then reports method attributes only; resourceRoot is " +
             "project-relative and defaults to \"src/Resource\". Each attribute also carries the Ray.Aop " +
             "\"interceptors\" a module binds to it with annotatedWith() -- an empty list means no such binding " +
             "names it, not that no interceptor runs, because bindings made by another matcher are not indexed. " +
-            "An attribute whose class does not resolve is reported by name, without \"fqn\" and without " +
-            "\"interceptors\". \"scan\" reports how many files and resource classes were read, so an empty " +
-            "result says how much was looked at."
+            "\"fqn\" is the class the attribute names under the file's use statements; whether that class " +
+            "exists is not checked. \"scan\" reports how many files and classes were read, so an empty result " +
+            "says how much was looked at."
     )
     suspend fun bear_resource_attribute_index(
         attribute: String? = null,

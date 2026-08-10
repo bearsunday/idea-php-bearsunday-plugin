@@ -4,25 +4,21 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.intellij.openapi.vfs.LocalFileSystem;
+import com.intellij.testFramework.LightProjectDescriptor;
 import com.intellij.testFramework.fixtures.CodeInsightTestFixture;
 import com.intellij.testFramework.fixtures.IdeaProjectTestFixture;
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory;
 import com.intellij.testFramework.fixtures.TestFixtureBuilder;
+import com.intellij.testFramework.fixtures.impl.LightTempDirTestFixtureImpl;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ResourceAttributeIndexServiceFixtureTest {
@@ -90,6 +86,59 @@ class ResourceAttributeIndexServiceFixtureTest {
         }
         """;
 
+    private static final String ABSTRACT_ITEM = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Resource\\App;
+
+        use BEAR\\Resource\\ResourceObject;
+
+        abstract class AbstractItem extends ResourceObject
+        {
+            public function onGet(int $id): static
+            {
+                return $this;
+            }
+        }
+        """;
+
+    /** Declares no method of its own: every on* method comes from {@link #ABSTRACT_ITEM}. */
+    private static final String ITEM = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Resource\\App;
+
+        use BEAR\\RepositoryModule\\Annotation\\Cacheable;
+
+        #[Cacheable]
+        final class Item extends AbstractItem
+        {
+        }
+        """;
+
+    /** Declares a trait before the resource class, so the first class-like node is not the resource. */
+    private static final String ORDER = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Resource\\App;
+
+        use BEAR\\Resource\\ResourceObject;
+        use MyVendor\\MyProject\\Annotation\\Audited;
+
+        trait OrderAssertions
+        {
+        }
+
+        final class Order extends ResourceObject
+        {
+            #[Audited]
+            public function onGet(): static
+            {
+                return $this;
+            }
+        }
+        """;
+
     private static final String AOP_MODULE = """
         <?php
 
@@ -114,11 +163,21 @@ class ResourceAttributeIndexServiceFixtureTest {
 
     private CodeInsightTestFixture fixture;
 
+    /**
+     * The light fixture recipe {@code BasePlatformTestCase} uses. {@link LightTempDirTestFixtureImpl}
+     * writes into the light module's own source root, so the added files are both where
+     * {@code ProjectUtil.guessProjectDir} points and inside the project index the interceptor
+     * bindings are read from. The temp-dir fixture the sibling fact tests use satisfies only the
+     * first of those.
+     */
     @BeforeEach
     void setUp() throws Exception {
         IdeaTestFixtureFactory factory = IdeaTestFixtureFactory.getFixtureFactory();
-        TestFixtureBuilder<IdeaProjectTestFixture> builder = factory.createFixtureBuilder(getClass().getSimpleName());
-        fixture = factory.createCodeInsightFixture(builder.getFixture(), factory.createTempDirTestFixture());
+        TestFixtureBuilder<IdeaProjectTestFixture> builder = factory.createLightFixtureBuilder(
+            LightProjectDescriptor.EMPTY_PROJECT_DESCRIPTOR,
+            getClass().getSimpleName()
+        );
+        fixture = factory.createCodeInsightFixture(builder.getFixture(), new LightTempDirTestFixtureImpl(true));
         fixture.setUp();
     }
 
@@ -162,7 +221,7 @@ class ResourceAttributeIndexServiceFixtureTest {
     }
 
     @Test
-    void countsAResourceThatCarriesNoAttribute() {
+    void countsAClassThatCarriesNoAttribute() {
         addFile("src/Resource/App/User.php", USER);
         addFile("src/Resource/App/Profile.php", PROFILE);
 
@@ -171,7 +230,7 @@ class ResourceAttributeIndexServiceFixtureTest {
 
         assertEquals("src/Resource", scan.get("resourceRoot").getAsString());
         assertEquals(2, scan.get("files").getAsInt());
-        assertEquals(2, scan.get("resources").getAsInt());
+        assertEquals(2, scan.get("classes").getAsInt());
         assertTrue(uris(envelope).contains("app://self/user"));
         assertFalse(uris(envelope).contains("app://self/profile"));
     }
@@ -221,6 +280,45 @@ class ResourceAttributeIndexServiceFixtureTest {
         assertEquals("onGet", entries.get(0).getAsJsonObject().get("method").getAsString());
     }
 
+    /** PHP compares method names case-insensitively, so every spelling of onGet names onGet. */
+    @Test
+    void acceptsEverySpellingOfAMethodName() {
+        addFile("src/Resource/App/User.php", USER);
+
+        for (String method : List.of("get", "GET", "onGet", "onget", "ONGET")) {
+            JsonArray entries = envelope(index(null, method, null)).getAsJsonArray("entries");
+
+            assertEquals(1, entries.size(), method);
+            assertEquals("onGet", entries.get(0).getAsJsonObject().get("method").getAsString(), method);
+        }
+    }
+
+    /** A resource may declare no method of its own; its class attributes still apply to it. */
+    @Test
+    void reportsTheClassAttributesOfAResourceWhoseMethodsAreAllInherited() {
+        addFile("src/Resource/App/AbstractItem.php", ABSTRACT_ITEM);
+        addFile("src/Resource/App/Item.php", ITEM);
+
+        JsonObject envelope = envelope(index("Cacheable", null, null));
+        JsonObject entry = entry(envelope, "app://self/item", "class", null);
+
+        assertEquals(1, envelope.getAsJsonArray("entries").size(), envelope::toString);
+        assertEquals("src/Resource/App/Item.php", entry.get("filePath").getAsString());
+    }
+
+    /** The first class-like node in a file is not always the resource class. */
+    @Test
+    void looksPastATraitDeclaredBeforeTheResourceClass() {
+        addFile("src/Resource/App/Order.php", ORDER);
+
+        JsonObject envelope = envelope(index("Audited", null, null));
+
+        assertEquals(
+            "\\MyVendor\\MyProject\\Resource\\App\\Order",
+            entry(envelope, "app://self/order", "method", "onGet").get("classFqn").getAsString()
+        );
+    }
+
     @Test
     void reportsTheInterceptorsBoundToAnAttribute() {
         addFile("src/Resource/App/User.php", USER);
@@ -229,16 +327,12 @@ class ResourceAttributeIndexServiceFixtureTest {
         JsonObject envelope = envelope(index("Audited", null, null));
         JsonObject audited = attribute(entry(envelope, "app://self/user", "method", "onGet"), "Audited");
 
-        // The binding index may still be building under the fixture, and the tool then omits the
-        // lists and says why instead of claiming nothing is bound. Both answers satisfy the contract.
-        if (envelope.has("interceptorsUnavailable")) {
-            assertEquals("index_not_ready", envelope.get("interceptorsUnavailable").getAsString());
-            assertFalse(audited.has("interceptors"));
-
-            return;
-        }
-
-        assertTrue(audited.has("interceptors"), envelope::toString);
+        assertFalse(envelope.has("interceptorsUnavailable"), envelope::toString);
+        assertEquals(
+            List.of("\\MyVendor\\MyProject\\Interceptor\\AuditInterceptor"),
+            strings(audited.getAsJsonArray("interceptors")),
+            envelope::toString
+        );
     }
 
     @Test
@@ -249,16 +343,15 @@ class ResourceAttributeIndexServiceFixtureTest {
         JsonObject envelope = envelope(index("JsonSchema", null, null));
         JsonObject schema = attribute(entry(envelope, "app://self/user", "method", "onGet"), "JsonSchema");
 
-        assertTrue(
-            envelope.has("interceptorsUnavailable") || schema.getAsJsonArray("interceptors").isEmpty(),
-            envelope::toString
-        );
+        assertTrue(schema.getAsJsonArray("interceptors").isEmpty(), envelope::toString);
     }
 
     @Test
     void readsTheResourceRootItIsGiven() {
         addFile("src/Resource/App/User.php", USER);
-        addFile("src/Resource/Page/Index.php", PROFILE.replace("Profile", "Index"));
+        addFile("src/Resource/Page/Index.php", PROFILE
+            .replace("Resource\\\\App", "Resource\\\\Page")
+            .replace("Profile", "Index"));
 
         JsonObject envelope = envelope(index(null, null, "src/Resource/Page"));
 
@@ -272,6 +365,14 @@ class ResourceAttributeIndexServiceFixtureTest {
 
         assertEquals("not_found", envelope.get("status").getAsString());
         assertTrue(envelope.get("error").getAsString().contains("../etc"), envelope::toString);
+    }
+
+    /** "." reads as the project itself, which would parse every PHP file in it, vendor included. */
+    @Test
+    void refusesAResourceRootThatIsTheProjectItself() {
+        JsonObject envelope = envelope(index(null, null, "."));
+
+        assertEquals("not_found", envelope.get("status").getAsString());
     }
 
     @Test
@@ -297,6 +398,15 @@ class ResourceAttributeIndexServiceFixtureTest {
         }
 
         return uris;
+    }
+
+    private static List<String> strings(JsonArray array) {
+        List<String> values = new ArrayList<>();
+        for (JsonElement element : array) {
+            values.add(element.getAsString());
+        }
+
+        return values;
     }
 
     private static JsonObject entry(JsonObject envelope, String uri, String target, String method) {
@@ -328,15 +438,6 @@ class ResourceAttributeIndexServiceFixtureTest {
     }
 
     private void addFile(String relativePath, String contents) {
-        try {
-            String basePath = fixture.getProject().getBasePath();
-            assertNotNull(basePath);
-            Path path = Path.of(basePath, relativePath);
-            Files.createDirectories(path.getParent());
-            Files.writeString(path, contents, StandardCharsets.UTF_8);
-            assertNotNull(LocalFileSystem.getInstance().refreshAndFindFileByNioFile(path));
-        } catch (IOException exception) {
-            throw new IllegalStateException(exception);
-        }
+        fixture.addFileToProject(relativePath, contents);
     }
 }

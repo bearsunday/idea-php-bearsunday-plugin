@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.components.Service;
+import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VfsUtilCore;
@@ -26,7 +27,6 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -73,25 +73,26 @@ public final class ResourceAttributeIndexService {
         InterceptorLookup interceptors = new InterceptorLookup(project);
         List<VirtualFile> files = phpFilesUnder(rootDir);
         JsonArray entries = new JsonArray();
-        int resources = 0;
+        int classes = 0;
         boolean unsaved = false;
 
         for (VirtualFile file : files) {
-            PhpClass phpClass = classOf(file);
+            // Every walked file counts towards freshness: the walk reads PSI, which shows unsaved
+            // editor buffers, and an unsaved edit can just as well remove a class from the answer.
+            unsaved |= FactsFiles.isUnsaved(file);
+            PhpClass phpClass = resourceClassOf(file);
             String uri = phpClass == null ? null : UriUtil.toResourceUri(phpClass);
-            List<Method> methods = phpClass == null ? List.of() : resourceMethods(phpClass);
-            if (uri == null || methods.isEmpty()) {
+            if (uri == null) {
                 continue;
             }
-            resources++;
-            unsaved |= FactsFiles.isUnsaved(file);
+            classes++;
             String filePath = FactsFiles.relativePath(project, file);
 
             // Class-level attributes belong to no method, so a method filter excludes them.
             if (methodFilter == null) {
                 addEntry(entries, uri, phpClass, filePath, null, phpClass.getAttributes(), filter, interceptors);
             }
-            for (Method resourceMethod : methods) {
+            for (Method resourceMethod : resourceMethods(phpClass)) {
                 if (methodFilter != null && !methodFilter.equalsIgnoreCase(resourceMethod.getName())) {
                     continue;
                 }
@@ -111,7 +112,7 @@ public final class ResourceAttributeIndexService {
         JsonObject scan = new JsonObject();
         scan.addProperty("resourceRoot", root);
         scan.addProperty("files", files.size());
-        scan.addProperty("resources", resources);
+        scan.addProperty("classes", classes);
 
         JsonObject payload = new JsonObject();
         payload.add("scan", scan);
@@ -188,11 +189,24 @@ public final class ResourceAttributeIndexService {
         return json;
     }
 
+    /**
+     * The class a resource file declares. A file may declare a trait or an interface before it,
+     * so the first class-like node is not necessarily the one: interfaces, traits and enums name
+     * no resource and are skipped rather than published under a URI they do not answer to.
+     */
     @Nullable
-    private PhpClass classOf(VirtualFile file) {
+    private PhpClass resourceClassOf(VirtualFile file) {
         PsiFile psiFile = PsiManager.getInstance(project).findFile(file);
+        if (psiFile == null) {
+            return null;
+        }
+        for (PhpClass phpClass : PsiTreeUtil.findChildrenOfType(psiFile, PhpClass.class)) {
+            if (!phpClass.isInterface() && !phpClass.isTrait() && !phpClass.isEnum()) {
+                return phpClass;
+            }
+        }
 
-        return psiFile == null ? null : PsiTreeUtil.findChildOfType(psiFile, PhpClass.class);
+        return null;
     }
 
     private static List<Method> resourceMethods(PhpClass phpClass) {
@@ -206,12 +220,17 @@ public final class ResourceAttributeIndexService {
         return methods;
     }
 
-    /** The PHP files under the root, walked rather than looked up so a building index cannot empty the answer. */
+    /**
+     * The PHP files under the root, walked rather than looked up so a building index cannot empty
+     * the answer. Symbolic links are not followed: a link out of the project would put another
+     * project's classes in this project's index.
+     */
     private static List<VirtualFile> phpFilesUnder(VirtualFile rootDir) {
         List<VirtualFile> files = new ArrayList<>();
-        VfsUtilCore.visitChildrenRecursively(rootDir, new VirtualFileVisitor<Void>() {
+        VfsUtilCore.visitChildrenRecursively(rootDir, new VirtualFileVisitor<Void>(VirtualFileVisitor.NO_FOLLOW_SYMLINKS) {
             @Override
             public boolean visitFile(@NotNull VirtualFile file) {
+                ProgressManager.checkCanceled();
                 if (!file.isDirectory() && PHP_EXTENSION.equalsIgnoreCase(file.getExtension())) {
                     files.add(file);
                 }
@@ -226,7 +245,9 @@ public final class ResourceAttributeIndexService {
 
     /**
      * The resource root as a project-relative path. The answer reaches into the file tree, so a
-     * root that escapes the project is refused rather than read.
+     * root that escapes the project, or that walks back up to it, is refused rather than read:
+     * {@code "."} resolves to the project itself and would parse every PHP file in it, vendor
+     * directories included.
      */
     @Nullable
     private static String normalizeRoot(@Nullable String resourceRoot) {
@@ -234,28 +255,36 @@ public final class ResourceAttributeIndexService {
             return DEFAULT_RESOURCE_ROOT;
         }
         String trimmed = resourceRoot.trim().replace('\\', '/');
-        if (trimmed.contains("..") || trimmed.startsWith("/")) {
+        if (trimmed.startsWith("/")) {
             return null;
         }
-        while (trimmed.endsWith("/")) {
-            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        List<String> segments = new ArrayList<>();
+        for (String segment : trimmed.split("/")) {
+            if (segment.isEmpty()) {
+                continue;
+            }
+            if (".".equals(segment) || "..".equals(segment)) {
+                return null;
+            }
+            segments.add(segment);
         }
 
-        return trimmed.isEmpty() ? null : trimmed;
+        return segments.isEmpty() ? null : String.join("/", segments);
     }
 
-    /** Both {@code get} and {@code onGet} name the same resource method; {@code null} is no filter. */
+    /**
+     * Both {@code get} and {@code onGet} name the same resource method; {@code null} is no filter.
+     * The result is compared case-insensitively, as PHP compares method names, so a name that
+     * already starts with {@code on} is left exactly as it was written.
+     */
     @Nullable
     private static String onMethodName(@Nullable String method) {
         if (method == null || method.isBlank()) {
             return null;
         }
         String trimmed = method.trim();
-        if (trimmed.length() > 2 && trimmed.startsWith("on") && Character.isUpperCase(trimmed.charAt(2))) {
-            return trimmed;
-        }
 
-        return "on" + Character.toUpperCase(trimmed.charAt(0)) + trimmed.substring(1).toLowerCase(Locale.ROOT);
+        return trimmed.length() > 2 && trimmed.regionMatches(true, 0, "on", 0, 2) ? trimmed : "on" + trimmed;
     }
 
     /**

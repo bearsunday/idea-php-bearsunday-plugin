@@ -9,15 +9,20 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Reads a PHP attribute the way the fact tools report it. An attribute is written under a short
  * name that the file's {@code use} statements alias to a class, so the same text can name
- * different classes in different files; {@link #fqn} is that class, resolved, and is
- * {@code null} when the reference does not resolve rather than a guess.
+ * different classes in different files; {@link #fqn} is the class that name resolves to under
+ * those statements and the file's namespace. Whether such a class exists is not checked: the
+ * question these tools answer is which class the attribute names, not whether it was ever
+ * written.
  */
 final class Attributes {
 
     private Attributes() {
     }
 
-    /** The class an attribute resolves to, or {@code null} when the reference does not resolve. */
+    /**
+     * The class an attribute names, or {@code null} when the reference cannot be read at all
+     * (an attribute written with no resolvable class reference).
+     */
     @Nullable
     static String fqn(PhpAttribute attribute) {
         String fqn = attribute.getFQN();
@@ -26,8 +31,8 @@ final class Attributes {
     }
 
     /**
-     * The last segment of the resolved class name, falling back to the name the attribute is
-     * written under when the reference does not resolve.
+     * The last segment of the class name, falling back to the name the attribute is written
+     * under when the reference cannot be read.
      */
     @Nullable
     static String shortName(PhpAttribute attribute) {
