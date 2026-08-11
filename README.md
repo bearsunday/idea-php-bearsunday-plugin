@@ -157,16 +157,32 @@ binding names the attribute, not that no interceptor runs on the method.
 
 The binding lookup answers the question a text search cannot: an injected `#[Named('category')]
 SurrogateKeyInterface` names neither the implementation class nor anything inside it, so grepping for either
-misses the wiring entirely. It reads `bind()` chains project-wide and does **not** resolve a context string to
-a module tree, so a binding an installed module later overrides is still listed. Every binding carries a
-`resolution`: `static` when the binding itself names the implementation class, `dynamic-unresolved` for
-`toProvider`, `toConstructor`, `toInstance`, `toNull` and untargeted binds — which means the tool does not
-name the implementation, not that none exists; they are reported with the class their argument names, never
-dropped. A binding a filter cannot be applied to, because the element being filtered is the one whose value
-the source does not state (`annotatedWith($this->qualifier)`, `annotatedWith("{$this->prefix}_dsn")`), lands
-in `unresolved` with a `reason` instead of being silently excluded, as do `rename()` calls, which move a
-binding to another qualifier and are reported rather than applied. `MultiBinder` bindings and
-`bindInterceptor()` are not read.
+misses the wiring entirely.
+
+It reads every `bind()` chain under the root it is given, which defaults to `src` — **not** the whole project,
+so a binding declared inside a framework package is only found when `moduleRoot` names that package's
+directory. Within the root it collects every chain regardless of which application context installs it, so a
+binding that another module later overrides is still listed.
+
+Every binding says how Ray.Di gave it its target and how far this could follow that:
+
+* `resolution: static` — the chain itself names the implementation class, which is `bind()->to()`.
+* `resolution: dynamic-unresolved` — the implementation is decided when the application is built, not where
+  the binding is written: `toProvider()` (a factory class produces it), `toConstructor()` (constructor
+  arguments are wired by name), `toInstance()` (an object built on the spot), `toNull()` (a do-nothing
+  stand-in), and an untargeted bind, which is `bind()` with no target at all and means Ray.Di builds the
+  class itself. These say the tool does not name the implementation, not that none exists — the class their
+  argument does name is reported under `targetClass`.
+
+A binding a filter cannot be applied to, because the element being filtered is the one whose value the source
+does not state (`annotatedWith($this->qualifier)`, or `annotatedWith("{$this->prefix}_dsn")`, where the source
+holds a template and the name is whatever the property held), lands in `unresolved` with a `reason` instead of
+being silently excluded. So do `rename()` calls, which move an existing binding to another qualifier or to
+another interface: this version reports them rather than applying them.
+
+Two Ray.Di constructs are not read at all, and the tool says so rather than answering as if they were absent:
+`MultiBinder`, which collects several implementations of one interface, and `bindInterceptor()`, which weaves
+Ray.Aop interceptors onto methods.
 
 ## Requirements
 

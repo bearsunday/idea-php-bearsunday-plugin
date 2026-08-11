@@ -112,7 +112,8 @@ class BearSundayMcpToolset : McpToolset {
             "\"resolution\": \"static\" when the binding itself names the implementation class (bind()->to()), " +
             "otherwise \"dynamic-unresolved\", which means only that THIS TOOL does not name the implementation, " +
             "not that no implementation exists. Those are reported, never dropped, with the class their argument " +
-            "names under \"targetClass\". A binding a filter could not be applied to, because the element being " +
+            "names under \"targetClass\", or \"targetUnreadable\": true when the argument names a class this " +
+            "could not read. A binding a filter could not be applied to, because the element being " +
             "filtered is the one whose value the source does not state (annotatedWith(\$this->qualifier), " +
             "annotatedWith(\"{\$this->prefix}_dsn\")), goes to \"unresolved\" rather than being silently " +
             "excluded, as do rename() calls, which move a binding to another interface or qualifier and are " +

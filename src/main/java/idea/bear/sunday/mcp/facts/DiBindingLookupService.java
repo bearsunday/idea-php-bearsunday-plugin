@@ -50,13 +50,20 @@ public final class DiBindingLookupService {
     private static final String BIND = "bind";
     private static final String RENAME = "rename";
     private static final String CONFIGURE = "configure";
+    private static final String MODULE = "Module";
     private static final String ANNOTATED_WITH = "annotatedWith";
     private static final String IN = "in";
     private static final String TO = "to";
 
+    private static final String TO_PROVIDER = "toProvider";
+    private static final String TO_CONSTRUCTOR = "toConstructor";
+
     /** Every way {@code Ray\Di\Bind} takes a target, written as Ray.Di writes it. */
     private static final List<String> TARGET_METHODS =
-        List.of(TO, "toProvider", "toConstructor", "toInstance", "toNull");
+        List.of(TO, TO_PROVIDER, TO_CONSTRUCTOR, "toInstance", "toNull");
+
+    /** The ones whose argument is a class name; the rest take a value or nothing. */
+    private static final List<String> NAMES_A_CLASS = List.of(TO, TO_PROVIDER, TO_CONSTRUCTOR);
 
     private static final String RESOLUTION_STATIC = "static";
     private static final String RESOLUTION_DYNAMIC = "dynamic-unresolved";
@@ -126,7 +133,7 @@ public final class DiBindingLookupService {
         if (found.size() > files.size()) {
             scan.addProperty("filesSkipped", found.size() - files.size());
         }
-        scan.addProperty("modules", answer.modules);
+        scan.addProperty("moduleFiles", answer.moduleFiles);
         scan.addProperty("bindings", answer.bindingsFound);
         scan.addProperty("renames", answer.renamesFound);
 
@@ -143,24 +150,28 @@ public final class DiBindingLookupService {
         if (psiFile == null) {
             return;
         }
-        Site site = new Site(
-            FactsFiles.relativePath(project, file),
-            PsiDocumentManager.getInstance(project).getDocument(psiFile)
-        );
-        boolean binds = false;
+        // Most walked files bind nothing, and a Site forces a Document open and a project-root
+        // lookup, so it is built once the file turns out to hold a binding and not before.
+        Site site = null;
 
         for (MethodReference call : PsiTreeUtil.findChildrenOfType(psiFile, MethodReference.class)) {
             ProgressManager.checkCanceled();
-            if (isBindCall(call)) {
-                binds = true;
+            boolean bind = isBindCall(call);
+            if (!bind && !isRenameCall(call)) {
+                continue;
+            }
+            if (site == null) {
+                site = new Site(
+                    FactsFiles.relativePath(project, file),
+                    PsiDocumentManager.getInstance(project).getDocument(psiFile)
+                );
+                answer.moduleFiles++;
+            }
+            if (bind) {
                 answer.addBinding(call, site);
-            } else if (isRenameCall(call)) {
-                binds = true;
+            } else {
                 answer.addRename(call, site);
             }
-        }
-        if (binds) {
-            answer.modules++;
         }
     }
 
@@ -194,21 +205,39 @@ public final class DiBindingLookupService {
             && arguments >= 2
             && arguments <= 4
             && isModuleLike(call, RENAME)
-            && declaresConfigure(call);
+            && isModule(call);
     }
 
     /**
-     * Whether the class a call sits in declares {@code configure()}, which every concrete Ray.Di
-     * module does because {@code AbstractModule} declares it abstract. Only the rename path asks:
-     * {@code rename} is an ordinary method name, and {@code $this->rename($from, $to)} on a class
-     * that merely extends something would otherwise be published as a Ray.Di rename that may have
-     * moved the binding the caller asked about -- a warning about nothing. A trait declares no
-     * {@code configure()} and is admitted on the same reasoning as in {@link #isModuleLike}.
+     * Whether the class a call sits in is a Ray.Di module rather than merely a class that extends
+     * something. Only the rename path asks: {@code rename} is an ordinary method name, and
+     * {@code $this->rename($from, $to)} on a class holding files or table names would otherwise be
+     * published as a rename that may have moved the binding the caller asked about -- a warning
+     * about nothing, in the one channel this tool asks to be believed. A {@code bind()} chain
+     * names itself well enough to need no such test.
+     *
+     * <p>Three ways to be one, all file-local so the answer holds while the index is building: the
+     * class declares {@code configure()}, which every concrete module does because
+     * {@code AbstractModule} declares it abstract; or it extends a class named {@code *Module}, so
+     * a module that inherits {@code configure()} from a base module still counts; or it is a trait,
+     * which can declare neither and whose bindings run in whichever module uses it.
      */
-    private static boolean declaresConfigure(PsiElement call) {
+    private static boolean isModule(PsiElement call) {
         PhpClass phpClass = PsiTreeUtil.getParentOfType(call, PhpClass.class);
+        if (phpClass == null) {
+            return false;
+        }
+        if (phpClass.isTrait() || phpClass.findOwnMethodByName(CONFIGURE) != null) {
+            return true;
+        }
+        for (ClassReference parent : phpClass.getExtendsList().getReferenceElements()) {
+            String name = parent.getName();
+            if (name != null && name.regionMatches(true, name.length() - MODULE.length(), MODULE, 0, MODULE.length())) {
+                return true;
+            }
+        }
 
-        return phpClass != null && (phpClass.isTrait() || phpClass.findOwnMethodByName(CONFIGURE) != null);
+        return false;
     }
 
     /**
@@ -248,8 +277,8 @@ public final class DiBindingLookupService {
         String boundBy = BOUND_BY_UNTARGETED;
         String implementation = null;
         String targetClass = null;
+        boolean targetUnreadable = false;
         String scope = null;
-        MethodReference chainEnd = bindCall;
 
         MethodReference current = bindCall;
         while (true) {
@@ -259,7 +288,6 @@ public final class DiBindingLookupService {
             }
             String name = next.getName();
             current = next;
-            chainEnd = next;
             if (name == null) {
                 continue;
             }
@@ -277,6 +305,10 @@ public final class DiBindingLookupService {
                 } else {
                     targetClass = argumentClass;
                 }
+                // to(), toProvider() and toConstructor() all name a class. When the argument is
+                // one this cannot read, saying so is what separates "bound to something I could
+                // not name" from "bound to nothing nameable", which toInstance() and toNull() are.
+                targetUnreadable = argumentClass == null && NAMES_A_CLASS.contains(target);
             }
         }
 
@@ -284,7 +316,7 @@ public final class DiBindingLookupService {
         // ends here. A chain continued through a variable, a parenthesis or a return ends the walk
         // too, and calling that untargeted would claim Ray.Di builds the class itself while the
         // caller names an implementation on the very next line.
-        PsiElement end = chainEnd.getParent();
+        PsiElement end = current.getParent();
         if (BOUND_BY_UNTARGETED.equals(boundBy) && (!(end instanceof Statement) || end instanceof PhpReturn)) {
             boundBy = BOUND_BY_UNKNOWN;
         }
@@ -296,8 +328,9 @@ public final class DiBindingLookupService {
             boundBy,
             implementation,
             targetClass,
+            targetUnreadable,
             scope,
-            text(chainEnd)
+            text(current)
         );
     }
 
@@ -434,6 +467,7 @@ public final class DiBindingLookupService {
         String boundBy,
         @Nullable String implementation,
         @Nullable String targetClass,
+        boolean targetUnreadable,
         @Nullable String scope,
         String text
     ) {
@@ -450,7 +484,7 @@ public final class DiBindingLookupService {
         private final QualifierFilter qualifierFilter;
         private final JsonArray bindings = new JsonArray();
         private final JsonArray unresolved = new JsonArray();
-        private int modules;
+        private int moduleFiles;
         private int bindingsFound;
         private int renamesFound;
 
@@ -471,8 +505,11 @@ public final class DiBindingLookupService {
                 return;
             }
             // A chain this could not follow may name a qualifier further along, so a qualifier
-            // query cannot decide it either.
-            if (BOUND_BY_UNKNOWN.equals(binding.boundBy()) && !qualifierFilter.matchesEverything()) {
+            // query cannot decide it -- unless the chain already named one before it broke, which
+            // is the whole answer the query needs.
+            if (BOUND_BY_UNKNOWN.equals(binding.boundBy())
+                && binding.qualifier() == null
+                && !qualifierFilter.matchesEverything()) {
                 unresolved.add(entry(REASON_CHAIN, bindCall, site, binding.boundInterface(), binding.text()));
 
                 return;
@@ -489,22 +526,24 @@ public final class DiBindingLookupService {
         }
 
         /**
-         * A {@code rename()} moves a binding to another qualifier, so a version that does not
-         * apply it can be wrong about which qualifier a binding answers to. Reporting the call is
+         * A {@code rename()} moves a binding to another qualifier, and a version that does not
+         * apply it can be wrong about which qualifier a binding answers to; reporting the call is
          * what keeps that from becoming a confident "no such binding".
-         */
-        /**
-         * Ray.Di's {@code rename($interface, $newName, $sourceName, $targetInterface)} moves a
-         * binding from one interface to another, so both ends are about the interface being asked
-         * for: a query for the interface a binding LANDS on has to see the rename that puts it
-         * there. An end whose value the source does not state is read as "could be this one".
+         *
+         * <p>Ray.Di's {@code rename($interface, $newName, $sourceName, $targetInterface)} can move
+         * it to another interface too, so both ends are about the interface being asked for: a
+         * query for the interface a binding LANDS on has to see the rename that puts it there. An
+         * empty {@code $targetInterface} is Ray.Di's own default for "the same one"
+         * ({@code $targetInterface = $targetInterface ?: $interface}); an end whose value the
+         * source does not state at all is read as "could be this one".
          */
         void addRename(MethodReference call, Site site) {
             renamesFound++;
             PsiElement[] parameters = call.getParameters();
             String source = readInterface(parameters[0]);
-            String target = parameters.length >= 4 ? readInterface(parameters[3]) : null;
-            boolean unreadable = source == null || (parameters.length >= 4 && target == null);
+            boolean moves = parameters.length >= 4 && !isEmptyString(parameters[3]);
+            String target = moves ? readInterface(parameters[3]) : source;
+            boolean unreadable = source == null || (moves && target == null);
             if (!unreadable && !interfaceFilter.matches(source) && !interfaceFilter.matches(target)) {
                 return;
             }
@@ -543,6 +582,9 @@ public final class DiBindingLookupService {
             }
             if (binding.targetClass() != null) {
                 json.addProperty("targetClass", binding.targetClass());
+            }
+            if (binding.targetUnreadable()) {
+                json.addProperty("targetUnreadable", true);
             }
             if (binding.scope() != null) {
                 json.addProperty("scope", binding.scope());

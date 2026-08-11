@@ -231,6 +231,33 @@ class DiBindingLookupServiceFixtureTest {
         }
         """;
 
+    /** A module that inherits configure() from a base module, and renames onto the same interface. */
+    private static final String PROD_MODULE = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Module;
+
+        use BEAR\\Resource\\RenderInterface;
+        use Ray\\Di\\AbstractModule;
+
+        abstract class BaseContextModule extends AbstractModule
+        {
+            protected function configure(): void
+            {
+            }
+        }
+
+        final class ProdModule extends BaseContextModule
+        {
+            public function __construct(AbstractModule $module)
+            {
+                $module->rename(RenderInterface::class, 'original', '', '');
+
+                parent::__construct($module);
+            }
+        }
+        """;
+
     /** A chain continued through a variable: the tail is in another statement, out of reach. */
     private static final String SPLIT_MODULE = """
         <?php
@@ -597,7 +624,7 @@ class DiBindingLookupServiceFixtureTest {
         assertTrue(envelope.getAsJsonArray("bindings").isEmpty(), envelope::toString);
         assertTrue(envelope.getAsJsonArray("unresolved").isEmpty(), envelope::toString);
         assertEquals(0, envelope.getAsJsonObject("scan").get("bindings").getAsInt());
-        assertEquals(0, envelope.getAsJsonObject("scan").get("modules").getAsInt());
+        assertEquals(0, envelope.getAsJsonObject("scan").get("moduleFiles").getAsInt());
     }
 
     /**
@@ -690,6 +717,22 @@ class DiBindingLookupServiceFixtureTest {
     }
 
     /**
+     * A broken chain that named its qualifier before it broke answers a qualifier query outright:
+     * the tail cannot take back a qualifier the source already states.
+     */
+    @Test
+    void answersAQualifierQueryFromABrokenChainThatAlreadyNamedOne() {
+        addFile("src/Module/SplitModule.php", SPLIT_MODULE
+            .replace("$bind = $this->bind(ClockInterface::class);", "$bind = $this->bind(ClockInterface::class)->annotatedWith('utc');")
+            .replace("$bind->annotatedWith('utc')->to(SystemClock::class);", "$bind->to(SystemClock::class);"));
+
+        JsonObject envelope = envelope(lookup("ClockInterface", "utc", null));
+
+        assertEquals(1, envelope.getAsJsonArray("bindings").size(), envelope::toString);
+        assertTrue(envelope.getAsJsonArray("unresolved").isEmpty(), envelope::toString);
+    }
+
+    /**
      * A trait cannot extend anything, but the bind it hosts runs in the module that uses it.
      * Refusing to read it would answer "nothing binds this interface" and count nothing scanned.
      */
@@ -742,6 +785,40 @@ class DiBindingLookupServiceFixtureTest {
         assertTrue(onOther.getAsJsonArray("unresolved").isEmpty(), onOther::toString);
     }
 
+    /**
+     * A module may inherit {@code configure()} from a base module and declare none of its own; the
+     * rename it makes is still a rename. Ray.Di reads an empty target interface as the source one,
+     * so this rename moves nothing between interfaces and answers only for RenderInterface.
+     */
+    @Test
+    void readsARenameInAModuleThatInheritsConfigure() {
+        addFile("src/Module/ProdModule.php", PROD_MODULE);
+
+        JsonObject onRenamed = envelope(lookup("RenderInterface", null, null));
+        JsonObject onOther = envelope(lookup("OtherInterface", null, null));
+
+        assertEquals(1, onRenamed.getAsJsonObject("scan").get("renames").getAsInt());
+        assertEquals(1, onRenamed.getAsJsonArray("unresolved").size(), onRenamed::toString);
+        assertTrue(onOther.getAsJsonArray("unresolved").isEmpty(), onOther::toString);
+    }
+
+    /**
+     * {@code to()} names a class, so an argument this cannot read leaves the binding with no class
+     * at all. Saying so separates it from {@code toInstance()}, which names no class by design.
+     */
+    @Test
+    void saysSoWhenATargetNamesAClassItCannotRead() {
+        addFile("src/Module/RegistryModule.php", REGISTRY_MODULE);
+        addFile("src/Module/CacheModule.php", CACHE_MODULE);
+
+        JsonObject unreadable = binding(envelope(lookup("StoreInterface", null, null)), 0);
+        JsonObject instance = binding(envelope(lookup(null, "AppName", null)), 0);
+
+        assertTrue(unreadable.get("targetUnreadable").getAsBoolean(), unreadable::toString);
+        assertFalse(unreadable.has("targetClass"), unreadable::toString);
+        assertFalse(instance.has("targetUnreadable"), instance::toString);
+    }
+
     /** A rename whose arguments are variables is the one that can most easily be wrong about. */
     @Test
     void reportsARenameWhoseArgumentsItCannotRead() {
@@ -765,7 +842,7 @@ class DiBindingLookupServiceFixtureTest {
 
         assertEquals("src", scan.get("moduleRoot").getAsString());
         assertEquals(3, scan.get("files").getAsInt());
-        assertEquals(2, scan.get("modules").getAsInt());
+        assertEquals(2, scan.get("moduleFiles").getAsInt());
         assertEquals(7, scan.get("bindings").getAsInt());
         assertEquals(0, scan.get("renames").getAsInt());
     }
