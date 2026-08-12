@@ -6,6 +6,9 @@
 - MCP tool `bear_resource_attribute_index` lists the PHP attributes the resource classes under `src/Resource` carry, one entry per class or `on*` method, with each attribute resolved through the file's `use` statements to the class it names rather than matched as text, and with the Ray.Aop interceptors a module binds to it with `annotatedWith()`.
 - MCP tool `bear_di_binding_lookup` returns the Ray.Di bindings the modules under `src` declare — the implementation an interface is bound to, the `annotatedWith()` qualifier it is bound under, and the module file and line that binds it — so an agent can follow wiring a text search cannot reach. A binding the tool cannot name an implementation for (`toProvider`, `toConstructor`, `toInstance`, `toNull`, untargeted) is reported as `dynamic-unresolved` rather than dropped — which says the tool does not name it, not that none exists — and a binding whose qualifier the source does not state, a chain it could not follow, or a `rename()` it does not apply, lands in `unresolved` rather than silently narrowing the answer.
 
+### Fixed
+- `ResourceClassResolver`, which every MCP resource tool reads through, could answer with a class the URI does not name: a `.`/`..` path segment could disclose a PHP file outside the project, a non-self authority (`app://payments/user`) silently answered with this project's class, and an interface, trait or enum declared before the resource class in a file could answer in its place.
+
 ## [0.10]
 
 ### Added
