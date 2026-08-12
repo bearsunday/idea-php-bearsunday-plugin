@@ -299,16 +299,20 @@ public final class DiBindingLookupService {
                 scope = firstArgument == null ? null : text(firstArgument);
             } else if (target != null) {
                 boundBy = target;
-                String argumentClass = classConstFqn(firstArgument);
+                boolean namesAClass = NAMES_A_CLASS.contains(target);
+                // to(), toProvider() and toConstructor() take their class as 'My\Impl' as well as
+                // My\Impl::class -- the same two forms bind() accepts -- while toInstance() takes
+                // a value, whose string is a string and not the name of a class.
+                String argumentClass = namesAClass ? readInterface(firstArgument) : classConstFqn(firstArgument);
                 if (TO.equals(target)) {
                     implementation = argumentClass;
                 } else {
                     targetClass = argumentClass;
                 }
-                // to(), toProvider() and toConstructor() all name a class. When the argument is
-                // one this cannot read, saying so is what separates "bound to something I could
-                // not name" from "bound to nothing nameable", which toInstance() and toNull() are.
-                targetUnreadable = argumentClass == null && NAMES_A_CLASS.contains(target);
+                // When the argument of a class-naming target is one this cannot read, saying so is
+                // what separates "bound to something I could not name" from "bound to nothing
+                // nameable", which toInstance() and toNull() are.
+                targetUnreadable = argumentClass == null && namesAClass;
             }
         }
 
@@ -351,9 +355,9 @@ public final class DiBindingLookupService {
     }
 
     /**
-     * The interface a {@code bind()} argument names. Ray.Di declares it {@code string $interface},
-     * so a class constant and a plain string name it equally well; {@code bind('')} names none, as
-     * {@code bind()} does.
+     * The class an argument names. Ray.Di declares these arguments as strings, so a class
+     * constant and a plain string literal name a class equally well: {@code bind()} takes both,
+     * and so do the class-naming targets. {@code bind('')} names none, as {@code bind()} does.
      */
     @Nullable
     private static String readInterface(@Nullable PsiElement argument) {

@@ -227,6 +227,7 @@ class DiBindingLookupServiceFixtureTest {
             {
                 $this->bind('')->annotatedWith(AppName::class)->toInstance('demo');
                 $this->bind('MyVendor\\\\MyProject\\\\ClockInterface')->to(SystemClock::class);
+                $this->bind(TimerInterface::class)->to('MyVendor\\\\MyProject\\\\Module\\\\SystemTimer');
             }
         }
         """;
@@ -692,6 +693,18 @@ class DiBindingLookupServiceFixtureTest {
         assertFalse(empty.has("interfaceUnreadable"), empty::toString);
         assertEquals("\\MyVendor\\MyProject\\ClockInterface", named.get("interface").getAsString());
         assertEquals("\\MyVendor\\MyProject\\Module\\SystemClock", named.get("implementation").getAsString());
+    }
+
+    /** {@code to('My\Impl')} is legal Ray.Di: the target takes the string form as bind() does. */
+    @Test
+    void readsTheStringFormOfATarget() {
+        addFile("src/Module/StringModule.php", STRING_MODULE);
+
+        JsonObject stringTarget = binding(envelope(lookup("TimerInterface", null, null)), 0);
+
+        assertEquals("\\MyVendor\\MyProject\\Module\\SystemTimer", stringTarget.get("implementation").getAsString());
+        assertEquals("static", stringTarget.get("resolution").getAsString());
+        assertFalse(stringTarget.has("targetUnreadable"), stringTarget::toString);
     }
 
     /**
