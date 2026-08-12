@@ -28,8 +28,10 @@ public final class AlpsProfileDetector {
 
     private final Project project;
 
-    private volatile long cachedStamp = -1;
-    private volatile List<VirtualFile> cachedProfiles = List.of();
+    // One volatile field holding both halves: written separately, a scan interleaved with a VFS
+    // change could publish a stale list stamped with the current modification count, and the
+    // stale answer would then live until the next structure change.
+    private volatile Cache cache = new Cache(-1, List.of());
 
     public AlpsProfileDetector(Project project) {
         this.project = project;
@@ -41,12 +43,12 @@ public final class AlpsProfileDetector {
 
     public List<VirtualFile> findProfiles() {
         long stamp = VirtualFileManager.getInstance().getStructureModificationCount();
-        if (stamp == cachedStamp) {
-            return cachedProfiles;
+        Cache cached = cache;
+        if (stamp == cached.stamp()) {
+            return cached.profiles();
         }
         List<VirtualFile> profiles = scan();
-        cachedProfiles = profiles;
-        cachedStamp = stamp;
+        cache = new Cache(stamp, profiles);
 
         return profiles;
     }
@@ -108,5 +110,9 @@ public final class AlpsProfileDetector {
             || name.equals("alps.xml")
             || name.endsWith(".alps.json")
             || name.endsWith(".alps.xml");
+    }
+
+    /** The profile list and the modification count it was scanned under, published together. */
+    private record Cache(long stamp, List<VirtualFile> profiles) {
     }
 }

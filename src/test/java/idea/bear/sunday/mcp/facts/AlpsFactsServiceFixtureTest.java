@@ -218,6 +218,36 @@ class AlpsFactsServiceFixtureTest {
         assertTrue(resolved.get("resolvedPath").getAsString().endsWith("/other.json"));
     }
 
+    /** Only a fragment or a sibling file resolves locally; other href forms must not pretend to. */
+    @Test
+    void doesNotResolveARootAbsoluteOrNonHttpHrefAgainstTheProfileDirectory() {
+        addPhysicalFile("schema/user.json", "{}");
+        addPhysicalFile("alps.json", """
+            {
+              "alps": {
+                "link": [
+                  {"rel": "describedby", "href": "/schema/user.json"},
+                  {"rel": "canonical", "href": "urn:example:user"},
+                  {"rel": "help", "href": "//example.com/help"}
+                ],
+                "descriptor": [{"id": "User"}]
+              }
+            }
+            """);
+
+        JsonArray links = envelope(facts().linksResolve(null, null)).getAsJsonArray("links");
+        JsonObject rootAbsolute = link(links, "describedby");
+        JsonObject urn = link(links, "canonical");
+        JsonObject protocolRelative = link(links, "help");
+
+        // A root-absolute href is relative to a site root only the deployment knows: resolving
+        // it against the profile directory finds a file the href does not name.
+        assertFalse(rootAbsolute.get("exists").getAsBoolean(), rootAbsolute::toString);
+        assertFalse(rootAbsolute.has("resolvedPath"), rootAbsolute::toString);
+        assertTrue(urn.get("external").getAsBoolean(), urn::toString);
+        assertTrue(protocolRelative.get("external").getAsBoolean(), protocolRelative::toString);
+    }
+
     @Test
     void filtersLinksByRel() {
         addPhysicalFile("alps.json", PROFILE);

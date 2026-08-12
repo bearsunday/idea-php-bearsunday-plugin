@@ -25,6 +25,7 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Answers ALPS questions as JSON envelopes for the MCP tools. Every answer is read-only and
@@ -260,7 +261,15 @@ public final class AlpsFactsService {
             return false;
         }
 
-        return lastSegment(sourceUri).equals(Names.kebab(parentId));
+        // The relation index writes its source URIs lowercased without hyphens ("blogposting")
+        // while a descriptor id kebabs to "blog-posting", so the two spellings of a multi-word
+        // name never compare equal as written. Hyphen-free lowercase is the one spelling both
+        // sides reach.
+        return flat(lastSegment(sourceUri)).equals(flat(parentId));
+    }
+
+    private static String flat(String name) {
+        return name.replace("-", "").toLowerCase(Locale.ROOT);
     }
 
     private static JsonObject relationJson(ResourceRelation relation) {
