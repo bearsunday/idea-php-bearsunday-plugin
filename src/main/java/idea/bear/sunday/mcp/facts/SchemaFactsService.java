@@ -112,11 +112,30 @@ public final class SchemaFactsService {
         }
         JsonObject payload = new JsonObject();
         payload.add("matches", array);
-        Provenance provenance = matches.isEmpty()
-            ? Provenance.derived(isSet(resourceUri) ? resourceUri : schemaFile)
-            : Provenance.ofFile(FactsFiles.relativePath(project, matches.get(0).file()), FactsFiles.isUnsaved(matches.get(0).file()));
 
-        return Envelope.ok(provenance, payload).toJson();
+        return Envelope.ok(provenanceOf(matches, isSet(resourceUri) ? resourceUri : schemaFile), payload).toJson();
+    }
+
+    /**
+     * One matched file is its own provenance. Several are a combined answer: naming only the
+     * first would stamp the envelope with one file's path and freshness while the payload
+     * carries the other files' contents too, unsaved edits included.
+     */
+    private Provenance provenanceOf(List<SchemaMatch> matches, String subject) {
+        if (matches.isEmpty()) {
+            return Provenance.derived(subject);
+        }
+        if (matches.size() == 1) {
+            VirtualFile file = matches.get(0).file();
+
+            return Provenance.ofFile(FactsFiles.relativePath(project, file), FactsFiles.isUnsaved(file));
+        }
+        boolean unsaved = false;
+        for (SchemaMatch match : matches) {
+            unsaved |= FactsFiles.isUnsaved(match.file());
+        }
+
+        return Provenance.derived(subject, unsaved);
     }
 
     private List<Method> targetMethods(PhpClass phpClass, @Nullable String method) {

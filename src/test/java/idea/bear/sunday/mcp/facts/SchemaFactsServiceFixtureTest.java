@@ -108,6 +108,20 @@ class SchemaFactsServiceFixtureTest {
         assertEquals("[\"x\",\"y\"]", match.getAsJsonArray("properties").toString());
         assertEquals("[\"x\",\"y\"]", match.getAsJsonArray("required").toString());
         assertTrue(match.getAsJsonObject("raw").has("properties"));
+        assertEquals("file", envelope.getAsJsonObject("provenance").get("source").getAsString());
+        assertEquals("var/json_schema/point.json", envelope.getAsJsonObject("provenance").get("path").getAsString());
+    }
+
+    /** Several matches are a combined answer: one file's provenance cannot speak for the rest. */
+    @Test
+    void reportsACombinedProvenanceForSeveralMatches() {
+        addPhysicalFile("src/Resource/App/SchemaDemo.php", SCHEMA_DEMO);
+        addPhysicalFile("var/json_schema/point.json", POINT_SCHEMA);
+
+        JsonObject envelope = envelope(facts().lookup("app://self/schema-demo", null, "point.json", "response"));
+
+        assertTrue(envelope.getAsJsonArray("matches").size() > 1, envelope::toString);
+        assertEquals("derived", envelope.getAsJsonObject("provenance").get("source").getAsString());
     }
 
     @Test
