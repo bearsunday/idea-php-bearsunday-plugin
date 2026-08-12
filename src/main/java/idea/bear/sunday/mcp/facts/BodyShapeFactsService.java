@@ -44,7 +44,10 @@ public final class BodyShapeFactsService {
     }
 
     public String shape(@Nullable String uri, @Nullable String method) {
-        return ReadAction.compute(() -> describeShape(uri, method));
+        // Non-blocking so a pending write action is not made to wait out the read; cancelled and
+        // retried instead. See DiBindingLookupService#lookup.
+        return ReadAction.nonBlocking(() -> describeShape(uri, method))
+            .executeSynchronously();
     }
 
     private String describeShape(@Nullable String uri, @Nullable String method) {

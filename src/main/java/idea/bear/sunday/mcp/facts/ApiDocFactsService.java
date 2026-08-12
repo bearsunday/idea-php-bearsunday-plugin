@@ -51,7 +51,10 @@ public final class ApiDocFactsService {
     }
 
     public String operationLookup(@Nullable String path, @Nullable String method, @Nullable String operationId) {
-        return ReadAction.compute(() -> lookupOperations(path, method, operationId));
+        // Non-blocking so a pending write action is not made to wait out the read; cancelled and
+        // retried instead. See DiBindingLookupService#lookup.
+        return ReadAction.nonBlocking(() -> lookupOperations(path, method, operationId))
+            .executeSynchronously();
     }
 
     /** The OpenAPI document of the project, or {@code null} when it has not been generated. */

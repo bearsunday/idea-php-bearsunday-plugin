@@ -45,7 +45,10 @@ public final class ContractCompareService {
     }
 
     public String compare(@Nullable String uri, @Nullable String method) {
-        return ReadAction.compute(() -> compareContract(uri, method));
+        // Non-blocking so a pending write action is not made to wait out the read; cancelled and
+        // retried instead. See DiBindingLookupService#lookup.
+        return ReadAction.nonBlocking(() -> compareContract(uri, method))
+            .executeSynchronously();
     }
 
     private String compareContract(@Nullable String uri, @Nullable String method) {

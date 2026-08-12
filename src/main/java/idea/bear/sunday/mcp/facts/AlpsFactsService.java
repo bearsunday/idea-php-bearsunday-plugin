@@ -48,20 +48,23 @@ public final class AlpsFactsService {
         return project.getService(AlpsFactsService.class);
     }
 
+    // Non-blocking so a pending write action is not made to wait out the read; cancelled and
+    // retried instead. See DiBindingLookupService#lookup.
+
     public String profileRead(@Nullable String profilePath) {
-        return ReadAction.compute(() -> readProfile(profilePath));
+        return ReadAction.nonBlocking(() -> readProfile(profilePath)).executeSynchronously();
     }
 
     public String descriptorLookup(@Nullable String id, @Nullable String href, @Nullable String profilePath) {
-        return ReadAction.compute(() -> lookupDescriptor(id, href, profilePath));
+        return ReadAction.nonBlocking(() -> lookupDescriptor(id, href, profilePath)).executeSynchronously();
     }
 
     public String transitionLookup(@Nullable String from, @Nullable String rel, @Nullable String rt, @Nullable String profilePath) {
-        return ReadAction.compute(() -> lookupTransitions(from, rel, rt, profilePath));
+        return ReadAction.nonBlocking(() -> lookupTransitions(from, rel, rt, profilePath)).executeSynchronously();
     }
 
     public String linksResolve(@Nullable String profilePath, @Nullable String rel) {
-        return ReadAction.compute(() -> resolveLinks(profilePath, rel));
+        return ReadAction.nonBlocking(() -> resolveLinks(profilePath, rel)).executeSynchronously();
     }
 
     private String readProfile(@Nullable String profilePath) {

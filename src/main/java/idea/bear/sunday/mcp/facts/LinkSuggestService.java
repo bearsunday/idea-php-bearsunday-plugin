@@ -44,7 +44,10 @@ public final class LinkSuggestService {
     }
 
     public String suggest(@Nullable String descriptorId, @Nullable String resourceUri) {
-        return ReadAction.compute(() -> suggestLinks(descriptorId, resourceUri));
+        // Non-blocking so a pending write action is not made to wait out the read; cancelled and
+        // retried instead. See DiBindingLookupService#lookup.
+        return ReadAction.nonBlocking(() -> suggestLinks(descriptorId, resourceUri))
+            .executeSynchronously();
     }
 
     private String suggestLinks(@Nullable String descriptorId, @Nullable String resourceUri) {

@@ -57,7 +57,10 @@ public final class SchemaFactsService {
     }
 
     public String lookup(@Nullable String resourceUri, @Nullable String method, @Nullable String schemaFile, @Nullable String kind) {
-        return ReadAction.compute(() -> lookupSchema(resourceUri, method, schemaFile, kind));
+        // Non-blocking so a pending write action is not made to wait out the read; cancelled and
+        // retried instead. See DiBindingLookupService#lookup.
+        return ReadAction.nonBlocking(() -> lookupSchema(resourceUri, method, schemaFile, kind))
+            .executeSynchronously();
     }
 
     /**

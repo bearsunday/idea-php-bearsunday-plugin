@@ -48,7 +48,10 @@ public final class ResourceFactsService {
     }
 
     public String describe(@Nullable String uri) {
-        return ReadAction.compute(() -> describeResource(uri));
+        // Non-blocking so a pending write action is not made to wait out the read; cancelled and
+        // retried instead. See DiBindingLookupService#lookup.
+        return ReadAction.nonBlocking(() -> describeResource(uri))
+            .executeSynchronously();
     }
 
     private String describeResource(@Nullable String uri) {
