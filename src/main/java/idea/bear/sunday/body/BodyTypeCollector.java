@@ -49,7 +49,13 @@ public final class BodyTypeCollector {
         return CachedValuesManager.getManager(phpClass.getProject()).getCachedValue(
             phpClass,
             CACHE_KEY,
-            () -> CachedValueProvider.Result.create(collectUncached(phpClass), PsiModificationTracker.MODIFICATION_COUNT),
+            // The provider may capture only the host class: a collector is newed up per use, so
+            // a captured `this` differs between calls, which the platform's CachedValue
+            // stability checker rejects as a context-dependent cache.
+            () -> CachedValueProvider.Result.create(
+                new BodyTypeCollector().collectUncached(phpClass),
+                PsiModificationTracker.MODIFICATION_COUNT
+            ),
             false
         );
     }

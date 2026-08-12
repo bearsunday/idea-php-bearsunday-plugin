@@ -157,7 +157,17 @@ public final class SchemaFactsService {
 
     private List<Method> targetMethods(PhpClass phpClass, @Nullable String method) {
         if (isSet(method)) {
-            Method found = phpClass.findMethodByName(onMethodName(method.trim()));
+            String wanted = onMethodName(method.trim());
+            Method found = phpClass.findMethodByName(wanted);
+            if (found == null) {
+                // PHP compares method names case-insensitively; the name lookup does not.
+                for (Method candidate : phpClass.getOwnMethods()) {
+                    if (wanted.equalsIgnoreCase(candidate.getName())) {
+                        found = candidate;
+                        break;
+                    }
+                }
+            }
 
             return found == null ? List.of() : List.of(found);
         }
@@ -172,12 +182,13 @@ public final class SchemaFactsService {
         return methods;
     }
 
+    /**
+     * Both {@code get} and {@code onGet} name the same resource method; the spelling is kept as
+     * written and matched case-insensitively, as PHP compares method names, so {@code onget} is
+     * a spelling of {@code onGet} and not a method named {@code onOnget}.
+     */
     private static String onMethodName(String method) {
-        if (method.length() > 2 && method.startsWith("on") && Character.isUpperCase(method.charAt(2))) {
-            return method;
-        }
-
-        return "on" + method.substring(0, 1).toUpperCase(Locale.ROOT) + method.substring(1).toLowerCase(Locale.ROOT);
+        return method.length() > 2 && method.regionMatches(true, 0, "on", 0, 2) ? method : "on" + method;
     }
 
     /** The {@code schema} (response) or {@code params} (request) file names a method declares. */
