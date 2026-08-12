@@ -96,7 +96,12 @@ public final class DiBindingLookupService {
     }
 
     public String lookup(@Nullable String interfaceName, @Nullable String qualifier, @Nullable String moduleRoot) {
-        return ReadAction.compute(() -> lookUpBindings(interfaceName, qualifier, moduleRoot));
+        // Not ReadAction.compute: that holds the read lock until the whole scan is done, and a
+        // pending write action (every keystroke) waits behind it. The non-blocking form is
+        // cancelled and retried when a write action needs the lock, so a long scan cannot
+        // freeze the editor.
+        return ReadAction.nonBlocking(() -> lookUpBindings(interfaceName, qualifier, moduleRoot))
+            .executeSynchronously();
     }
 
     private String lookUpBindings(@Nullable String interfaceName, @Nullable String qualifier, @Nullable String moduleRoot) {
