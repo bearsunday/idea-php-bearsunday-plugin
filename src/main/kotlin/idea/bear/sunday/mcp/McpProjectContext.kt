@@ -1,6 +1,7 @@
 package idea.bear.sunday.mcp
 
 import com.intellij.openapi.project.Project
+import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
 import kotlin.coroutines.CoroutineContext
 
@@ -27,7 +28,15 @@ internal object McpProjectContext {
     private val accessor: Method by lazy { findAccessor(FACADE_CLASSES) }
 
     fun of(context: CoroutineContext): Project {
-        val project = accessor.invoke(null, context)
+        // Method.invoke wraps whatever the accessor throws in an InvocationTargetException whose
+        // own message is null, so the platform's typed "no project opened" error would surface to
+        // the caller as an opaque reflection failure. Rethrowing the cause keeps the reflection
+        // detour invisible.
+        val project = try {
+            accessor.invoke(null, context)
+        } catch (exception: InvocationTargetException) {
+            throw exception.targetException
+        }
 
         return project as? Project
             ?: throw IllegalStateException("$ACCESSOR did not return a project for this MCP call")
