@@ -1,11 +1,13 @@
 package idea.bear.sunday.mcp.facts;
 
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.progress.ProgressManager;
+import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiDocumentManager;
@@ -25,7 +27,9 @@ import com.jetbrains.php.util.PhpStringUtil;
 import idea.bear.sunday.aop.InterceptorBindingIndexUtil;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Answers which implementation a Ray.Di module binds an interface to, and which module file binds
@@ -35,12 +39,16 @@ import java.util.List;
  *
  * <p>The module files are walked and read from PSI rather than looked up in an index, so the
  * answer is available while the project index is still building, and it reflects unsaved editor
- * changes.
+ * changes. A context narrows the scan to the modules that context installs, and resolving a
+ * context needs the index, so only that form of the question waits for it.
  *
- * <p>What this version reads is one construct: a {@code $this->bind(...)} chain. It does not
- * resolve a context string to a module tree, so the answer is every binding in the scanned root
- * regardless of which context installs it. Bindings made by {@code MultiBinder} are not read at
- * all, and a {@code rename()} call is reported rather than applied.
+ * <p>What this version reads is one construct: a {@code $this->bind(...)} chain. Without a context
+ * the answer is every binding in the scanned root, whichever context installs it; with one, the
+ * files read are those of the module tree {@link DiModuleTreeService} walks, and each binding says
+ * which segment reached the module it was read from. Which of several bindings of the same
+ * interface wins is still not decided here -- the priority a binding carries is what it takes to
+ * decide it. Bindings made by {@code MultiBinder} are not read at all, and a {@code rename()} call
+ * is reported rather than applied.
  */
 @Service(Service.Level.PROJECT)
 public final class DiBindingLookupService {
@@ -95,16 +103,39 @@ public final class DiBindingLookupService {
         return project.getService(DiBindingLookupService.class);
     }
 
-    public String lookup(@Nullable String interfaceName, @Nullable String qualifier, @Nullable String moduleRoot) {
+    public String lookup(
+        @Nullable String interfaceName,
+        @Nullable String qualifier,
+        @Nullable String moduleRoot,
+        @Nullable String context
+    ) {
         // Not ReadAction.compute: that holds the read lock until the whole scan is done, and a
         // pending write action (every keystroke) waits behind it. The non-blocking form is
         // cancelled and retried when a write action needs the lock, so a long scan cannot
         // freeze the editor.
-        return ReadAction.nonBlocking(() -> lookUpBindings(interfaceName, qualifier, moduleRoot))
+        return ReadAction.nonBlocking(() -> lookUpBindings(interfaceName, qualifier, moduleRoot, context))
             .executeSynchronously();
     }
 
-    private String lookUpBindings(@Nullable String interfaceName, @Nullable String qualifier, @Nullable String moduleRoot) {
+    private String lookUpBindings(
+        @Nullable String interfaceName,
+        @Nullable String qualifier,
+        @Nullable String moduleRoot,
+        @Nullable String context
+    ) {
+        if (context != null && !context.isBlank()) {
+            // Refused rather than resolved by a rule of precedence: the two name the scan in
+            // different terms -- one a set of modules, the other a directory of files -- and
+            // quietly dropping either would answer a question that was not asked.
+            if (moduleRoot != null && !moduleRoot.isBlank()) {
+                return Envelope.notFound(
+                    "Pass either context or moduleRoot: a context names the modules to read, a root names the files."
+                ).toJson();
+            }
+
+            return contextBindings(interfaceName, qualifier, context.trim());
+        }
+
         String root = FactsFiles.normalizeRoot(moduleRoot, DEFAULT_MODULE_ROOT);
         if (root == null) {
             return Envelope.notFound("Unsupported module root: " + moduleRoot).toJson();
@@ -129,7 +160,7 @@ public final class DiBindingLookupService {
             // Every walked file counts towards freshness: an unsaved edit can add a binding as
             // easily as it can remove one, and this answer is read from PSI either way.
             unsaved |= FactsFiles.isUnsaved(file);
-            readCalls(file, answer);
+            readCalls(file, answer, null);
         }
 
         JsonObject scan = new JsonObject();
@@ -150,7 +181,81 @@ public final class DiBindingLookupService {
         return Envelope.ok(Provenance.derived(root, unsaved), payload).toJson();
     }
 
-    private void readCalls(VirtualFile file, Answer answer) {
+    /**
+     * The bindings of the modules a context installs, rather than of a directory: the module tree
+     * is walked first, and the files read are the ones its modules are wired in -- their own and
+     * their base modules', which is where a module that leaves its wiring to a base states its
+     * bindings.
+     *
+     * <p>What the walk could not read is reported alongside, because a tree with holes in it makes
+     * an empty answer that reads as "nothing binds this": a segment no class answers to, a module
+     * class the index could not resolve, an install whose module the source does not name. Reading
+     * whole files rather than class bodies also means a file may hold a class the context does not
+     * install; each binding names the module class it was read from, which is what settles it.
+     */
+    private String contextBindings(@Nullable String interfaceName, @Nullable String qualifier, String context) {
+        DiModuleTreeService.Walk walk;
+        try {
+            walk = DiModuleTreeService.getInstance(project).walk(context);
+        } catch (IndexNotReadyException exception) {
+            return Envelope.indexNotReady(
+                "The project index is still building; the modules a context installs cannot be resolved yet. "
+                    + "Ask without a context to read a directory instead."
+            ).toJson();
+        }
+
+        Answer answer = new Answer(ClassFilter.of(interfaceName), QualifierFilter.of(qualifier));
+        Set<VirtualFile> read = new HashSet<>();
+        for (DiModuleTreeService.WalkedModule module : walk.modules()) {
+            Reach reach = new Reach(module.segment(), module.priority());
+            for (VirtualFile file : module.files()) {
+                // The walk hands its modules out in priority order, so the first module to reach a
+                // file is the strongest one that does, and that is the reach the file is read under.
+                // A base module two segments share is one file, read once.
+                if (read.add(file)) {
+                    readCalls(file, answer, reach);
+                }
+            }
+        }
+
+        JsonObject scan = new JsonObject();
+        scan.addProperty("context", walk.context());
+        scan.addProperty("modules", walk.modules().size());
+        scan.addProperty("files", read.size());
+        scan.addProperty("moduleFiles", answer.moduleFiles);
+        scan.addProperty("bindings", answer.bindingsFound);
+        scan.addProperty("renames", answer.renamesFound);
+        if (!walk.unresolvedJson().isEmpty()) {
+            JsonArray segments = new JsonArray();
+            for (JsonElement element : walk.unresolvedJson()) {
+                segments.add(element.getAsJsonObject().get("segment").getAsString());
+            }
+            scan.add("unresolvedSegments", segments);
+        }
+        if (walk.classesUnresolved() > 0) {
+            scan.addProperty("classesUnresolved", walk.classesUnresolved());
+        }
+        if (walk.installsUnreadable() > 0) {
+            scan.addProperty("installsUnreadable", walk.installsUnreadable());
+        }
+        if (walk.modulesSkipped() > 0) {
+            scan.addProperty("modulesSkipped", walk.modulesSkipped());
+        }
+        // Without src/Module/AppModule.php the app-side candidate of a segment cannot even be
+        // named, so a segment resolved to the framework module may be one an app module shadows.
+        if (walk.appNamespace() == null) {
+            scan.addProperty("appNamespaceUnknown", true);
+        }
+
+        JsonObject payload = new JsonObject();
+        payload.add("scan", scan);
+        payload.add("bindings", answer.bindings);
+        payload.add("unresolved", answer.unresolved);
+
+        return Envelope.ok(Provenance.derived(walk.context(), walk.unsaved()), payload).toJson();
+    }
+
+    private void readCalls(VirtualFile file, Answer answer, @Nullable Reach reach) {
         PsiFile psiFile = PsiManager.getInstance(project).findFile(file);
         if (psiFile == null) {
             return;
@@ -173,9 +278,9 @@ public final class DiBindingLookupService {
                 answer.moduleFiles++;
             }
             if (bind) {
-                answer.addBinding(call, site);
+                answer.addBinding(call, site, reach);
             } else {
-                answer.addRename(call, site);
+                answer.addRename(call, site, reach);
             }
         }
     }
@@ -466,6 +571,14 @@ public final class DiBindingLookupService {
     private record Site(String filePath, @Nullable Document document) {
     }
 
+    /**
+     * Where in a context's module tree a call was read from: the segment whose subtree reached the
+     * module, and where that segment stands in the priority order. {@code null} for a scan of a
+     * directory, which is not a tree and orders nothing.
+     */
+    private record Reach(@Nullable String segment, int priority) {
+    }
+
     private record Qualifier(String kind, @Nullable String value) {
     }
 
@@ -502,11 +615,11 @@ public final class DiBindingLookupService {
             this.qualifierFilter = qualifierFilter;
         }
 
-        void addBinding(MethodReference bindCall, Site site) {
+        void addBinding(MethodReference bindCall, Site site, @Nullable Reach reach) {
             bindingsFound++;
             Binding binding = readBinding(bindCall);
             if (binding.interfaceUnreadable() && !interfaceFilter.matchesEverything()) {
-                unresolved.add(entry(REASON_INTERFACE, bindCall, site, null, binding.text()));
+                unresolved.add(entry(REASON_INTERFACE, bindCall, site, null, binding.text(), reach));
 
                 return;
             }
@@ -519,19 +632,19 @@ public final class DiBindingLookupService {
             if (BOUND_BY_UNKNOWN.equals(binding.boundBy())
                 && binding.qualifier() == null
                 && !qualifierFilter.matchesEverything()) {
-                unresolved.add(entry(REASON_CHAIN, bindCall, site, binding.boundInterface(), binding.text()));
+                unresolved.add(entry(REASON_CHAIN, bindCall, site, binding.boundInterface(), binding.text(), reach));
 
                 return;
             }
             if (isUnresolved(binding.qualifier()) && !qualifierFilter.matchesEverything()) {
-                unresolved.add(entry(REASON_QUALIFIER, bindCall, site, binding.boundInterface(), binding.text()));
+                unresolved.add(entry(REASON_QUALIFIER, bindCall, site, binding.boundInterface(), binding.text(), reach));
 
                 return;
             }
             if (!qualifierFilter.matches(binding.qualifier())) {
                 return;
             }
-            bindings.add(json(binding, bindCall, site));
+            bindings.add(json(binding, bindCall, site, reach));
         }
 
         /**
@@ -546,7 +659,7 @@ public final class DiBindingLookupService {
          * ({@code $targetInterface = $targetInterface ?: $interface}); an end whose value the
          * source does not state at all is read as "could be this one".
          */
-        void addRename(MethodReference call, Site site) {
+        void addRename(MethodReference call, Site site, @Nullable Reach reach) {
             renamesFound++;
             PsiElement[] parameters = call.getParameters();
             String source = readInterface(parameters[0]);
@@ -556,14 +669,14 @@ public final class DiBindingLookupService {
             if (!unreadable && !interfaceFilter.matches(source) && !interfaceFilter.matches(target)) {
                 return;
             }
-            unresolved.add(entry(REASON_RENAME, call, site, source, text(call)));
+            unresolved.add(entry(REASON_RENAME, call, site, source, text(call), reach));
         }
 
         private static boolean isUnresolved(@Nullable Qualifier qualifier) {
             return qualifier != null && QUALIFIER_UNRESOLVED.equals(qualifier.kind());
         }
 
-        private static JsonObject json(Binding binding, MethodReference bindCall, Site site) {
+        private static JsonObject json(Binding binding, MethodReference bindCall, Site site, @Nullable Reach reach) {
             JsonObject json = new JsonObject();
             if (binding.boundInterface() != null) {
                 json.addProperty("interface", binding.boundInterface());
@@ -598,7 +711,7 @@ public final class DiBindingLookupService {
             if (binding.scope() != null) {
                 json.addProperty("scope", binding.scope());
             }
-            addSite(json, bindCall, site);
+            addSite(json, bindCall, site, reach);
             json.addProperty("text", binding.text());
 
             return json;
@@ -609,20 +722,21 @@ public final class DiBindingLookupService {
             MethodReference call,
             Site site,
             @Nullable String boundInterface,
-            String text
+            String text,
+            @Nullable Reach reach
         ) {
             JsonObject json = new JsonObject();
             json.addProperty("reason", reason);
             if (boundInterface != null) {
                 json.addProperty("interface", boundInterface);
             }
-            addSite(json, call, site);
+            addSite(json, call, site, reach);
             json.addProperty("text", text);
 
             return json;
         }
 
-        private static void addSite(JsonObject json, MethodReference call, Site site) {
+        private static void addSite(JsonObject json, MethodReference call, Site site, @Nullable Reach reach) {
             String moduleClass = moduleClassOf(call);
             if (moduleClass != null) {
                 json.addProperty("moduleClass", moduleClass);
@@ -632,6 +746,17 @@ public final class DiBindingLookupService {
             if (line != null) {
                 json.addProperty("line", line);
             }
+            if (reach == null) {
+                return;
+            }
+            // The two modules the loader adds itself are reached by no segment, and naming one for
+            // them would invent a context segment the caller did not write. Their priority still
+            // places them: 0 is the loader's final override, past the last segment is the module it
+            // starts from.
+            if (reach.segment() != null) {
+                json.addProperty("segment", reach.segment());
+            }
+            json.addProperty("priority", reach.priority());
         }
     }
 

@@ -396,6 +396,111 @@ class DiBindingLookupServiceFixtureTest {
         }
         """;
 
+    /** The app module a context reaches, and the one it installs. */
+    private static final String CONTEXT_APP_MODULE = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Module;
+
+        use MyVendor\\MyProject\\ClockInterface;
+        use MyVendor\\MyProject\\SystemClock;
+        use Ray\\Di\\AbstractModule;
+
+        class AppModule extends AbstractModule
+        {
+            protected function configure(): void
+            {
+                $this->install(new MailModule());
+                $this->bind(ClockInterface::class)->to(SystemClock::class);
+            }
+        }
+        """;
+
+    private static final String CONTEXT_MAIL_MODULE = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Module;
+
+        use MyVendor\\MyProject\\MailerInterface;
+        use MyVendor\\MyProject\\SmtpMailer;
+        use Ray\\Di\\AbstractModule;
+
+        class MailModule extends AbstractModule
+        {
+            protected function configure(): void
+            {
+                $this->bind(MailerInterface::class)->to(SmtpMailer::class);
+            }
+        }
+        """;
+
+    /** A module under src that no context installs: the one a context-scoped answer leaves out. */
+    private static final String CONTEXT_STRAY_MODULE = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Module;
+
+        use MyVendor\\MyProject\\MailerInterface;
+        use MyVendor\\MyProject\\NullMailer;
+        use Ray\\Di\\AbstractModule;
+
+        class StrayModule extends AbstractModule
+        {
+            protected function configure(): void
+            {
+                $this->bind(MailerInterface::class)->to(NullMailer::class);
+            }
+        }
+        """;
+
+    /** A module that states its bindings in a base module and nothing in its own body. */
+    private static final String CONTEXT_ABSTRACT_PROD_MODULE = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Module;
+
+        use MyVendor\\MyProject\\ClockInterface;
+        use MyVendor\\MyProject\\UtcClock;
+        use Ray\\Di\\AbstractModule;
+
+        abstract class AbstractProdModule extends AbstractModule
+        {
+            protected function configure(): void
+            {
+                $this->bind(ClockInterface::class)->to(UtcClock::class);
+            }
+        }
+        """;
+
+    private static final String CONTEXT_PROD_MODULE = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Module;
+
+        final class ProdModule extends AbstractProdModule
+        {
+        }
+        """;
+
+    /** The module the loader overrides everything with, which no context segment names. */
+    private static final String CONTEXT_APP_META_MODULE = """
+        <?php
+
+        namespace BEAR\\Package\\Module;
+
+        use BEAR\\AppMeta\\AbstractAppMeta;
+        use MyVendor\\MyProject\\ProjectMeta;
+        use Ray\\Di\\AbstractModule;
+
+        class AppMetaModule extends AbstractModule
+        {
+            protected function configure(): void
+            {
+                $this->bind(AbstractAppMeta::class)->to(ProjectMeta::class);
+            }
+        }
+        """;
+
     private CodeInsightTestFixture fixture;
 
     /** The light fixture recipe the attribute index test uses; see its setUp for why. */
@@ -907,9 +1012,111 @@ class DiBindingLookupServiceFixtureTest {
         assertTrue(envelope.get("error").getAsString().contains("src/Nowhere"), envelope::toString);
     }
 
+    /**
+     * The question a directory cannot answer: of two modules binding the same interface, which one
+     * the context actually installs. The unscoped answer still holds both, which is what makes the
+     * scoped one worth asking for.
+     */
+    @Test
+    void readsOnlyTheModulesAContextInstalls() {
+        addContextApp();
+
+        JsonObject scoped = envelope(lookupInContext("MailerInterface", null, "app"));
+        JsonObject binding = binding(scoped, 0);
+
+        assertEquals("ok", scoped.get("status").getAsString(), scoped::toString);
+        assertEquals(1, scoped.getAsJsonArray("bindings").size(), scoped::toString);
+        assertEquals("\\MyVendor\\MyProject\\SmtpMailer", binding.get("implementation").getAsString());
+        assertEquals("\\MyVendor\\MyProject\\Module\\MailModule", binding.get("moduleClass").getAsString());
+        assertEquals("app", binding.get("segment").getAsString());
+        assertEquals(1, binding.get("priority").getAsInt());
+
+        JsonObject unscoped = envelope(lookup("MailerInterface", null, null));
+        assertEquals(2, unscoped.getAsJsonArray("bindings").size(), unscoped::toString);
+        // A directory is not a tree, so nothing in that answer is ordered by a segment.
+        assertFalse(binding(unscoped, 0).has("priority"), unscoped::toString);
+    }
+
+    /**
+     * A module that leaves its wiring to a base module states its bindings there and nowhere else.
+     * Reading only the module's own file would answer "nothing binds this" for a context whose
+     * module binds it one class up -- the silence the tree tool already ended for install().
+     */
+    @Test
+    void readsTheBindingsAModuleInheritsFromItsBaseModule() {
+        addContextApp();
+        addFile("src/Module/AbstractProdModule.php", CONTEXT_ABSTRACT_PROD_MODULE);
+        addFile("src/Module/ProdModule.php", CONTEXT_PROD_MODULE);
+
+        JsonObject binding = binding(envelope(lookupInContext("ClockInterface", null, "prod")), 0);
+
+        assertEquals("\\MyVendor\\MyProject\\UtcClock", binding.get("implementation").getAsString());
+        assertEquals("\\MyVendor\\MyProject\\Module\\AbstractProdModule", binding.get("moduleClass").getAsString());
+        assertEquals("prod", binding.get("segment").getAsString());
+    }
+
+    /**
+     * The two modules the loader adds itself are reached by no segment, and naming one for them
+     * would invent a segment the caller did not write; their priority places them all the same.
+     */
+    @Test
+    void namesNoSegmentForTheModuleTheLoaderOverridesEverythingWith() {
+        addContextApp();
+        addFile("vendor/bear/package/src/Module/AppMetaModule.php", CONTEXT_APP_META_MODULE);
+
+        JsonObject binding = binding(envelope(lookupInContext("AbstractAppMeta", null, "app")), 0);
+
+        assertEquals("\\MyVendor\\MyProject\\ProjectMeta", binding.get("implementation").getAsString());
+        assertFalse(binding.has("segment"), binding::toString);
+        assertEquals(0, binding.get("priority").getAsInt(), binding::toString);
+    }
+
+    /**
+     * A segment nothing answers to takes its whole subtree out of the scan, and an answer that did
+     * not say so would report the bindings of part of a context as the bindings of all of it.
+     */
+    @Test
+    void saysWhichSegmentsNothingAnsweredTo() {
+        addContextApp();
+
+        JsonObject scan = envelope(lookupInContext(null, null, "app-nowhere")).getAsJsonObject("scan");
+
+        assertEquals("app-nowhere", scan.get("context").getAsString());
+        assertEquals(1, scan.getAsJsonArray("unresolvedSegments").size(), scan::toString);
+        assertEquals("nowhere", scan.getAsJsonArray("unresolvedSegments").get(0).getAsString());
+        // The loader's own two modules, neither installed in this fixture: the tree has holes in
+        // it wherever bear/package and ray/di are not there to be read.
+        assertEquals(2, scan.get("classesUnresolved").getAsInt(), scan::toString);
+        assertFalse(scan.has("moduleRoot"), scan::toString);
+    }
+
+    /** The two name the scan in different terms, and answering one of them would answer neither. */
+    @Test
+    void refusesAContextAndAModuleRootTogether() {
+        addContextApp();
+
+        JsonObject envelope = envelope(
+            DiBindingLookupService.getInstance(fixture.getProject()).lookup(null, null, "src", "app")
+        );
+
+        assertEquals("not_found", envelope.get("status").getAsString());
+        assertTrue(envelope.get("error").getAsString().contains("either context or moduleRoot"), envelope::toString);
+    }
+
+    private void addContextApp() {
+        addFile("src/Module/AppModule.php", CONTEXT_APP_MODULE);
+        addFile("src/Module/MailModule.php", CONTEXT_MAIL_MODULE);
+        addFile("src/Module/StrayModule.php", CONTEXT_STRAY_MODULE);
+    }
+
     private String lookup(String interfaceName, String qualifier, String moduleRoot) {
         return DiBindingLookupService.getInstance(fixture.getProject())
-            .lookup(interfaceName, qualifier, moduleRoot);
+            .lookup(interfaceName, qualifier, moduleRoot, null);
+    }
+
+    private String lookupInContext(String interfaceName, String qualifier, String context) {
+        return DiBindingLookupService.getInstance(fixture.getProject())
+            .lookup(interfaceName, qualifier, null, context);
     }
 
     private static JsonObject binding(JsonObject envelope, int position) {

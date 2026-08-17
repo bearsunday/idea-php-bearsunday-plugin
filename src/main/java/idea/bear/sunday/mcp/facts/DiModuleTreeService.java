@@ -122,7 +122,8 @@ public final class DiModuleTreeService {
 
     /**
      * Resolves the context and walks every module tree it installs. The walked modules are carried
-     * out whole, in priority order, for a context-scoped binding scan to read; nothing does yet.
+     * out whole, in priority order, for {@link DiBindingLookupService} to scan when it is asked for
+     * the bindings of a context rather than of a directory.
      *
      * @throws IndexNotReadyException while the project index is building
      */
@@ -176,7 +177,9 @@ public final class DiModuleTreeService {
         JsonObject assistedModule = loaderModuleJson(ASSISTED_MODULE, segments.length + 1, visited, modules, state);
 
         for (WalkedModule module : modules) {
-            unsaved |= FactsFiles.isUnsaved(module.file());
+            for (VirtualFile file : module.files()) {
+                unsaved |= FactsFiles.isUnsaved(file);
+            }
         }
         // AppModule.php is read for the app's namespace without ever becoming a walked module, and
         // an unsaved edit to it moves every segment between the app and the framework candidate --
@@ -194,6 +197,8 @@ public final class DiModuleTreeService {
             assistedModule,
             modules,
             state.skipped,
+            state.classesUnresolved,
+            state.installsUnreadable,
             unsaved
         );
     }
@@ -225,6 +230,7 @@ public final class DiModuleTreeService {
             json = new JsonObject();
             json.addProperty("moduleClass", fqn);
             json.addProperty("classUnresolved", true);
+            state.classesUnresolved++;
         } else {
             json = moduleJson(phpClass, null, priority, visited, modules, state);
         }
@@ -272,9 +278,6 @@ public final class DiModuleTreeService {
             return json;
         }
         visited.add(key);
-        if (file != null) {
-            modules.add(new WalkedModule(fqn, file, segment, priority));
-        }
 
         JsonArray installs = new JsonArray();
         // install()/override() are read wherever the class calls them, not only in configure():
@@ -284,6 +287,12 @@ public final class DiModuleTreeService {
         boolean ownInstall = declaresEdgeMethod(phpClass, INSTALL);
         boolean ownOverride = declaresEdgeMethod(phpClass, OVERRIDE);
         Wiring wiring = wiringClasses(phpClass);
+        // Recorded before the edges are walked, so the modules stay in walk order -- which is
+        // priority order, strongest first, and what a scan reading these files goes by.
+        List<VirtualFile> wiringFiles = wiringFiles(wiring);
+        if (!wiringFiles.isEmpty()) {
+            modules.add(new WalkedModule(fqn, wiringFiles, segment, priority));
+        }
         // A base module the index cannot resolve is the one thing this walk could not read, and
         // saying nothing would make the node identical to a module that installs nothing -- the
         // very silence reading the base classes was added to end, one level further up.
@@ -370,6 +379,28 @@ public final class DiModuleTreeService {
     }
 
     /**
+     * The files a module's wiring is written in: its own, then its base modules'. A scan given
+     * these reads exactly the bodies this walk read the installs from, so a binding declared in a
+     * base module is not missed by the one tool while the other reports what that base installs.
+     *
+     * <p>Ray.Di's own {@code AbstractModule} is left out. It ends every chain and declares
+     * {@code bind()} itself rather than calling it, so its file holds no module's bindings, and
+     * reading it would put the framework's own source in the scan of every project.
+     */
+    private static List<VirtualFile> wiringFiles(Wiring wiring) {
+        List<VirtualFile> files = new ArrayList<>();
+        for (PhpClass source : wiring.classes()) {
+            String fqn = source.getFQN();
+            VirtualFile file = fileOf(source);
+            if (file != null && !RAY_DI_ABSTRACT_MODULE.equalsIgnoreCase(fqn)) {
+                files.add(file);
+            }
+        }
+
+        return files;
+    }
+
+    /**
      * The class a class's {@code extends} clause names, resolved through the file's own use
      * statements rather than the index, so it can be named even when it cannot be found. A class
      * that extends nothing names none -- and neither does one whose chain ends at Ray.Di's own
@@ -424,12 +455,14 @@ public final class DiModuleTreeService {
             // source states, so an override that could not be read is not filed as an install.
             json = new JsonObject();
             json.addProperty("moduleUnreadable", true);
+            state.installsUnreadable++;
         } else {
             PhpClass installed = classByFqn(fqn);
             if (installed == null) {
                 json = new JsonObject();
                 json.addProperty("moduleClass", fqn);
                 json.addProperty("classUnresolved", true);
+                state.classesUnresolved++;
             } else {
                 json = moduleJson(installed, segment, priority, visited, modules, state);
             }
@@ -583,6 +616,8 @@ public final class DiModuleTreeService {
     private static final class WalkState {
         private int skipped;
         private boolean unsaved;
+        private int classesUnresolved;
+        private int installsUnreadable;
     }
 
     /** The bodies a module's wiring is read from, and the base class that could not be read. */
@@ -593,15 +628,19 @@ public final class DiModuleTreeService {
     }
 
     /**
-     * A module the walk reached: where it is, and which context segment reaches it. The segment is
-     * {@code null} for the two modules the loader adds itself: the final override, whose priority is
-     * {@link #FRAMEWORK_PRIORITY} ahead of every segment's, and the assisted module, whose priority
-     * is one past the last segment's because every segment wraps it.
+     * A module the walk reached: the files its wiring is written in, and which context segment
+     * reaches it. The segment is {@code null} for the two modules the loader adds itself: the final
+     * override, whose priority is {@link #FRAMEWORK_PRIORITY} ahead of every segment's, and the
+     * assisted module, whose priority is one past the last segment's because every segment wraps it.
      */
-    record WalkedModule(String fqn, VirtualFile file, @Nullable String segment, int priority) {
+    record WalkedModule(String fqn, List<VirtualFile> files, @Nullable String segment, int priority) {
     }
 
-    /** Everything one walk of a context produced, for the tree answer and the binding scan alike. */
+    /**
+     * Everything one walk of a context produced, for the tree answer and the binding scan alike.
+     * The two counts are what the walk could not read: a scan that reports neither would answer
+     * "nothing binds this" from a tree with holes in it.
+     */
     record Walk(
         String context,
         @Nullable String appNamespace,
@@ -611,6 +650,8 @@ public final class DiModuleTreeService {
         JsonObject assistedModule,
         List<WalkedModule> modules,
         int modulesSkipped,
+        int classesUnresolved,
+        int installsUnreadable,
         boolean unsaved
     ) {
     }

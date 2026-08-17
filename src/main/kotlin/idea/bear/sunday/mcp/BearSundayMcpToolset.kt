@@ -121,16 +121,32 @@ class BearSundayMcpToolset : McpToolset {
             "reported rather than applied. Each \"unresolved\" entry says which of those it is under " +
             "\"reason\": \"interface-unreadable\", \"qualifier-unreadable\", \"chain-unreadable\" or " +
             "\"rename-not-applied\". \"scan\" reports how much was read, including \"filesSkipped\" when a " +
-            "root was too large to read whole, so an empty answer says how far it looked. Limits: bindings are " +
-            "collected project-wide, NOT resolved against a context string, so a binding an installed module " +
-            "overrides is still listed; MultiBinder bindings and bindInterceptor()/bindPriorityInterceptor() " +
-            "are not read at all."
+            "root was too large to read whole, so an empty answer says how far it looked. " +
+            "Pass context (\"prod-hal-api-app\") INSTEAD of moduleRoot to read the modules that context " +
+            "installs rather than a directory: the scan is then the module tree bear_di_module_tree_read " +
+            "walks -- each module's own file and its base modules' -- and every binding carries the " +
+            "\"segment\" that reached it and that segment's \"priority\", so bindings of the same interface " +
+            "can be ordered by which one wins (priority 1 is the leftmost segment and beats the rest; a " +
+            "binding with no \"segment\" comes from a module the loader adds itself, priority 0 being its " +
+            "final AppMetaModule override and the priority past the last segment its innermost " +
+            "AssistedModule). \"scan\" then says what the tree could not deliver, each only when it happened: " +
+            "\"unresolvedSegments\" (segments no class answered to, whose modules are therefore in no part of " +
+            "this answer), \"classesUnresolved\", \"installsUnreadable\", \"modulesSkipped\" and " +
+            "\"appNamespaceUnknown\". Passing both context and moduleRoot is refused rather than resolved by " +
+            "precedence. Limits: WITHOUT context, bindings are collected project-wide, so a binding an " +
+            "installed module overrides is still listed; WITH context, resolving the tree needs the project " +
+            "index, so this answers status=index_not_ready while the index builds, and whole files are read, " +
+            "so a file that also declares a class the context does not install contributes its bindings too " +
+            "-- each binding's \"moduleClass\" is what settles that. Which binding of several wins is still " +
+            "not decided here. MultiBinder bindings and bindInterceptor()/bindPriorityInterceptor() are not " +
+            "read at all."
     )
     suspend fun bear_di_binding_lookup(
         interfaceName: String? = null,
         qualifier: String? = null,
-        moduleRoot: String? = null
-    ): String = DiBindingLookupService.getInstance(project()).lookup(interfaceName, qualifier, moduleRoot)
+        moduleRoot: String? = null,
+        context: String? = null
+    ): String = DiBindingLookupService.getInstance(project()).lookup(interfaceName, qualifier, moduleRoot, context)
 
     @McpTool
     @McpDescription(
