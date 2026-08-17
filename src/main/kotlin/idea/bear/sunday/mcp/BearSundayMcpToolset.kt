@@ -152,7 +152,11 @@ class BearSundayMcpToolset : McpToolset {
             "be the same file. \"priority\" orders the segments by which one wins a conflict: the loader wraps them " +
             "right to left and Ray.Di's Container::merge keeps the receiving container's bindings, so priority 1 " +
             "-- the LEFTMOST segment -- beats the rest, and \"frameworkOverride\" (priority 0, the AppMetaModule " +
-            "the loader overrides everything with) beats them all. No install()/override() call the walk reads is " +
+            "the loader overrides everything with) beats them all. \"assistedModule\" is the other end of the same " +
+            "chain: Ray\\Di\\AssistedModule, the module the loader starts from and every segment wraps, so its " +
+            "priority is one past the last segment's and its bindings are the weakest in the tree. Both are in " +
+            "the answer whatever the context says, and marked \"classUnresolved\" when the package is not " +
+            "installed rather than left out. No install()/override() call the walk reads is " +
             "ever dropped, however little of it could be read: an " +
             "install whose module the source does not name (\$this->install(\$module), a conditional install) " +
             "keeps its \"kind\" and is marked \"moduleUnreadable\": true with its source text; a call the module " +
@@ -170,7 +174,7 @@ class BearSundayMcpToolset : McpToolset {
             "bear_di_binding_lookup for the bindings themselves. A class resolved by the naming convention is NOT " +
             "checked to be a Ray\\Di\\AbstractModule, which the loader additionally requires, so a segment " +
             "reported here can still be one BEAR rejects at boot with InvalidContextException. Wiring a module " +
-            "picks up from a trait is not read, nor is the loader's innermost Ray\\Di\\AssistedModule reported. " +
+            "picks up from a trait is not read. " +
             "Unlike bear_di_binding_lookup, this tool resolves class names through the project index, so it " +
             "answers status=index_not_ready while the index is building. Pass diagram=true to also get " +
             "\"diagram\": a Mermaid flowchart of the same tree, one box per module class and one arrow per " +

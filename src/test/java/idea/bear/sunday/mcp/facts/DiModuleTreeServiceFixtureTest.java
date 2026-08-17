@@ -319,6 +319,34 @@ class DiModuleTreeServiceFixtureTest {
         }
         """;
 
+    /** What {@code BEAR\Package\Module} starts the chain from, written as Ray.Di writes it. */
+    private static final String ASSISTED_MODULE = """
+        <?php
+
+        namespace Ray\\Di;
+
+        final class AssistedModule extends AbstractModule
+        {
+            protected function configure(): void
+            {
+                $this->install(new AssistedInjectModule());
+            }
+        }
+        """;
+
+    private static final String ASSISTED_INJECT_MODULE = """
+        <?php
+
+        namespace Ray\\Di;
+
+        final class AssistedInjectModule extends AbstractModule
+        {
+            protected function configure(): void
+            {
+            }
+        }
+        """;
+
     private CodeInsightTestFixture fixture;
 
     @BeforeEach
@@ -622,6 +650,38 @@ class DiModuleTreeServiceFixtureTest {
         assertTrue(viaSegment.get("visited").getAsBoolean(), viaSegment::toString);
     }
 
+    /**
+     * The loader builds its chain from {@code new AssistedModule()} outwards, so it is in every
+     * tree and every segment wraps it -- the weakest node, and one no segment names.
+     */
+    @Test
+    void reportsTheLoadersInnermostAssistedModule() {
+        addApp();
+        addFile("vendor/ray/di/src/di/AssistedModule.php", ASSISTED_MODULE);
+        addFile("vendor/ray/di/src/di/AssistedInjectModule.php", ASSISTED_INJECT_MODULE);
+
+        JsonObject assisted = envelope(read("prod-app")).getAsJsonObject("assistedModule");
+
+        assertEquals("\\Ray\\Di\\AssistedModule", assisted.get("moduleClass").getAsString());
+        // One past the last segment's: every segment wraps it, so every segment beats it.
+        assertEquals(3, assisted.get("priority").getAsInt(), assisted::toString);
+        assertFalse(assisted.has("classUnresolved"), assisted::toString);
+        assertEquals(
+            "\\Ray\\Di\\AssistedInjectModule",
+            install(assisted, 0).get("moduleClass").getAsString()
+        );
+    }
+
+    @Test
+    void saysSoWhenTheLoadersAssistedModuleIsNotInstalled() {
+        addApp();
+
+        JsonObject assisted = envelope(read("app")).getAsJsonObject("assistedModule");
+
+        assertEquals("\\Ray\\Di\\AssistedModule", assisted.get("moduleClass").getAsString());
+        assertTrue(assisted.get("classUnresolved").getAsBoolean(), assisted::toString);
+    }
+
     @Test
     void saysSoWhenTheFrameworksFinalOverrideIsNotInstalled() {
         addApp();
@@ -689,6 +749,8 @@ class DiModuleTreeServiceFixtureTest {
         assertTrue(mermaid.contains(" ==>|override| "), mermaid);
         // The loader's own final override is in the picture, and it is priority 0.
         assertTrue(mermaid.contains("framework override \u00b7 priority 0"), mermaid);
+        // So is the module it starts from, at the weak end of the same chain.
+        assertTrue(mermaid.contains("assisted injection \u00b7 priority 3"), mermaid);
     }
 
     /** An install the walk could not read is drawn as one, not left out of the picture. */

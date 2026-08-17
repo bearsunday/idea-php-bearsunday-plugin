@@ -49,6 +49,12 @@ final class ModuleTreeDiagram {
             JsonObject segment = element.getAsJsonObject();
             walk(segment, node(segment, segmentNote(segment)));
         }
+        // Drawn last because every segment wraps it, which makes it the weakest node in the tree --
+        // the far end of the same left-to-right reading the framework override opens.
+        JsonObject assistedModule = payload.getAsJsonObject("assistedModule");
+        if (assistedModule != null) {
+            walk(assistedModule, node(assistedModule, "assisted injection · priority " + string(assistedModule, "priority")));
+        }
         // A segment nothing answers to is part of the picture: leaving it out would draw a context
         // that resolves cleanly when it does not.
         for (JsonElement element : array(payload, "unresolvedSegments")) {

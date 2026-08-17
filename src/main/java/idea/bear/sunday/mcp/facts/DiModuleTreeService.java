@@ -44,6 +44,7 @@ public final class DiModuleTreeService {
 
     private static final String FRAMEWORK_CONTEXT_NAMESPACE = "\\BEAR\\Package\\Context\\";
     private static final String APP_META_MODULE = "\\BEAR\\Package\\Module\\AppMetaModule";
+    private static final String ASSISTED_MODULE = "\\Ray\\Di\\AssistedModule";
     private static final String RAY_DI_ABSTRACT_MODULE = "\\Ray\\Di\\AbstractModule";
     private static final String MODULE_SUFFIX = "Module";
     private static final String INSTALL = "install";
@@ -108,6 +109,7 @@ public final class DiModuleTreeService {
                 payload.add("unresolvedSegments", walk.unresolvedJson());
             }
             payload.add("frameworkOverride", walk.frameworkOverride());
+            payload.add("assistedModule", walk.assistedModule());
             if (diagram) {
                 payload.addProperty("diagram", ModuleTreeDiagram.mermaid(payload));
             }
@@ -168,6 +170,11 @@ public final class DiModuleTreeService {
             segmentsJson.add(json);
         }
 
+        // Walked after the segments because every one of them wraps it, which makes it the weakest
+        // node in the tree -- and the visited set expands whichever node is walked first, so a
+        // segment that installs it too keeps the expansion where the stronger reach is.
+        JsonObject assistedModule = loaderModuleJson(ASSISTED_MODULE, segments.length + 1, visited, modules, state);
+
         for (WalkedModule module : modules) {
             unsaved |= FactsFiles.isUnsaved(module.file());
         }
@@ -184,6 +191,7 @@ public final class DiModuleTreeService {
             segmentsJson,
             unresolvedJson,
             frameworkOverride,
+            assistedModule,
             modules,
             state.skipped,
             unsaved
@@ -195,22 +203,32 @@ public final class DiModuleTreeService {
      * {@code $module->override(new AppMetaModule($appMeta))} ({@code BEAR\Package\Module}). Ray.Di's
      * {@code override()} merges the receiver into the argument's container, and {@code Container::merge}
      * keeps the receiving container's bindings, so what {@code AppMetaModule} binds beats every
-     * segment. A tree that left it out would omit the strongest bindings in the graph, so it is
-     * always reported -- as {@code classUnresolved} when the framework is not installed, which is
-     * an answer rather than a silence.
+     * segment. A tree that left it out would omit the strongest bindings in the graph.
      */
     private JsonObject frameworkOverrideJson(Set<String> visited, List<WalkedModule> modules, WalkState state) {
-        PhpClass phpClass = classByFqn(APP_META_MODULE);
+        JsonObject json = loaderModuleJson(APP_META_MODULE, FRAMEWORK_PRIORITY, visited, modules, state);
+        json.addProperty("kind", KIND_OVERRIDE);
+
+        return json;
+    }
+
+    /**
+     * A module the loader adds itself, which no context segment names: {@code AppMetaModule} at one
+     * end and {@code Ray\Di\AssistedModule} at the other. Both are part of the tree whatever the
+     * context says, so both are reported -- as {@code classUnresolved} when the package is not
+     * installed, which is an answer rather than a silence.
+     */
+    private JsonObject loaderModuleJson(String fqn, int priority, Set<String> visited, List<WalkedModule> modules, WalkState state) {
+        PhpClass phpClass = classByFqn(fqn);
         JsonObject json;
         if (phpClass == null) {
             json = new JsonObject();
-            json.addProperty("moduleClass", APP_META_MODULE);
+            json.addProperty("moduleClass", fqn);
             json.addProperty("classUnresolved", true);
         } else {
-            json = moduleJson(phpClass, null, FRAMEWORK_PRIORITY, visited, modules, state);
+            json = moduleJson(phpClass, null, priority, visited, modules, state);
         }
-        json.addProperty("kind", KIND_OVERRIDE);
-        json.addProperty("priority", FRAMEWORK_PRIORITY);
+        json.addProperty("priority", priority);
 
         return json;
     }
@@ -576,8 +594,9 @@ public final class DiModuleTreeService {
 
     /**
      * A module the walk reached: where it is, and which context segment reaches it. The segment is
-     * {@code null} for the framework's own final override, which no segment names; its priority is
-     * {@link #FRAMEWORK_PRIORITY}, ahead of every segment's.
+     * {@code null} for the two modules the loader adds itself: the final override, whose priority is
+     * {@link #FRAMEWORK_PRIORITY} ahead of every segment's, and the assisted module, whose priority
+     * is one past the last segment's because every segment wraps it.
      */
     record WalkedModule(String fqn, VirtualFile file, @Nullable String segment, int priority) {
     }
@@ -589,6 +608,7 @@ public final class DiModuleTreeService {
         JsonArray segmentsJson,
         JsonArray unresolvedJson,
         JsonObject frameworkOverride,
+        JsonObject assistedModule,
         List<WalkedModule> modules,
         int modulesSkipped,
         boolean unsaved
