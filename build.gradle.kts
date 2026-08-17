@@ -34,6 +34,7 @@ dependencies {
         bundledPlugin("com.jetbrains.php")
         bundledPlugin("com.jetbrains.twig")
         bundledPlugin("com.intellij.mcpServer")
+        bundledModule("intellij.platform.ui.jcef")
         testFramework(TestFrameworkType.Platform)
         pluginVerifier()
     }
