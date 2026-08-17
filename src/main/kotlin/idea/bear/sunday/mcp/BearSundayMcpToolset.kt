@@ -5,6 +5,7 @@ import com.intellij.mcpserver.annotations.McpDescription
 import com.intellij.mcpserver.annotations.McpTool
 import com.intellij.openapi.project.Project
 import idea.bear.sunday.mcp.facts.AlpsFactsService
+import idea.bear.sunday.mcp.facts.AopPointcutLookupService
 import idea.bear.sunday.mcp.facts.ApiDocFactsService
 import idea.bear.sunday.mcp.facts.BodyShapeFactsService
 import idea.bear.sunday.mcp.facts.ContractCompareService
@@ -199,6 +200,49 @@ class BearSundayMcpToolset : McpToolset {
     )
     suspend fun bear_di_module_tree_read(context: String, diagram: Boolean = false): String =
         DiModuleTreeService.getInstance(project()).read(context, diagram)
+
+    @McpTool
+    @McpDescription(
+        "Read-only. Answers which Ray.Aop interceptors wrap a class's methods, and which pointcut puts each " +
+            "one there, as JSON. This is what neither a text search nor the #[Attribute] gutter can follow: " +
+            "bindInterceptor(annotatedWith(Cacheable::class), startsWith('onPut'), [CommandInterceptor::class]) " +
+            "names the method it wraps by the SPELLING of its name, so nothing written at onPut() says an " +
+            "interceptor runs around it. Name the class with className (a class name, or a short name when only " +
+            "one class answers to it -- several give status=ambiguous) or uri (a resource, \"page://self/user\"), " +
+            "and optionally method (\"onPut\", matched case-insensitively as PHP matches method names); without " +
+            "method, every public method that anything wraps is listed, with method the named one is listed even " +
+            "when nothing wraps it. Pointcuts are read from EITHER context (\"prod-hal-app\": the modules that " +
+            "context installs, which is how to ask about a running app) OR moduleRoot (a project-relative " +
+            "directory); passing both is refused, and passing neither is too, because most pointcuts live in " +
+            "vendor and a default scan of src would answer \"nothing wraps this\" for a method three " +
+            "interceptors wrap. Each interceptor carries the pointcut that bound it: \"classMatcher\" and " +
+            "\"methodMatcher\" as Ray.Aop spells them, the module class, file and line, \"priority\": true when " +
+            "bindPriorityInterceptor bound it -- Ray.Aop binds those first, so they are listed first -- and, " +
+            "under context, the \"segment\" that reached the module. " +
+            "UNLIKE the other bear_* tools this one EVALUATES rather than reports: it decides whether a matcher " +
+            "matches. It evaluates only the seven matchers Ray\\Di\\Matcher declares (any, annotatedWith, " +
+            "subclassesOf, startsWith, logicalOr, logicalAnd, logicalNot) exactly as Ray.Aop's own matcher " +
+            "classes do -- annotatedWith matches an attribute that EXTENDS the named class, as " +
+            "ReflectionAttribute::IS_INSTANCEOF does; any() excludes magic methods and ArrayObject's; " +
+            "startsWith compares as written, case-sensitively. Everything it cannot decide goes to " +
+            "\"unevaluated\" with a \"reason\" rather than being settled by a guess: \"matcher-unreadable\" (an " +
+            "expression outside that vocabulary, such as annotatedWith(\$attribute) or a matcher class of one's " +
+            "own), \"hierarchy-unresolved\" (a class or attribute whose ancestry the index could not resolve, so " +
+            "\"no\" could not be proved), \"matcher-invalid\" (subclassesOf on the METHOD side, which Ray.Aop " +
+            "throws InvalidAnnotationException on -- a fault in that module). Limits: this does NOT check that " +
+            "Ray.Di ever instantiates the class, which is what makes weaving happen at all, so a match here is " +
+            "\"this pointcut selects this method\", not \"this object is woven\"; attributes are read as " +
+            "declared, because PHP reflection does not inherit a class attribute from a parent; and the order " +
+            "WITHIN the priority and non-priority groups is not simulated. Resolving the class needs the project " +
+            "index, so this answers status=index_not_ready while the index is building."
+    )
+    suspend fun bear_aop_pointcut_lookup(
+        className: String? = null,
+        uri: String? = null,
+        method: String? = null,
+        context: String? = null,
+        moduleRoot: String? = null
+    ): String = AopPointcutLookupService.getInstance(project()).lookup(className, uri, method, context, moduleRoot)
 
     @McpTool
     @McpDescription(
