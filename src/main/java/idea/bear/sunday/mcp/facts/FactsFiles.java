@@ -10,6 +10,8 @@ import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileVisitor;
+import com.intellij.psi.PsiDocumentManager;
+import com.intellij.psi.PsiFile;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -140,6 +142,22 @@ final class FactsFiles {
 
     static boolean isUnsaved(VirtualFile file) {
         return FileDocumentManager.getInstance().isFileModified(file);
+    }
+
+    /**
+     * The 1-based line an offset in a file falls on, or {@code null} when the file has no document
+     * to count lines in. Must be called inside a read action.
+     */
+    @Nullable
+    static Integer lineOf(@Nullable PsiFile file, int offset) {
+        Document document = file == null
+            ? null
+            : PsiDocumentManager.getInstance(file.getProject()).getDocument(file);
+        if (document == null || offset >= document.getTextLength()) {
+            return null;
+        }
+
+        return document.getLineNumber(offset) + 1;
     }
 
     /**

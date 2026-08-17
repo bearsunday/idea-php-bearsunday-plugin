@@ -9,6 +9,7 @@ import idea.bear.sunday.mcp.facts.ApiDocFactsService
 import idea.bear.sunday.mcp.facts.BodyShapeFactsService
 import idea.bear.sunday.mcp.facts.ContractCompareService
 import idea.bear.sunday.mcp.facts.DiBindingLookupService
+import idea.bear.sunday.mcp.facts.DiModuleTreeService
 import idea.bear.sunday.mcp.facts.LinkSuggestService
 import idea.bear.sunday.mcp.facts.ResourceAttributeIndexService
 import idea.bear.sunday.mcp.facts.ResourceFactsService
@@ -130,6 +131,54 @@ class BearSundayMcpToolset : McpToolset {
         qualifier: String? = null,
         moduleRoot: String? = null
     ): String = DiBindingLookupService.getInstance(project()).lookup(interfaceName, qualifier, moduleRoot)
+
+    @McpTool
+    @McpDescription(
+        "Read-only. Resolves a BEAR.Sunday context string (\"prod-hal-api-app\") to the module tree it installs, " +
+            "as JSON -- the wiring a context selects, which no single file states. Each hyphen-separated segment " +
+            "names {AppName}\\Module\\{Segment}Module when the app declares one (\"origin\": \"app\") and " +
+            "\\BEAR\\Package\\Context\\{Segment}Module otherwise (\"origin\": \"framework\"), exactly as " +
+            "BEAR\\Package\\Module's class_exists fallback tries them; a segment neither names is listed under " +
+            "\"unresolvedSegments\" with the candidate class names that were tried, so an absence says what was " +
+            "looked for. " +
+            "Under each segment come the modules it installs, walked recursively through \$this->install() and " +
+            "\$this->override() -- read from the module class's own body AND from the module classes it extends, " +
+            "because a module that leaves its wiring to a base module (\"final class ProdModule extends " +
+            "AbstractProdModule {}\") states its installs there and nowhere else. An edge read from a base class " +
+            "carries \"inheritedFrom\" naming it; that says the base installs it, not that this module certainly " +
+            "runs it, because whether the subclass's configure() chains to the inherited one is not checked. A " +
+            "node names the installed module class and \"filePath\", the file that class is " +
+            "DECLARED in, while \"installedAt\" carries the file and line the install is WRITTEN at, which need not " +
+            "be the same file. \"priority\" orders the segments by which one wins a conflict: the loader wraps them " +
+            "right to left and Ray.Di's Container::merge keeps the receiving container's bindings, so priority 1 " +
+            "-- the LEFTMOST segment -- beats the rest, and \"frameworkOverride\" (priority 0, the AppMetaModule " +
+            "the loader overrides everything with) beats them all. No install()/override() call the walk reads is " +
+            "ever dropped, however little of it could be read: an " +
+            "install whose module the source does not name (\$this->install(\$module), a conditional install) " +
+            "keeps its \"kind\" and is marked \"moduleUnreadable\": true with its source text; a call the module " +
+            "makes to an install()/override() that it OR ONE OF ITS BASE CLASSES declares is marked " +
+            "\"ownMethod\": true, meaning PHP dispatches the call to that method rather than to Ray.Di's; a module named by a class the index cannot resolve is " +
+            "marked \"classUnresolved\": true and not walked into; a module whose own base class the index " +
+            "cannot resolve is marked \"baseClassUnresolved\" with the name its extends clause states, so an " +
+            "empty node is never mistaken for a module that installs nothing; a module reached twice is expanded once and " +
+            "then marked \"visited\": true, which means its subtree is elsewhere in this answer; a walk that hits " +
+            "the node cap marks the nodes it cut with \"skipped\": true and counts them in \"modulesSkipped\". " +
+            "Every edge carries the \"text\" of the call it was read from. " +
+            "\"appNamespaceUnknown\": true means src/Module/AppModule.php could not be read, so the app-side " +
+            "candidate could not even be named and a segment reported as \"framework\" may really be shadowed by " +
+            "an app module. Limits: this names the tree, it does not decide which binding wins -- ask " +
+            "bear_di_binding_lookup for the bindings themselves. A class resolved by the naming convention is NOT " +
+            "checked to be a Ray\\Di\\AbstractModule, which the loader additionally requires, so a segment " +
+            "reported here can still be one BEAR rejects at boot with InvalidContextException. Wiring a module " +
+            "picks up from a trait is not read, nor is the loader's innermost Ray\\Di\\AssistedModule reported. " +
+            "Unlike bear_di_binding_lookup, this tool resolves class names through the project index, so it " +
+            "answers status=index_not_ready while the index is building. Pass diagram=true to also get " +
+            "\"diagram\": a Mermaid flowchart of the same tree, one box per module class and one arrow per " +
+            "install (thick for override), carrying every mark the JSON carries, for showing the wiring to a " +
+            "human. It is a rendering of this answer, never a second opinion about the project."
+    )
+    suspend fun bear_di_module_tree_read(context: String, diagram: Boolean = false): String =
+        DiModuleTreeService.getInstance(project()).read(context, diagram)
 
     @McpTool
     @McpDescription(
