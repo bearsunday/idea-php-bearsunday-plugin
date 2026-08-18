@@ -26,6 +26,7 @@ import com.jetbrains.php.lang.psi.elements.Variable;
 import idea.bear.sunday.aop.InterceptorBindingIndexUtil;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -207,23 +208,12 @@ public final class DiBindingLookupService {
         }
 
         Answer answer = new Answer(ClassFilter.of(interfaceName), QualifierFilter.of(qualifier), this::isConcreteClass);
-        Set<VirtualFile> read = new HashSet<>();
-        for (DiModuleTreeService.WalkedModule module : walk.modules()) {
-            Reach reach = new Reach(module.segment(), module.priority());
-            for (VirtualFile file : module.files()) {
-                // The walk hands its modules out in priority order, so the first module to reach a
-                // file is the strongest one that does, and that is the reach the file is read under.
-                // A base module two segments share is one file, read once.
-                if (read.add(file)) {
-                    readCalls(file, answer, reach);
-                }
-            }
-        }
+        int filesRead = readModules(walk, answer);
 
         JsonObject scan = new JsonObject();
         scan.addProperty("context", walk.context());
         scan.addProperty("modules", walk.modules().size());
-        scan.addProperty("files", read.size());
+        scan.addProperty("files", filesRead);
         scan.addProperty("moduleFiles", answer.moduleFiles);
         scan.addProperty("bindings", answer.bindingsFound);
         scan.addProperty("renames", answer.renamesFound);
@@ -255,6 +245,44 @@ public final class DiBindingLookupService {
         payload.add("unresolved", answer.unresolved);
 
         return Envelope.ok(Provenance.derived(walk.context(), walk.unsaved()), payload).toJson();
+    }
+
+    /**
+     * Reads the files of every module the walk reached, once each. The walk hands its modules out
+     * in priority order, so the first module to reach a file is the strongest one that does, and
+     * that is the reach the file is read under. A base module two segments share is one file.
+     *
+     * @return how many files were read
+     */
+    private int readModules(DiModuleTreeService.Walk walk, Answer answer) {
+        Set<VirtualFile> read = new HashSet<>();
+        for (DiModuleTreeService.WalkedModule module : walk.modules()) {
+            Reach reach = new Reach(module.segment(), module.priority());
+            for (VirtualFile file : module.files()) {
+                if (read.add(file)) {
+                    readCalls(file, answer, reach);
+                }
+            }
+        }
+
+        return read.size();
+    }
+
+    /**
+     * Every binding the modules of a context declare, typed rather than printed. This is the same
+     * scan the context form of {@link #lookup} runs, handed over whole: no filter has been applied,
+     * so a consumer sees the bindings that shadow one another as well as the winner.
+     *
+     * @throws IndexNotReadyException when the modules a context installs cannot be resolved yet
+     */
+    ContextBindings bindingsOf(String context) {
+        return ReadAction.nonBlocking(() -> {
+            DiModuleTreeService.Walk walk = DiModuleTreeService.getInstance(project).walk(context);
+            Answer answer = new Answer(ClassFilter.of(null), QualifierFilter.of(null), this::isConcreteClass);
+            int filesRead = readModules(walk, answer);
+
+            return new ContextBindings(walk, List.copyOf(answer.bound), answer.renamesFound, filesRead);
+        }).executeSynchronously();
     }
 
     private void readCalls(VirtualFile file, Answer answer, @Nullable Reach reach) {
@@ -608,10 +636,10 @@ public final class DiBindingLookupService {
     private record Reach(@Nullable String segment, int priority) {
     }
 
-    private record Qualifier(String kind, @Nullable String value) {
+    record Qualifier(String kind, @Nullable String value) {
     }
 
-    private record Binding(
+    record Binding(
         @Nullable String boundInterface,
         boolean interfaceUnreadable,
         @Nullable Qualifier qualifier,
@@ -622,6 +650,23 @@ public final class DiBindingLookupService {
         @Nullable String scope,
         String text
     ) {
+    }
+
+    /**
+     * A binding with the place it was read from, for a consumer that resolves bindings rather than
+     * printing them -- {@link DiObjectGraphService}, which has to choose one of several bindings of
+     * the same key and then follow it.
+     */
+    record Bound(Binding binding, @Nullable String moduleClass, String filePath, @Nullable Integer line) {
+    }
+
+    /**
+     * Everything a context's modules bind, in the order the modules were walked -- strongest first,
+     * which is the order Ray.Di's own merge resolves them in. Unfiltered and unshadowed: deciding
+     * which of two bindings of one key wins is the consumer's business, and it cannot decide what
+     * it was not given.
+     */
+    record ContextBindings(DiModuleTreeService.Walk walk, List<Bound> bound, int renames, int filesRead) {
     }
 
     /**
@@ -636,6 +681,8 @@ public final class DiBindingLookupService {
         private final ConcreteClasses concrete;
         private final JsonArray bindings = new JsonArray();
         private final JsonArray unresolved = new JsonArray();
+        /** Every binding read, in encounter order, before any filter has had a say. */
+        private final List<Bound> bound = new ArrayList<>();
         private int moduleFiles;
         private int bindingsFound;
         private int renamesFound;
@@ -649,6 +696,15 @@ public final class DiBindingLookupService {
         void addBinding(MethodReference bindCall, Site site, @Nullable Reach reach) {
             bindingsFound++;
             Binding binding = readBinding(bindCall, concrete);
+            // Recorded before the filters, because a consumer resolving a graph asks for one key at
+            // a time and still needs every binding of it -- including the ones this query filtered
+            // out, which are the ones that shadow or are shadowed.
+            bound.add(new Bound(
+                binding,
+                moduleClassOf(bindCall),
+                site.filePath(),
+                lineOf(site.document(), bindCall.getTextOffset())
+            ));
             if (binding.interfaceUnreadable() && !interfaceFilter.matchesEverything()) {
                 unresolved.add(entry(REASON_INTERFACE, bindCall, site, null, binding.text(), reach));
 

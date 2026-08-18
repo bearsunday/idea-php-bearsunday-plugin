@@ -187,7 +187,7 @@ public final class DiModuleTreeService {
                 continue;
             }
 
-            JsonObject json = moduleJson(resolution.phpClass(), segment, priority, visited, modules, state);
+            JsonObject json = moduleJson(resolution.phpClass(), segment, priority, visited, modules, state, null);
             json.addProperty("segment", segment);
             json.addProperty("priority", priority);
             json.addProperty("origin", resolution.origin());
@@ -255,7 +255,7 @@ public final class DiModuleTreeService {
             json.addProperty("classUnresolved", true);
             state.classesUnresolved++;
         } else {
-            json = moduleJson(phpClass, null, priority, visited, modules, state);
+            json = moduleJson(phpClass, null, priority, visited, modules, state, null);
         }
         json.addProperty("priority", priority);
 
@@ -272,7 +272,8 @@ public final class DiModuleTreeService {
         int priority,
         Set<String> visited,
         List<WalkedModule> modules,
-        WalkState state
+        WalkState state,
+        @Nullable String overriddenReceiver
     ) {
         JsonObject json = new JsonObject();
         String fqn = phpClass.getFQN();
@@ -314,7 +315,7 @@ public final class DiModuleTreeService {
         // priority order, strongest first, and what a scan reading these files goes by.
         List<VirtualFile> wiringFiles = wiringFiles(wiring);
         if (!wiringFiles.isEmpty()) {
-            modules.add(new WalkedModule(fqn, wiringFiles, segment, priority));
+            modules.add(new WalkedModule(fqn, wiringFiles, segment, priority, overriddenReceiver));
         }
         // A base module the index cannot resolve is the one thing this walk could not read, and
         // saying nothing would make the node identical to a module that installs nothing -- the
@@ -340,7 +341,7 @@ public final class DiModuleTreeService {
                 if (kind == null || PsiTreeUtil.getParentOfType(call, PhpClass.class) != source) {
                     continue;
                 }
-                JsonObject edge = installJson(call, kind, segment, priority, visited, modules, state);
+                JsonObject edge = installJson(call, kind, segment, priority, visited, modules, state, fqn);
                 // A class declaring install() of its own is calling that method rather than
                 // Ray.Di's, and what it does with the module is its own business. Saying so is the
                 // whole correction: dropping the edge would report the module as installing less
@@ -467,7 +468,8 @@ public final class DiModuleTreeService {
         int priority,
         Set<String> visited,
         List<WalkedModule> modules,
-        WalkState state
+        WalkState state,
+        String receiver
     ) {
         String fqn = installedModuleFqn(call);
         JsonObject json;
@@ -487,7 +489,19 @@ public final class DiModuleTreeService {
                 json.addProperty("classUnresolved", true);
                 state.classesUnresolved++;
             } else {
-                json = moduleJson(installed, segment, priority, visited, modules, state);
+                // override() reverses the merge -- Ray.Di does $module->merge($this) and keeps
+                // the MODULE's container -- so the module named here beats the one that named it.
+                // The walk reaches it the other way round, receiver first, and the receiver is
+                // carried along so a reader of these modules can put the two back in merge order.
+                json = moduleJson(
+                    installed,
+                    segment,
+                    priority,
+                    visited,
+                    modules,
+                    state,
+                    KIND_OVERRIDE.equals(kind) ? receiver : null
+                );
             }
         }
         json.addProperty("kind", kind);
@@ -656,7 +670,13 @@ public final class DiModuleTreeService {
      * override, whose priority is {@link #FRAMEWORK_PRIORITY} ahead of every segment's, and the
      * assisted module, whose priority is one past the last segment's because every segment wraps it.
      */
-    record WalkedModule(String fqn, List<VirtualFile> files, @Nullable String segment, int priority) {
+    record WalkedModule(
+        String fqn,
+        List<VirtualFile> files,
+        @Nullable String segment,
+        int priority,
+        @Nullable String overriddenReceiver
+    ) {
     }
 
     /**
