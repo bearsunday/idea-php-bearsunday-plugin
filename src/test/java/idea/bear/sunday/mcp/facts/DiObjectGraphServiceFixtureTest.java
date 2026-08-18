@@ -128,6 +128,7 @@ class DiObjectGraphServiceFixtureTest {
                 $this->bind(StoreInterface::class)->toProvider(StoreProvider::class);
                 $this->bind(LoggerInterface::class)->toNull();
                 $this->bind()->annotatedWith('dsn')->toInstance('mysql:host=localhost');
+                $this->bind()->annotatedWith(Primary::class)->toInstance(['a']);
             }
         }
         """;
@@ -209,6 +210,8 @@ class DiObjectGraphServiceFixtureTest {
                 #[Named('dsn')] private readonly string $dsn,
                 #[Primary] private readonly ClockInterface $clock,
                 #[Documented] #[Named('retries')] private readonly int $retries,
+                #[Primary] private readonly array $hosts,
+                #[Named(Primary::class)] private readonly array $imports,
                 private readonly StoreInterface $store,
                 private readonly ?AuditInterface $audit = null,
             ) {
@@ -370,6 +373,73 @@ class DiObjectGraphServiceFixtureTest {
         assertEquals("", dsn.get("type").getAsString());
         assertEquals("dsn", dsn.get("name").getAsString());
         assertEquals("instance", dsn.get("resolution").getAsString(), dsn::toString);
+    }
+
+    /**
+     * An array carrying a qualifier is how a framework module hands configuration in -- bear/resource
+     * writes {@code #[ImportAppConfig] private array $importAppConfig}. The type half is empty, as
+     * for any other value, and the name half is the attribute class all the same.
+     */
+    @Test
+    void keysAQualifiedArrayUnderItsQualifierAndNoType() {
+        addApp();
+
+        JsonObject envelope = envelope(graph("AppInterface", "app"));
+        JsonObject hosts = node(envelope, "-\\MyVendor\\MyProject\\Annotation\\Primary");
+
+        assertNotNull(hosts, envelope::toString);
+        assertEquals("", hosts.get("type").getAsString());
+    }
+
+    /**
+     * {@code #[Named(Foo::class)]} puts a class name inside the attribute's string -- which is how
+     * {@code bear/package} names its imported-app config -- and Ray.Di reads it as the name like any
+     * other. Reading only quoted literals left the key half-guessed and the edge marked unreadable.
+     */
+    @Test
+    void readsAClassConstantGivenToNamedAsTheNameItIs() {
+        addApp();
+
+        JsonObject envelope = envelope(graph("AppInterface", "app"));
+        JsonObject key = node(envelope, "-\\MyVendor\\MyProject\\Annotation\\Primary");
+
+        assertEquals("instance", key.get("resolution").getAsString(), key::toString);
+        assertFalse(
+            envelope.getAsJsonObject("scan").has("qualifiersUnreadable"),
+            envelope::toString
+        );
+    }
+
+    /**
+     * Ray.Di binds InjectorInterface in PHP, not in a module: Injector::__construct() does it after
+     * the container is built, so it beats anything a module said. Reporting it unbound would report
+     * a failure no application has -- and every ProviderInterface in bear/resource takes one.
+     */
+    @Test
+    void answersForTheKeysTheContainerBindsWithoutAModule() {
+        addApp();
+        addFile("src/Wired.php", """
+            <?php
+
+            namespace MyVendor\\MyProject;
+
+            use Ray\\Di\\InjectorInterface;
+
+            final class Wired
+            {
+                public function __construct(private readonly InjectorInterface $injector)
+                {
+                }
+            }
+            """);
+
+        JsonObject envelope = envelope(graph("Wired", "app"));
+
+        assertEquals(
+            "builtin",
+            node(envelope, "\\Ray\\Di\\InjectorInterface-").get("resolution").getAsString(),
+            envelope::toString
+        );
     }
 
     /** A qualifier attribute names the binding by its own CLASS, which is what annotatedWith() took. */

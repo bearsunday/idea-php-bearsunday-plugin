@@ -8,9 +8,11 @@ import com.intellij.openapi.components.Service;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.openapi.project.Project;
+import com.intellij.psi.PsiElement;
 import com.jetbrains.php.PhpIndex;
 import com.jetbrains.php.lang.psi.elements.Method;
 import com.jetbrains.php.lang.psi.elements.Parameter;
+import com.jetbrains.php.lang.psi.elements.ParameterList;
 import com.jetbrains.php.lang.psi.elements.PhpAttribute;
 import com.jetbrains.php.lang.psi.elements.PhpClass;
 import com.jetbrains.php.lang.psi.resolve.types.PhpType;
@@ -64,6 +66,17 @@ public final class DiObjectGraphService {
      */
     private static final String DEFAULT_ENTRY = "\\BEAR\\Sunday\\Extension\\Application\\AppInterface";
 
+    /**
+     * The two keys the container answers for without any module binding them. Ray.Di binds them in
+     * PHP rather than in a module -- {@code Injector::__construct()} does
+     * {@code (new Bind($container, InjectorInterface::class))->toInstance($this)} AFTER the modules
+     * have built the container, and {@code Arguments::bindInjectionPoint()} rebinds the injection
+     * point for every argument it resolves -- so both beat whatever a module said, and calling
+     * either unbound would report a failure the application never has.
+     */
+    private static final Set<String> BUILT_IN =
+        Set.of("\\Ray\\Di\\InjectorInterface-", "\\Ray\\Di\\InjectionPointInterface-");
+
     private static final String NAMED = "\\Ray\\Di\\Di\\Named";
     private static final String QUALIFIER = "\\Ray\\Di\\Di\\Qualifier";
     private static final String INJECT_INTERFACE = "\\Ray\\Di\\Di\\InjectInterface";
@@ -85,7 +98,7 @@ public final class DiObjectGraphService {
     private static final String RESOLUTION_NULL_OBJECT = "null-object";
     private static final String RESOLUTION_DYNAMIC = "dynamic-unresolved";
     private static final String RESOLUTION_UNBOUND = "unbound";
-    private static final String RESOLUTION_SCALAR = "scalar";
+    private static final String RESOLUTION_BUILT_IN = "builtin";
     private static final String RESOLUTION_ENTRY_UNTARGETED = "entry-untargeted";
     private static final String RESOLUTION_CLASS_UNRESOLVED = "class-unresolved";
 
@@ -387,6 +400,7 @@ public final class DiObjectGraphService {
         private final Deque<String> path = new ArrayDeque<>();
         private boolean capped;
         private boolean deepened;
+        private int qualifiersUnreadable;
 
         Walk(Container container) {
             this.container = container;
@@ -454,6 +468,7 @@ public final class DiObjectGraphService {
                     edge.addProperty("defaultAvailable", true);
                 }
                 if (injection.qualifierUnreadable()) {
+                    qualifiersUnreadable++;
                     // The name half of the key is whatever a property held, so the key this edge
                     // leads to is a guess -- said so rather than followed as if it were read.
                     edge.addProperty("qualifierUnreadable", true);
@@ -478,6 +493,9 @@ public final class DiObjectGraphService {
             boolean isEntry,
             JsonObject node
         ) {
+            if (BUILT_IN.contains(key)) {
+                return new Resolved(RESOLUTION_BUILT_IN, null, null);
+            }
             DiBindingLookupService.Bound bound = container.winner(key);
             if (bound == null) {
                 return unbound(type, declared, isEntry);
@@ -528,8 +546,10 @@ public final class DiObjectGraphService {
          */
         private Resolved unbound(String type, @Nullable PhpClass declared, boolean isEntry) {
             if (type.isEmpty()) {
-                // A key with no type names no class to build: a value bound under a name alone.
-                return new Resolved(RESOLUTION_SCALAR, null, null);
+                // A key with no type names no class to build, so there is no class to fall back to
+                // either: what Ray.Di does with it is throw, which is what unbound says. That the
+                // key wants a value rather than an object is what its empty "type" already says.
+                return new Resolved(RESOLUTION_UNBOUND, null, null);
             }
             PhpClass phpClass = declared != null ? declared : classOf(type);
             if (phpClass == null) {
@@ -701,17 +721,22 @@ public final class DiObjectGraphService {
         return null;
     }
 
+    /**
+     * The name {@code #[Named]} carries. Ray.Di reads the attribute's own {@code value}, and
+     * {@code #[Named(ImportAppConfig::class)]} -- which is how {@code bear/package} names its
+     * imported-app config -- puts a class name in that string as surely as a quoted literal does.
+     * Reading only the literal would leave the name unread and the key half-guessed.
+     */
     @Nullable
     private static String namedValue(PhpAttribute attribute) {
-        if (attribute.getParameterList() == null) {
+        ParameterList arguments = attribute.getParameterList();
+        if (arguments == null || arguments.getParameters().length == 0) {
             return null;
         }
+        PsiElement first = arguments.getParameters()[0];
+        String literal = PhpSource.stringValue(first);
 
-        return PhpSource.stringValue(
-            attribute.getParameterList().getParameters().length == 0
-                ? null
-                : attribute.getParameterList().getParameters()[0]
-        );
+        return literal != null ? literal : PhpSource.classConstFqn(first);
     }
 
     /** The attribute that makes a method a setter Ray.Di injects through, read as it reads it. */
@@ -866,6 +891,12 @@ public final class DiObjectGraphService {
         scan.addProperty("bindings", bound);
         scan.addProperty("nodes", walk.nodes.size());
         scan.addProperty("edges", walk.edges.size());
+        // A key whose name half could not be read is a key this looked the wrong binding up under,
+        // and the node it led to may be nobody's. Counted, because the edges carrying the mark are
+        // easy to miss in a graph of this size.
+        if (walk.qualifiersUnreadable > 0) {
+            scan.addProperty("qualifiersUnreadable", walk.qualifiersUnreadable);
+        }
         if (walk.capped) {
             scan.addProperty("nodesCapped", MAX_NODES);
         }
