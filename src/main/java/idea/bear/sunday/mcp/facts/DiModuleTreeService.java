@@ -73,14 +73,29 @@ public final class DiModuleTreeService {
     }
 
     public String read(@Nullable String context, boolean diagram) {
+        return readDrawn(context, diagram).envelope();
+    }
+
+    /**
+     * The same answer, with what each node of its drawing stands for. A picture drawn in a tool
+     * window can be clicked and a picture sent to an AI cannot, so the node map is answered beside
+     * the envelope rather than inside it: the envelope stays the one the tool returns, byte for
+     * byte, and the ids -- which are the renderer's own -- stay out of an answer no client can use
+     * them in.
+     */
+    public Drawn readDrawn(@Nullable String context, boolean diagram) {
         // Non-blocking so a pending write action is not made to wait out the read; cancelled and
         // retried instead. See DiBindingLookupService#lookup.
         return ReadAction.nonBlocking(() -> readTree(context, diagram)).executeSynchronously();
     }
 
-    private String readTree(@Nullable String context, boolean diagram) {
+    /** An answer and, when one was drawn, the node map of its drawing. */
+    public record Drawn(String envelope, @Nullable JsonObject nodes) {
+    }
+
+    private Drawn readTree(@Nullable String context, boolean diagram) {
         if (context == null || context.isBlank()) {
-            return Envelope.notFound("context is required, e.g. \"prod-api-app\"").toJson();
+            return new Drawn(Envelope.notFound("context is required, e.g. \"prod-api-app\"").toJson(), null);
         }
 
         try {
@@ -110,13 +125,21 @@ public final class DiModuleTreeService {
             }
             payload.add("frameworkOverride", walk.frameworkOverride());
             payload.add("assistedModule", walk.assistedModule());
+            JsonObject nodes = null;
             if (diagram) {
-                payload.addProperty("diagram", ModuleTreeDiagram.mermaid(payload));
+                ModuleTreeDiagram.Drawing drawing = ModuleTreeDiagram.draw(payload);
+                payload.addProperty("diagram", drawing.mermaid());
+                nodes = drawing.nodes();
             }
 
-            return Envelope.ok(Provenance.derived(walk.context(), walk.unsaved()), payload).toJson();
+            String envelope = Envelope.ok(Provenance.derived(walk.context(), walk.unsaved()), payload).toJson();
+
+            return new Drawn(envelope, nodes);
         } catch (IndexNotReadyException exception) {
-            return Envelope.indexNotReady("The project index is still building; module classes cannot be resolved yet.").toJson();
+            return new Drawn(
+                Envelope.indexNotReady("The project index is still building; module classes cannot be resolved yet.").toJson(),
+                null
+            );
         }
     }
 

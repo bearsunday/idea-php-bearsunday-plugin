@@ -18,6 +18,8 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -781,6 +783,56 @@ class DiModuleTreeServiceFixtureTest {
         // Exactly the two quotes that open and close the label itself, and no bare hash.
         assertEquals(2, label.chars().filter(c -> c == '"').count(), label);
         assertFalse(label.contains("#1"), label);
+    }
+
+    /**
+     * The panel makes a box clickable by the node id the drawing gave it, so an id in the map that
+     * is in no box, or a named module with no entry, is a box that opens the wrong file or none.
+     * The map is also the reason the envelope must not change: it is answered beside it.
+     */
+    @Test
+    void answersWhatEachDrawnNodeStandsFor() {
+        addApp();
+
+        DiModuleTreeService.Drawn drawn = DiModuleTreeService.getInstance(fixture.getProject())
+            .readDrawn("override-app", true);
+        JsonObject nodes = drawn.nodes();
+
+        assertNotNull(nodes, "a drawn tree must say what its nodes stand for");
+        assertFalse(nodes.keySet().isEmpty(), nodes::toString);
+        String mermaid = envelope(drawn.envelope()).get("diagram").getAsString();
+        for (String id : nodes.keySet()) {
+            assertTrue(mermaid.contains("  " + id + "["), "no box " + id + " in " + mermaid);
+            JsonObject facts = nodes.getAsJsonObject(id);
+            assertTrue(facts.has("class"), facts::toString);
+            // The short name is what the box shows; the map carries the name it left out.
+            String fqn = facts.get("class").getAsString();
+            assertTrue(fqn.startsWith("\\"), fqn);
+        }
+        // Asked for without a drawing, there is nothing to click and nothing to say about it.
+        assertNull(
+            DiModuleTreeService.getInstance(fixture.getProject()).readDrawn("override-app", false).nodes()
+        );
+    }
+
+    /** A module with no name has no class to open, so it is drawn and left out of the map. */
+    @Test
+    void leavesAModuleItCouldNotNameOutOfTheNodeMap() {
+        addApp();
+        addFile("src/Module/DynamicModule.php", DYNAMIC_MODULE);
+
+        DiModuleTreeService.Drawn drawn = DiModuleTreeService.getInstance(fixture.getProject())
+            .readDrawn("dynamic-nowhere", true);
+        String mermaid = envelope(drawn.envelope()).get("diagram").getAsString();
+
+        assertTrue(mermaid.contains("module not named"), mermaid);
+        for (String id : drawn.nodes().keySet()) {
+            String box = mermaid.lines()
+                .filter(line -> line.startsWith("  " + id + "["))
+                .findFirst()
+                .orElseThrow();
+            assertFalse(box.contains("module not named"), box);
+        }
     }
 
     private void addApp() {

@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.DumbService;
@@ -15,7 +16,12 @@ import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBTextField;
 import com.intellij.ui.jcef.JBCefApp;
 import com.intellij.ui.jcef.JBCefBrowser;
+import com.intellij.ui.jcef.JBCefBrowserBase;
+import com.intellij.ui.jcef.JBCefJSQuery;
+import com.intellij.util.PsiNavigateUtil;
 import com.intellij.util.ui.JBUI;
+import com.jetbrains.php.PhpIndex;
+import com.jetbrains.php.lang.psi.elements.PhpClass;
 import idea.bear.sunday.mcp.facts.DiModuleTreeService;
 import org.jetbrains.annotations.Nullable;
 
@@ -26,6 +32,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
+import java.util.Iterator;
 
 /**
  * Draws the module tree of a BEAR.Sunday context. The tree, and the picture of it, are the ones
@@ -46,6 +53,10 @@ final class ModuleTreePanel extends JPanel implements Disposable {
     @Nullable
     private final JComponent browserComponent;
 
+    /** The page's way back into the IDE, and the only one: a click in JCEF is not a Swing event. */
+    @Nullable
+    private final JBCefJSQuery openQuery;
+
     ModuleTreePanel(Project project) {
         super(new BorderLayout());
         this.project = project;
@@ -53,10 +64,39 @@ final class ModuleTreePanel extends JPanel implements Disposable {
         // than draw. Without it the Mermaid source is still worth showing.
         this.browser = JBCefApp.isSupported() ? new JBCefBrowser() : null;
         this.browserComponent = browser == null ? null : browser.getComponent();
+        // Made here, before anything is loaded: the bridge has to exist while the browser is still
+        // being set up, and one bridge serves every page the panel goes on to draw.
+        this.openQuery = browser == null ? null : JBCefJSQuery.create((JBCefBrowserBase) browser);
+        if (openQuery != null) {
+            Disposer.register(this, openQuery);
+            openQuery.addHandler(this::openModule);
+        }
 
         add(controls(), BorderLayout.NORTH);
         add(viewer, BorderLayout.CENTER);
         draw();
+    }
+
+    /**
+     * Opens the module class a box was drawn for. The handler is called off the EDT by JCEF, and
+     * resolving a class needs a read action, so both are asked for rather than assumed.
+     */
+    private JBCefJSQuery.Response openModule(String fqn) {
+        ApplicationManager.getApplication().invokeLater(() -> {
+            PhpClass phpClass = ReadAction.nonBlocking(() -> {
+                // The drawing names the class the tree named, so the first the index answers with
+                // is the one the tree was walked over; a name two classes answer to is a project
+                // with two, and either is the module the box stands for.
+                Iterator<PhpClass> classes = PhpIndex.getInstance(project).getClassesByFQN(fqn).iterator();
+
+                return classes.hasNext() ? classes.next() : null;
+            }).executeSynchronously();
+            if (phpClass != null) {
+                PsiNavigateUtil.navigate(phpClass);
+            }
+        }, project.getDisposed());
+
+        return null;
     }
 
     private JComponent controls() {
@@ -89,14 +129,14 @@ final class ModuleTreePanel extends JPanel implements Disposable {
         new Task.Backgroundable(project, "Reading the BEAR.Sunday module tree", true) {
             @Override
             public void run(ProgressIndicator indicator) {
-                String answer = DiModuleTreeService.getInstance(project).read(context, true);
-                ApplicationManager.getApplication().invokeLater(() -> show(answer));
+                DiModuleTreeService.Drawn drawn = DiModuleTreeService.getInstance(project).readDrawn(context, true);
+                ApplicationManager.getApplication().invokeLater(() -> show(drawn));
             }
         }.queue();
     }
 
-    private void show(String answer) {
-        JsonObject envelope = JsonParser.parseString(answer).getAsJsonObject();
+    private void show(DiModuleTreeService.Drawn drawn) {
+        JsonObject envelope = JsonParser.parseString(drawn.envelope()).getAsJsonObject();
         String diagram = string(envelope, "diagram");
         if (diagram == null) {
             // An envelope with no diagram is an answer -- not_found for a context nothing resolves,
@@ -114,7 +154,12 @@ final class ModuleTreePanel extends JPanel implements Disposable {
         // index builds, not_found for an empty context -- swapped it out for the message, and
         // leaving it out would make every later answer draw into a panel nothing can see.
         show(browserComponent);
-        browser.loadHTML(ModuleTreeDiagramPage.html(diagram, !JBColor.isBright()));
+        browser.loadHTML(ModuleTreeDiagramPage.html(
+            diagram,
+            openQuery == null ? null : drawn.nodes(),
+            openQuery == null ? "" : openQuery.inject("fqn"),
+            !JBColor.isBright()
+        ));
     }
 
     private void showText(String text) {

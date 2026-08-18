@@ -26,16 +26,31 @@ final class ModuleTreeDiagram {
     private final StringBuilder nodes = new StringBuilder();
     private final StringBuilder edges = new StringBuilder();
     private final Map<String, String> idsByClass = new HashMap<>();
+    private final JsonObject nodeFacts = new JsonObject();
     private int nextId;
 
     private ModuleTreeDiagram() {
     }
 
+    /**
+     * The drawing, and what each of its nodes stands for -- keyed by the node id the Mermaid source
+     * uses, so a reader of the drawn picture can be given the class the box was drawn for.
+     *
+     * <p>Answered here rather than added to the payload: the ids are this renderer's own, and mean
+     * nothing to a client that has the tree itself.
+     */
+    record Drawing(String mermaid, JsonObject nodes) {
+    }
+
     static String mermaid(JsonObject payload) {
+        return draw(payload).mermaid();
+    }
+
+    static Drawing draw(JsonObject payload) {
         ModuleTreeDiagram diagram = new ModuleTreeDiagram();
         diagram.render(payload);
 
-        return HEADER + "\n" + diagram.nodes + diagram.edges;
+        return new Drawing(HEADER + "\n" + diagram.nodes + diagram.edges, diagram.nodeFacts);
     }
 
     private void render(JsonObject payload) {
@@ -109,12 +124,34 @@ final class ModuleTreeDiagram {
             return id;
         }
         id = "m" + nextId++;
+        // A module with no name is drawn but not recorded: there is no class to open, and an entry
+        // promising one would make the box look navigable when nothing is behind it.
         if (moduleClass != null) {
             idsByClass.put(moduleClass.toLowerCase(Locale.ROOT), id);
+            nodeFacts.add(id, facts(module, moduleClass, note));
         }
         nodes.append("  ").append(id).append("[\"").append(escape(label(module, note))).append("\"]\n");
 
         return id;
+    }
+
+    /**
+     * What a box stands for, beyond the short name it is drawn with: the class in full, and the
+     * file it is written in. The box has room for neither, and both are what a reader wants before
+     * deciding to open it.
+     */
+    private static JsonObject facts(JsonObject module, String moduleClass, @Nullable String note) {
+        JsonObject facts = new JsonObject();
+        facts.addProperty("class", moduleClass);
+        String filePath = string(module, "filePath");
+        if (filePath != null) {
+            facts.addProperty("filePath", filePath);
+        }
+        if (note != null) {
+            facts.addProperty("note", note);
+        }
+
+        return facts;
     }
 
     private static String label(JsonObject module, @Nullable String note) {
