@@ -229,11 +229,19 @@ module: `InjectorInterface`, which `Injector::__construct()` binds after the mod
 and `InjectionPointInterface`. They carry `resolution: builtin`, since calling either unbound would report a
 failure no application has -- and every `ProviderInterface` in `bear/resource` takes an injector.
 
+With neither `className` nor `uri` it starts from the application class, `{AppNamespace}\Module\App` -- not
+from `AppInterface`, though that is what the bootstrap resolves. `AppMetaModule` binds that interface with
+`->to($this->appMeta->name . '\Module\App')`, a class name built while the application runs, so the binding
+names no class a reader of the source can follow and a graph started there is one node long. The class it
+names is knowable all the same.
+
 An `unbound` node is not a gap in the answer. Ray.Di binds an unbound concrete class on the spot only at the
 entry, where `Injector::getInstance()` catches `Untargeted`; below it `Arguments::getParameter()` lets
 `Unbound` out, and the compiled path throws the same, so an unbound key in the middle of a graph is what the
 application would throw -- unless the edge says the parameter has a default or the setter is
-`#[Inject(optional: true)]`.
+`#[Inject(optional: true)]`. It is certain only when every binding in the context could be filed under a key:
+a module that binds in a loop states its qualifier in a variable, and the node carries `keysUnreadable` saying
+how many such bindings there are, any of which may be the one it was looking for.
 
 It is not `print_o`, and does not pretend to be: `print_o` walks the properties of a live object, so a property
 assigned inside `onGet()` is in its picture, while this walks injection points, so only what Ray.Di puts there

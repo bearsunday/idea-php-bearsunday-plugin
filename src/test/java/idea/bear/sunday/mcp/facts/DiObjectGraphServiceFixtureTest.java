@@ -83,6 +83,22 @@ class DiObjectGraphServiceFixtureTest {
         }
         """;
 
+    /** A qualifier no module in these fixtures binds. */
+    private static final String UNBOUND_QUALIFIER = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Annotation;
+
+        use Attribute;
+        use Ray\\Di\\Di\\Qualifier;
+
+        #[Attribute(Attribute::TARGET_PARAMETER)]
+        #[Qualifier]
+        final class Secondary
+        {
+        }
+        """;
+
     /** An attribute that is NOT a qualifier, used to check that only the FIRST one is read. */
     private static final String PLAIN_ATTRIBUTE = """
         <?php
@@ -197,6 +213,7 @@ class DiObjectGraphServiceFixtureTest {
         namespace MyVendor\\MyProject;
 
         use MyVendor\\MyProject\\Annotation\\Documented;
+        use MyVendor\\MyProject\\Annotation\\Secondary;
         use MyVendor\\MyProject\\Annotation\\Primary;
         use Ray\\Di\\Di\\Named;
 
@@ -212,6 +229,7 @@ class DiObjectGraphServiceFixtureTest {
                 #[Documented] #[Named('retries')] private readonly int $retries,
                 #[Primary] private readonly array $hosts,
                 #[Named(Primary::class)] private readonly array $imports,
+                #[Secondary] private readonly string $tag,
                 private readonly StoreInterface $store,
                 private readonly ?AuditInterface $audit = null,
             ) {
@@ -307,17 +325,28 @@ class DiObjectGraphServiceFixtureTest {
         assertTrue(hasEdge(envelope, entry.get("key").getAsString(), clock.get("key").getAsString()));
     }
 
-    /** With no className and no uri, the entry is the interface a BEAR bootstrap resolves. */
+    /**
+     * With no className and no uri the entry is the application class itself, not the interface the
+     * bootstrap resolves. {@code AppMetaModule} binds that interface with
+     * {@code ->to($this->appMeta->name . '\\Module\\App')} -- a class name built while the
+     * application runs -- so a graph started at the interface is one node long, while the class it
+     * names is knowable from the app namespace.
+     */
     @Test
-    void startsFromTheInterfaceAnApplicationBootsThroughWhenGivenNoClass() {
+    void startsFromTheClassTheApplicationIsBuiltFromWhenGivenNoneItself() {
         addApp();
-        addFile("vendor/bear/sunday/src/Extension/Application/AppInterface.php", """
+        addFile("src/Module/App.php", """
             <?php
 
-            namespace BEAR\\Sunday\\Extension\\Application;
+            namespace MyVendor\\MyProject\\Module;
 
-            interface AppInterface
+            use MyVendor\\MyProject\\ClockInterface;
+
+            final class App
             {
+                public function __construct(public readonly ClockInterface $clock)
+                {
+                }
             }
             """);
 
@@ -328,9 +357,51 @@ class DiObjectGraphServiceFixtureTest {
         assertEquals("ok", envelope.get("status").getAsString(), envelope::toString);
         assertEquals("default", envelope.getAsJsonObject("entry").get("via").getAsString());
         assertEquals(
-            "\\BEAR\\Sunday\\Extension\\Application\\AppInterface-",
-            envelope.getAsJsonObject("entry").get("key").getAsString()
+            "\\MyVendor\\MyProject\\Module\\App-",
+            envelope.getAsJsonObject("entry").get("key").getAsString(),
+            envelope::toString
         );
+        // Walked, not merely named: the whole reason for starting at the class.
+        assertNotNull(node(envelope, "\\MyVendor\\MyProject\\ClockInterface-"), envelope::toString);
+    }
+
+    /**
+     * A module that binds in a loop -- {@code NamedModule(['defaultSchemeType' => 'content'])} is the
+     * one every BEAR application installs -- states its qualifier in a variable, so the key cannot be
+     * read. "Nothing binds this" would then be a confident answer about a key one of those may bind,
+     * and the node says how many were unreadable instead.
+     */
+    @Test
+    void doesNotClaimAKeyIsUnboundWhenABindingCouldNotBeFiled() {
+        addApp("\n        $this->install(new LoopModule());");
+        addFile("src/Module/LoopModule.php", """
+            <?php
+
+            namespace MyVendor\\MyProject\\Module;
+
+            use Ray\\Di\\AbstractModule;
+
+            final class LoopModule extends AbstractModule
+            {
+                public function __construct(private readonly array $names)
+                {
+                    parent::__construct();
+                }
+
+                protected function configure(): void
+                {
+                    foreach ($this->names as $name => $value) {
+                        $this->bind()->annotatedWith($name)->toInstance($value);
+                    }
+                }
+            }
+            """);
+
+        JsonObject envelope = envelope(graph("AppInterface", "app"));
+        JsonObject unbound = node(envelope, "-\\MyVendor\\MyProject\\Annotation\\Secondary");
+
+        assertEquals("unbound", unbound.get("resolution").getAsString(), unbound::toString);
+        assertTrue(unbound.get("keysUnreadable").getAsInt() > 0, unbound::toString);
     }
 
     /**
@@ -782,6 +853,7 @@ class DiObjectGraphServiceFixtureTest {
         addFile("vendor/ray/di/src/di/Di/Qualifier.php", RAY_DI_QUALIFIER);
         addFile("src/Annotation/Primary.php", DB_QUALIFIER);
         addFile("src/Annotation/Documented.php", PLAIN_ATTRIBUTE);
+        addFile("src/Annotation/Secondary.php", UNBOUND_QUALIFIER);
         addFile("src/Module/AppModule.php", APP_MODULE.replace(
             "$this->install(new MailModule());",
             "$this->install(new MailModule());" + extraInstalls

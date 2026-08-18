@@ -66,6 +66,9 @@ public final class DiObjectGraphService {
      */
     private static final String DEFAULT_ENTRY = "\\BEAR\\Sunday\\Extension\\Application\\AppInterface";
 
+    /** What {@code AppMetaModule} appends to the app namespace to name the application class. */
+    private static final String APP_CLASS_SUFFIX = "\\Module\\App";
+
     /**
      * The two keys the container answers for without any module binding them. Ray.Di binds them in
      * PHP rather than in a module -- {@code Injector::__construct()} does
@@ -154,12 +157,14 @@ public final class DiObjectGraphService {
         }
 
         try {
-            Entry entry = resolveEntry(className, uri);
+            // Walked first because the default entry is named out of what it found: the app
+            // namespace is the front half of the application class.
+            DiBindingLookupService.ContextBindings bindings =
+                DiBindingLookupService.getInstance(project).bindingsOf(context.trim());
+            Entry entry = resolveEntry(className, uri, bindings.walk().appNamespace());
             if (entry.error() != null) {
                 return entry.error();
             }
-            DiBindingLookupService.ContextBindings bindings =
-                DiBindingLookupService.getInstance(project).bindingsOf(context.trim());
             Container container = Container.of(bindings.modules());
 
             Walk walk = new Walk(container);
@@ -210,7 +215,22 @@ public final class DiObjectGraphService {
         }
     }
 
-    private Entry resolveEntry(@Nullable String className, @Nullable String uri) {
+    /**
+     * The class a BEAR application is built from when nothing else is asked for.
+     *
+     * <p>Not {@code AppInterface}, though that is what the bootstrap resolves: {@code AppMetaModule}
+     * binds it with {@code ->to($this->appMeta->name . '\\Module\\App')}, a class name built while
+     * the application runs, so the binding names no class any reader of the source can follow, and a
+     * graph started there is one node long. The class it names is knowable all the same -- the app
+     * namespace and that suffix are the whole of it -- so the walk starts at the class instead of at
+     * the interface that leads to it. Without an app namespace there is nothing to build the name
+     * from, and the interface is the honest second best.
+     */
+    private static String defaultEntry(@Nullable String appNamespace) {
+        return appNamespace == null ? DEFAULT_ENTRY : appNamespace + APP_CLASS_SUFFIX;
+    }
+
+    private Entry resolveEntry(@Nullable String className, @Nullable String uri, @Nullable String appNamespace) {
         if (uri != null && !uri.isBlank()) {
             String normalized = UriUtil.normalizeSupportedResourceUri(uri.trim(), false);
             if (normalized == null) {
@@ -224,10 +244,11 @@ public final class DiObjectGraphService {
                 ));
         }
         // An interface is kept here, unlike in the tools that answer about a class's own methods:
-        // the whole point of an entry is that a binding decides what it becomes, and the default
-        // entry is an interface.
-        String name = className == null || className.isBlank() ? DEFAULT_ENTRY : className.trim();
-        String via = className == null || className.isBlank() ? "default" : "className";
+        // the whole point of an entry is that a binding decides what it becomes, and a caller may
+        // well name one.
+        boolean byDefault = className == null || className.isBlank();
+        String name = byDefault ? defaultEntry(appNamespace) : className.trim();
+        String via = byDefault ? "default" : "className";
         PhpIndex index = PhpIndex.getInstance(project);
         List<PhpClass> candidates = new ArrayList<>();
         if (name.indexOf('\\') >= 0) {
@@ -242,7 +263,8 @@ public final class DiObjectGraphService {
         if (candidates.isEmpty()) {
             return Entry.failed(Envelope.notFound(
                 "default".equals(via)
-                    ? "Not found: " + DEFAULT_ENTRY + ". Name a className or uri to start from instead."
+                    ? "Not found: " + name + ", the class this context's application is built from. "
+                        + "Name a className or uri to start from instead."
                     : "Class not found: " + name
             ).toJson());
         }
@@ -498,7 +520,15 @@ public final class DiObjectGraphService {
             }
             DiBindingLookupService.Bound bound = container.winner(key);
             if (bound == null) {
-                return unbound(type, declared, isEntry);
+                Resolved resolved = unbound(type, declared, isEntry);
+                // "Nothing binds this" is only certain when every binding could be filed. A module
+                // that binds in a loop -- NamedModule(['dsn' => ...]) is the common one -- states
+                // its qualifier in a variable, and one of those may be this very key.
+                if (RESOLUTION_UNBOUND.equals(resolved.resolution()) && container.keysUndecidable > 0) {
+                    node.addProperty("keysUnreadable", container.keysUndecidable);
+                }
+
+                return resolved;
             }
             addBindingSite(node, bound);
             List<DiBindingLookupService.Bound> shadowed = container.shadowed(key);
