@@ -15,15 +15,12 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
 import com.intellij.psi.util.PsiTreeUtil;
-import com.jetbrains.php.lang.psi.elements.ClassConstantReference;
 import com.jetbrains.php.lang.psi.elements.ClassReference;
 import com.jetbrains.php.lang.psi.elements.MethodReference;
 import com.jetbrains.php.lang.psi.elements.PhpClass;
 import com.jetbrains.php.lang.psi.elements.PhpReturn;
 import com.jetbrains.php.lang.psi.elements.Statement;
-import com.jetbrains.php.lang.psi.elements.StringLiteralExpression;
 import com.jetbrains.php.lang.psi.elements.Variable;
-import com.jetbrains.php.util.PhpStringUtil;
 import idea.bear.sunday.aop.InterceptorBindingIndexUtil;
 import org.jetbrains.annotations.Nullable;
 
@@ -514,11 +511,7 @@ public final class DiBindingLookupService {
      */
     @Nullable
     private static String stringValue(@Nullable PsiElement element) {
-        if (!(element instanceof StringLiteralExpression literal) || literal.getFirstPsiChild() != null) {
-            return null;
-        }
-
-        return PhpStringUtil.unescapeText(literal);
+        return PhpSource.stringValue(element);
     }
 
     /**
@@ -528,25 +521,12 @@ public final class DiBindingLookupService {
      */
     @Nullable
     private static String classConstFqn(@Nullable PsiElement element) {
-        if (!(element instanceof ClassConstantReference reference)) {
-            return null;
-        }
-        // PHP writes ::class case-insensitively, as it writes every constant fetch on a class.
-        if (!"class".equalsIgnoreCase(reference.getName())) {
-            return null;
-        }
-        if (!(reference.getClassReference() instanceof ClassReference resolved)) {
-            return null;
-        }
-
-        return InterceptorBindingIndexUtil.normalizeFqn(resolved.getFQN());
+        return PhpSource.classConstFqn(element);
     }
 
     /** Source text on one line. A chain spans several lines and may carry a docblock between them. */
     private static String text(PsiElement element) {
-        String text = element.getText().replaceAll("\\s+", " ").trim();
-
-        return text.length() <= MAX_TEXT ? text : text.substring(0, MAX_TEXT) + "…";
+        return PhpSource.oneLine(element, MAX_TEXT);
     }
 
     /**
@@ -555,10 +535,7 @@ public final class DiBindingLookupService {
      */
     @Nullable
     private static String moduleClassOf(PsiElement call) {
-        PhpClass phpClass = PsiTreeUtil.getParentOfType(call, PhpClass.class);
-        String fqn = phpClass == null ? null : phpClass.getFQN();
-
-        return fqn == null || fqn.isBlank() || fqn.endsWith("\\") ? null : fqn;
+        return PhpSource.enclosingClassFqn(call);
     }
 
     /** The 1-based line a call starts on, or {@code null} when the file has no document to count in. */

@@ -609,7 +609,7 @@ public final class DiModuleTreeService {
 
     /** Source text on one line, matching the binding lookup's own call texts. */
     private static String callText(MethodReference call) {
-        return call.getText().replaceAll("\\s+", " ").trim();
+        return PhpSource.oneLine(call);
     }
 
     /** What the walk accumulates outside the tree it builds. */

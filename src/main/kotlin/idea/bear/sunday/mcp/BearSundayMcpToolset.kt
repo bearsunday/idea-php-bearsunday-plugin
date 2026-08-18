@@ -220,16 +220,25 @@ class BearSundayMcpToolset : McpToolset {
             "bindPriorityInterceptor bound it -- Ray.Aop binds those first, so they are listed first -- and, " +
             "under context, the \"segment\" that reached the module. " +
             "UNLIKE the other bear_* tools this one EVALUATES rather than reports: it decides whether a matcher " +
-            "matches. It evaluates only the seven matchers Ray\\Di\\Matcher declares (any, annotatedWith, " +
+            "matches. It evaluates only the seven matchers Ray\\Aop\\Matcher declares (any, annotatedWith, " +
             "subclassesOf, startsWith, logicalOr, logicalAnd, logicalNot) exactly as Ray.Aop's own matcher " +
             "classes do -- annotatedWith matches an attribute that EXTENDS the named class, as " +
             "ReflectionAttribute::IS_INSTANCEOF does; any() excludes magic methods and ArrayObject's; " +
-            "startsWith compares as written, case-sensitively. Everything it cannot decide goes to " +
-            "\"unevaluated\" with a \"reason\" rather than being settled by a guess: \"matcher-unreadable\" (an " +
-            "expression outside that vocabulary, such as annotatedWith(\$attribute) or a matcher class of one's " +
-            "own), \"hierarchy-unresolved\" (a class or attribute whose ancestry the index could not resolve, so " +
-            "\"no\" could not be proved), \"matcher-invalid\" (subclassesOf on the METHOD side, which Ray.Aop " +
-            "throws InvalidAnnotationException on -- a fault in that module). Limits: this does NOT check that " +
+            "startsWith compares the name as reflection spells it (no leading backslash) against the prefix " +
+            "exactly as written, case-sensitively; logicalAnd/logicalOr fold every argument, which is how a " +
+            "three-argument logicalAnd is read. The methods examined are the public ones the class has, " +
+            "inherited and trait-imported alike, as get_class_methods() lists them. Everything it cannot decide " +
+            "goes to \"unevaluated\" with a \"reason\" rather than being settled by a guess: " +
+            "\"matcher-unreadable\" (an expression outside that vocabulary, such as annotatedWith(\$attribute) " +
+            "or a matcher class of one's own), \"hierarchy-unresolved\" (a class or attribute whose ancestry the " +
+            "index could not resolve, or one deeper than the walk goes, so \"no\" could not be proved), " +
+            "\"matcher-invalid\" (subclassesOf on the METHOD side, which Ray.Aop throws " +
+            "InvalidAnnotationException on -- a fault in that module), \"binding-unreadable\" (a bindInterceptor " +
+            "call whose own three arguments could not be read, such as one written with a spread). One entry " +
+            "stands for one pointcut: it carries \"method\" when only one method was left undecided by it and " +
+            "\"methodsAffected\" when more were. An interceptor array holding an element that names no class is " +
+            "reported as \"interceptorsUnreadable\": <count> beside the ones that were read, because the method " +
+            "is wrapped by more than the list shows. Limits: this does NOT check that " +
             "Ray.Di ever instantiates the class, which is what makes weaving happen at all, so a match here is " +
             "\"this pointcut selects this method\", not \"this object is woven\"; attributes are read as " +
             "declared, because PHP reflection does not inherit a class attribute from a parent; and the order " +

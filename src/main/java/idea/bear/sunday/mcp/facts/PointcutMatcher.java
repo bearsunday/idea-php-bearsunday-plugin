@@ -1,18 +1,15 @@
 package idea.bear.sunday.mcp.facts;
 
 import com.intellij.psi.PsiElement;
-import com.jetbrains.php.lang.psi.elements.ClassConstantReference;
-import com.jetbrains.php.lang.psi.elements.ClassReference;
 import com.jetbrains.php.lang.psi.elements.FieldReference;
 import com.jetbrains.php.lang.psi.elements.MethodReference;
-import com.jetbrains.php.lang.psi.elements.StringLiteralExpression;
 import com.jetbrains.php.lang.psi.elements.Variable;
-import com.jetbrains.php.util.PhpStringUtil;
 import idea.bear.sunday.aop.InterceptorBindingIndexUtil;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Locale;
 import java.util.Optional;
+import java.util.function.BinaryOperator;
 
 /**
  * A Ray.Aop matcher expression, read from the source that builds it. The vocabulary is closed:
@@ -87,12 +84,8 @@ sealed interface PointcutMatcher {
             case "startswith" -> literal(arguments)
                 .<PointcutMatcher>map(StartsWith::new)
                 .orElseGet(() -> new Unreadable(text(call)));
-            case "logicalor" -> arguments.length == 2
-                ? new Or(parse(arguments[0]), parse(arguments[1]))
-                : new Unreadable(text(call));
-            case "logicaland" -> arguments.length == 2
-                ? new And(parse(arguments[0]), parse(arguments[1]))
-                : new Unreadable(text(call));
+            case "logicalor" -> folded(arguments, call, Or::new);
+            case "logicaland" -> folded(arguments, call, And::new);
             case "logicalnot" -> arguments.length == 1
                 ? new Not(parse(arguments[0]))
                 : new Unreadable(text(call));
@@ -130,16 +123,38 @@ sealed interface PointcutMatcher {
             && "this".equals(variable.getName());
     }
 
+    /**
+     * {@code logicalAnd(a, b, c)} read as {@code (a and b) and c}. Ray.Aop's {@code Matcher}
+     * declares two parameters but collects them with {@code func_get_args()}, and
+     * {@code LogicalAndMatcher} folds every argument it was given -- which is how
+     * {@code ray/aura-sql-module} writes a three-argument {@code logicalAnd}. Reading only the
+     * two-argument form would carry that whole pointcut as unreadable.
+     */
+    private static PointcutMatcher folded(
+        PsiElement[] arguments,
+        MethodReference call,
+        BinaryOperator<PointcutMatcher> combine
+    ) {
+        // PHP itself refuses fewer than the two the signature declares.
+        if (arguments.length < 2) {
+            return new Unreadable(text(call));
+        }
+        PointcutMatcher matcher = parse(arguments[0]);
+        for (int i = 1; i < arguments.length; i++) {
+            matcher = combine.apply(matcher, parse(arguments[i]));
+        }
+
+        return matcher;
+    }
+
     /** The class a single {@code Foo::class} or {@code 'Foo'} argument names. */
     private static Optional<String> className(PsiElement[] arguments) {
         if (arguments.length != 1) {
             return Optional.empty();
         }
-        PsiElement argument = arguments[0];
-        if (argument instanceof ClassConstantReference reference
-            && "class".equalsIgnoreCase(reference.getName())
-            && reference.getClassReference() instanceof ClassReference resolved) {
-            return Optional.ofNullable(InterceptorBindingIndexUtil.normalizeFqn(resolved.getFQN()));
+        String fqn = PhpSource.classConstFqn(arguments[0]);
+        if (fqn != null) {
+            return Optional.of(fqn);
         }
 
         // Ray.Aop declares the argument as a string, so a plain literal names a class as well as
@@ -148,27 +163,17 @@ sealed interface PointcutMatcher {
     }
 
     /**
-     * The string a single literal argument stands for. An interpolated string states a template
-     * rather than a value, so it is not one: {@code "on{$verb}"} is a prefix only at runtime.
+     * The string a single literal argument stands for. An empty one is not a prefix any name
+     * starts with in a way worth reporting, and {@code annotatedWith('')} names no class.
      */
     private static Optional<String> literal(PsiElement[] arguments) {
-        if (arguments.length != 1
-            || !(arguments[0] instanceof StringLiteralExpression string)
-            || string.getFirstPsiChild() != null) {
-            return Optional.empty();
-        }
-        String value = PhpStringUtil.unescapeText(string);
+        String value = arguments.length == 1 ? PhpSource.stringValue(arguments[0]) : null;
 
-        return value.isEmpty() ? Optional.empty() : Optional.of(value);
+        return value == null || value.isEmpty() ? Optional.empty() : Optional.of(value);
     }
 
     /** Source text on one line, as the binding lookup reports its own calls. */
     private static String text(@Nullable PsiElement element) {
-        if (element == null) {
-            return "";
-        }
-        String text = element.getText().replaceAll("\\s+", " ").trim();
-
-        return text.length() <= MAX_TEXT ? text : text.substring(0, MAX_TEXT) + "…";
+        return PhpSource.oneLine(element, MAX_TEXT);
     }
 }
