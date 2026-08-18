@@ -7,6 +7,7 @@ import com.intellij.openapi.project.Project
 import idea.bear.sunday.mcp.facts.AlpsFactsService
 import idea.bear.sunday.mcp.facts.AopPointcutLookupService
 import idea.bear.sunday.mcp.facts.ApiDocFactsService
+import idea.bear.sunday.mcp.facts.AppContextListService
 import idea.bear.sunday.mcp.facts.BodyShapeFactsService
 import idea.bear.sunday.mcp.facts.ContractCompareService
 import idea.bear.sunday.mcp.facts.DiBindingLookupService
@@ -200,6 +201,28 @@ class BearSundayMcpToolset : McpToolset {
     )
     suspend fun bear_di_module_tree_read(context: String, diagram: Boolean = false): String =
         DiModuleTreeService.getInstance(project()).read(context, diagram)
+
+    @McpTool
+    @McpDescription(
+        "Read-only. Lists the contexts this application actually runs under, as JSON, with the file " +
+            "and line each one is written at. Call this FIRST whenever another bear_* tool wants a " +
+            "context (bear_di_module_tree_read, bear_di_binding_lookup, bear_aop_pointcut_lookup): a " +
+            "context is a string no file declares in one place, so guessing it from the naming " +
+            "convention answers for an app that may never boot that way. It reads the two shapes an app " +
+            "names one in -- (new Bootstrap())('prod-hal-app', \$GLOBALS, \$_SERVER), which is how an " +
+            "entry point boots, and Injector::getInstance('app'), which is how a test reaches in -- " +
+            "matched by the name the class is written under, because every app declares its own " +
+            "Bootstrap and Injector in its own namespace. Scans public, bin, tests and src; NOT vendor, " +
+            "whose fixtures name contexts that are no app's. A ternary states two contexts and both are " +
+            "listed, but the condition is not read as one: PHP_SAPI === 'cli-server' ? 'hal-app' : " +
+            "'prod-hal-app' names two contexts, not three. What it cannot read it counts rather than " +
+            "guesses: a context named by a variable -- Injector::getInstance(\$context), which Bootstrap " +
+            "itself writes -- raises \"argumentsUnreadable\", so a list with that count is not the whole " +
+            "list. Order is the order found, entry points first. This says where a context is WRITTEN, " +
+            "not whether its modules resolve -- bear_di_module_tree_read answers that."
+    )
+    suspend fun bear_app_context_list(): String =
+        AppContextListService.getInstance(project()).list()
 
     @McpTool
     @McpDescription(
