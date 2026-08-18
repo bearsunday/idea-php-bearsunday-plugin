@@ -20,7 +20,6 @@ import com.jetbrains.php.lang.psi.elements.MethodReference;
 import com.jetbrains.php.lang.psi.elements.PhpAttribute;
 import com.jetbrains.php.lang.psi.elements.PhpAttributesOwner;
 import com.jetbrains.php.lang.psi.elements.PhpClass;
-import com.jetbrains.php.lang.psi.elements.PhpModifier;
 import com.jetbrains.php.lang.psi.elements.Variable;
 import idea.bear.sunday.aop.InterceptorBindingIndexUtil;
 import idea.bear.sunday.resource.ResourceClassResolver;
@@ -64,7 +63,6 @@ public final class AopPointcutLookupService {
 
     private static final String BIND_INTERCEPTOR = "bindInterceptor";
     private static final String BIND_PRIORITY_INTERCEPTOR = "bindPriorityInterceptor";
-    private static final String CONSTRUCT = "__construct";
 
     /**
      * The method names {@code any()} does not match, read from {@code AnyMatcher}: it excludes
@@ -357,58 +355,19 @@ public final class AopPointcutLookupService {
      */
     private static List<Method> methodsOf(PhpClass target, @Nullable String named) {
         List<Method> methods = new ArrayList<>();
-        Set<String> seen = new HashSet<>();
-        PhpClass current = target;
-        for (int depth = 0; current != null && depth < MAX_HIERARCHY; depth++) {
-            // The class's own first, then the traits it uses: a method declared in both is the
-            // class's own, and `seen` keeps the first of a name.
-            collectMethods(current, named, seen, methods);
-            for (PhpClass trait : traitsOf(current)) {
-                collectMethods(trait, named, seen, methods);
+        // PHP compares method names case-insensitively, so a question about "onget" is a question
+        // about onGet().
+        for (Method method : PhpMembers.publicMethods(target)) {
+            if (named == null || named.equalsIgnoreCase(method.getName())) {
+                methods.add(method);
             }
-            current = current.getSuperClass();
         }
 
         return methods;
     }
 
-    private static void collectMethods(
-        PhpClass declaring,
-        @Nullable String named,
-        Set<String> seen,
-        List<Method> methods
-    ) {
-        for (Method method : declaring.getOwnMethods()) {
-            String name = method.getName();
-            if (method.getModifier().getAccess() != PhpModifier.Access.PUBLIC
-                || CONSTRUCT.equalsIgnoreCase(name)
-                || !seen.add(name.toLowerCase(Locale.ROOT))) {
-                continue;
-            }
-            // PHP compares method names case-insensitively, so a question about "onget" is a
-            // question about onGet().
-            if (named == null || named.equalsIgnoreCase(name)) {
-                methods.add(method);
-            }
-        }
-    }
-
-    /** The traits a class uses, and the traits those use, which PHP flattens into the class alike. */
     private static List<PhpClass> traitsOf(PhpClass phpClass) {
-        List<PhpClass> traits = new ArrayList<>();
-        Set<String> seen = new HashSet<>();
-        List<PhpClass> queue = new ArrayList<>(List.of(phpClass));
-        while (!queue.isEmpty() && seen.size() < MAX_HIERARCHY) {
-            for (PhpClass trait : queue.remove(0).getTraits()) {
-                String fqn = trait.getFQN();
-                if (fqn != null && seen.add(fqn.toLowerCase(Locale.ROOT))) {
-                    traits.add(trait);
-                    queue.add(trait);
-                }
-            }
-        }
-
-        return traits;
+        return PhpMembers.traitsOf(phpClass);
     }
 
     /** Every {@code bindInterceptor()}/{@code bindPriorityInterceptor()} call written in a file. */

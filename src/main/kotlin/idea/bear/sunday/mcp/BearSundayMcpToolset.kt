@@ -12,6 +12,7 @@ import idea.bear.sunday.mcp.facts.BodyShapeFactsService
 import idea.bear.sunday.mcp.facts.ContractCompareService
 import idea.bear.sunday.mcp.facts.DiBindingLookupService
 import idea.bear.sunday.mcp.facts.DiModuleTreeService
+import idea.bear.sunday.mcp.facts.DiObjectGraphService
 import idea.bear.sunday.mcp.facts.LinkSuggestService
 import idea.bear.sunday.mcp.facts.ResourceAttributeIndexService
 import idea.bear.sunday.mcp.facts.ResourceFactsService
@@ -204,6 +205,58 @@ class BearSundayMcpToolset : McpToolset {
     )
     suspend fun bear_di_module_tree_read(context: String, diagram: Boolean = false): String =
         DiModuleTreeService.getInstance(project()).read(context, diagram)
+
+    @McpTool
+    @McpDescription(
+        "Read-only. Resolves the OBJECT GRAPH a class is built from in one context, as JSON: what Ray.Di " +
+            "would actually construct, answered from the source instead of from a running application. This " +
+            "is print_o's question without booting anything -- and it sees a different thing: print_o walks " +
+            "the properties of a live object, so a property assigned inside onGet() is in its picture, while " +
+            "this walks INJECTION POINTS, so only what Ray.Di puts there is in this one. " +
+            "Start from className or uri; with neither it starts from " +
+            "\\BEAR\\Sunday\\Extension\\Application\\AppInterface, the interface a BEAR bootstrap " +
+            "resolves, which reaches the router, the transfer, the resource client and the error handler in " +
+            "one answer. context is REQUIRED (\"prod-hal-app\") -- nearly every binding an application relies " +
+            "on is declared in a framework package, so a graph read without one would call plainly-bound " +
+            "dependencies unbound; call bear_app_context_list first for the contexts the app really boots " +
+            "under. " +
+            "A node is a container key spelled the way Ray.Di spells it, \"{type}-{name}\" -- the string " +
+            "Container::getDependency() is given -- so a scalar or union-typed parameter has an EMPTY type " +
+            "half (#[Named('dsn')] string \$dsn is keyed \"-dsn\"), and a qualifier is either a #[Named] " +
+            "value or the class of an attribute marked #[Qualifier]. Each node carries \"resolution\": " +
+            "\"static\" (a binding names the class, and \"implementation\" is it), \"provider\" (a " +
+            "ProviderInterface builds it -- the provider's OWN dependencies are walked, what its get() " +
+            "returns is not), \"instance\", \"null-object\", \"dynamic-unresolved\", \"scalar\" (a key " +
+            "with no type, so no class to build), \"class-unresolved\", \"entry-untargeted\" (nothing binds " +
+            "the entry, which Ray.Di alone binds on the spot -- Injector::getInstance catches Untargeted) and " +
+            "\"unbound\", which is NOT a gap in this answer: below the entry Ray.Di has no such fallback, so " +
+            "an unbound key is what the application would throw, unless the edge carries " +
+            "\"defaultAvailable\" or \"optional\". A node also carries the binding's \"scope\", the module " +
+            "and file/line it was bound at, and \"shadowedBy\": the bindings of that key that LOST, so the " +
+            "module that nearly supplied another implementation is named rather than dropped. The winner is " +
+            "decided by Ray.Di's own merge -- a later bind() in one module replaces an earlier one, a " +
+            "module's own bind beats one from a module it installs, and of two installed modules the one " +
+            "installed first wins, with override() reversing the last of those. " +
+            "Edges carry \"kind\" (constructor-param or setter-param), the parameter and method they are " +
+            "written at, and \"cycle\" when they lead back into the path they came from. " +
+            "\"scan\" says what the answer could not deliver, each only when it happened: " +
+            "\"renamesNotApplied\", \"bindingsWithNoReadableKey\", \"nodesCapped\", \"depthCapped\", " +
+            "\"unresolvedSegments\", \"classesUnresolved\", \"installsUnreadable\", \"modulesSkipped\", " +
+            "\"appNamespaceUnknown\". Limits: MultiBinder, #[Set] and #[Assisted] are not followed; a " +
+            "rename() is reported rather than applied; interception does not appear, because it wraps a node " +
+            "without changing what is injected into it -- ask bear_aop_pointcut_lookup for that. Resolving " +
+            "the classes and the context both need the project index, so this answers " +
+            "status=index_not_ready while the index builds. " +
+            "diagram=true adds \"diagram\": a Mermaid flowchart of the same graph, one box per key and one " +
+            "arrow per injection point (dotted for a cycle). It is a rendering of this answer, never a " +
+            "second opinion about the project."
+    )
+    suspend fun bear_di_object_graph(
+        className: String? = null,
+        uri: String? = null,
+        context: String,
+        diagram: Boolean = false
+    ): String = DiObjectGraphService.getInstance(project()).graph(className, uri, context, diagram)
 
     @McpTool
     @McpDescription(

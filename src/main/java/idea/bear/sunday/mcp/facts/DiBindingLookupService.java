@@ -64,14 +64,17 @@ public final class DiBindingLookupService {
     private static final String MODULE = "Module";
     private static final String ANNOTATED_WITH = "annotatedWith";
     private static final String IN = "in";
-    private static final String TO = "to";
+    static final String TO = "to";
 
-    private static final String TO_PROVIDER = "toProvider";
-    private static final String TO_CONSTRUCTOR = "toConstructor";
+    static final String TO_PROVIDER = "toProvider";
+    static final String TO_CONSTRUCTOR = "toConstructor";
+
+    static final String TO_INSTANCE = "toInstance";
+    static final String TO_NULL = "toNull";
 
     /** Every way {@code Ray\Di\Bind} takes a target, written as Ray.Di writes it. */
     private static final List<String> TARGET_METHODS =
-        List.of(TO, TO_PROVIDER, TO_CONSTRUCTOR, "toInstance", "toNull");
+        List.of(TO, TO_PROVIDER, TO_CONSTRUCTOR, TO_INSTANCE, TO_NULL);
 
     /** The ones whose argument is a class name; the rest take a value or nothing. */
     private static final List<String> NAMES_A_CLASS = List.of(TO, TO_PROVIDER, TO_CONSTRUCTOR);
@@ -79,8 +82,8 @@ public final class DiBindingLookupService {
     private static final String RESOLUTION_STATIC = "static";
     private static final String RESOLUTION_DYNAMIC = "dynamic-unresolved";
 
-    private static final String BOUND_BY_UNTARGETED = "untargeted";
-    private static final String BOUND_BY_UNKNOWN = "unknown";
+    static final String BOUND_BY_UNTARGETED = "untargeted";
+    static final String BOUND_BY_UNKNOWN = "unknown";
     private static final String QUALIFIER_NAME = "name";
     private static final String QUALIFIER_CLASS = "class";
     private static final String QUALIFIER_UNRESOLVED = "unresolved";
@@ -208,7 +211,7 @@ public final class DiBindingLookupService {
         }
 
         Answer answer = new Answer(ClassFilter.of(interfaceName), QualifierFilter.of(qualifier), this::isConcreteClass);
-        int filesRead = readModules(walk, answer);
+        int filesRead = readModules(walk, answer, null);
 
         JsonObject scan = new JsonObject();
         scan.addProperty("context", walk.context());
@@ -254,14 +257,23 @@ public final class DiBindingLookupService {
      *
      * @return how many files were read
      */
-    private int readModules(DiModuleTreeService.Walk walk, Answer answer) {
+    private int readModules(
+        DiModuleTreeService.Walk walk,
+        Answer answer,
+        @Nullable List<ModuleBindings> perModule
+    ) {
         Set<VirtualFile> read = new HashSet<>();
         for (DiModuleTreeService.WalkedModule module : walk.modules()) {
             Reach reach = new Reach(module.segment(), module.priority());
+            int before = answer.bound.size();
             for (VirtualFile file : module.files()) {
                 if (read.add(file)) {
                     readCalls(file, answer, reach);
                 }
+            }
+            if (perModule != null) {
+                List<Bound> declared = List.copyOf(answer.bound.subList(before, answer.bound.size()));
+                perModule.add(new ModuleBindings(module, declared));
             }
         }
 
@@ -273,16 +285,18 @@ public final class DiBindingLookupService {
      * scan the context form of {@link #lookup} runs, handed over whole: no filter has been applied,
      * so a consumer sees the bindings that shadow one another as well as the winner.
      *
+     * <p>Call this inside a read action: it is the caller's whole answer that has to be read under
+     * one lock, not this half of it.
+     *
      * @throws IndexNotReadyException when the modules a context installs cannot be resolved yet
      */
     ContextBindings bindingsOf(String context) {
-        return ReadAction.nonBlocking(() -> {
-            DiModuleTreeService.Walk walk = DiModuleTreeService.getInstance(project).walk(context);
-            Answer answer = new Answer(ClassFilter.of(null), QualifierFilter.of(null), this::isConcreteClass);
-            int filesRead = readModules(walk, answer);
+        DiModuleTreeService.Walk walk = DiModuleTreeService.getInstance(project).walk(context);
+        Answer answer = new Answer(ClassFilter.of(null), QualifierFilter.of(null), this::isConcreteClass);
+        List<ModuleBindings> perModule = new ArrayList<>();
+        int filesRead = readModules(walk, answer, perModule);
 
-            return new ContextBindings(walk, List.copyOf(answer.bound), answer.renamesFound, filesRead);
-        }).executeSynchronously();
+        return new ContextBindings(walk, List.copyOf(perModule), answer.renamesFound, filesRead);
     }
 
     private void readCalls(VirtualFile file, Answer answer, @Nullable Reach reach) {
@@ -653,6 +667,30 @@ public final class DiBindingLookupService {
     }
 
     /**
+     * The key Ray.Di files a binding under: {@code "{type}-{name}"}, the very string
+     * {@code Container::getDependency()} is given, with an empty type for a binding made under a
+     * name alone. {@code null} when the source states neither end of it -- an interface this could
+     * not read, or a qualifier held in a property -- because a key guessed at would collide with
+     * one a caller means.
+     */
+    @Nullable
+    static String keyOf(Binding binding) {
+        if (binding.interfaceUnreadable()) {
+            return null;
+        }
+        String type = binding.boundInterface() == null ? "" : binding.boundInterface();
+        Qualifier qualifier = binding.qualifier();
+        if (qualifier == null) {
+            return type + "-";
+        }
+        if (QUALIFIER_UNRESOLVED.equals(qualifier.kind())) {
+            return null;
+        }
+
+        return type + "-" + (qualifier.value() == null ? "" : qualifier.value());
+    }
+
+    /**
      * A binding with the place it was read from, for a consumer that resolves bindings rather than
      * printing them -- {@link DiObjectGraphService}, which has to choose one of several bindings of
      * the same key and then follow it.
@@ -661,12 +699,26 @@ public final class DiBindingLookupService {
     }
 
     /**
-     * Everything a context's modules bind, in the order the modules were walked -- strongest first,
-     * which is the order Ray.Di's own merge resolves them in. Unfiltered and unshadowed: deciding
-     * which of two bindings of one key wins is the consumer's business, and it cannot decide what
-     * it was not given.
+     * What one walked module binds. Kept apart from the next module's rather than run together,
+     * because Ray.Di resolves the two by different rules: a later {@code bind()} REPLACES an earlier
+     * one in the same container, while a merged container only FILLS what the receiving one left
+     * empty. A flat list of every binding cannot tell those apart. Unfiltered and unshadowed:
+     * deciding which of two bindings of one key wins is the consumer's business, and it cannot
+     * decide what it was not given.
      */
-    record ContextBindings(DiModuleTreeService.Walk walk, List<Bound> bound, int renames, int filesRead) {
+    record ModuleBindings(DiModuleTreeService.WalkedModule module, List<Bound> bound) {
+    }
+
+    /**
+     * Everything a context's modules bind, in the order the modules were walked -- strongest first,
+     * which is the order Ray.Di's own merge resolves them in, {@code override()} aside.
+     */
+    record ContextBindings(
+        DiModuleTreeService.Walk walk,
+        List<ModuleBindings> modules,
+        int renames,
+        int filesRead
+    ) {
     }
 
     /**
