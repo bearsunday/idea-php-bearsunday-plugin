@@ -112,11 +112,14 @@ class BearSundayMcpToolset : McpToolset {
             "framework bindings. Each binding carries \"boundBy\" -- the Ray.Di method that gave it its target " +
             "(\"to\", \"toProvider\", \"toConstructor\", \"toInstance\", \"toNull\", \"untargeted\" for a bind() " +
             "with no target, \"unknown\" for a chain continued somewhere this could not follow) -- and a " +
-            "\"resolution\": \"static\" when the binding itself names the implementation class (bind()->to()), " +
-            "otherwise \"dynamic-unresolved\", which means only that THIS TOOL does not name the implementation, " +
-            "not that no implementation exists. Those are reported, never dropped, with the class their argument " +
-            "names under \"targetClass\", or \"targetUnreadable\": true when the argument names a class this " +
-            "could not read. A binding a filter could not be applied to, because the element being " +
+            "\"resolution\": \"static\" when the source names the implementation class -- bind()->to(), " +
+            "toConstructor() (its first argument is the class Ray.Di builds), and an untargeted bind, which " +
+            "binds a CONCRETE class to itself (an interface it binds to nothing, so this one form needs the " +
+            "project index and reads as unresolved while that index builds) -- otherwise " +
+            "\"dynamic-unresolved\" (toProvider, toInstance, toNull), which means only that THIS TOOL does not " +
+            "name the implementation, not that no implementation exists. Those are reported, never dropped, with " +
+            "the class their argument names under \"targetClass\", or \"targetUnreadable\": true when the " +
+            "argument names a class this could not read. A binding a filter could not be applied to, because the element being " +
             "filtered is the one whose value the source does not state (annotatedWith(\$this->qualifier), " +
             "annotatedWith(\"{\$this->prefix}_dsn\")), goes to \"unresolved\" rather than being silently " +
             "excluded, as do rename() calls, which move a binding to another interface or qualifier and are " +

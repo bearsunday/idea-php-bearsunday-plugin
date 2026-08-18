@@ -7,6 +7,7 @@ import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.progress.ProgressManager;
+import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -15,6 +16,7 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
 import com.intellij.psi.util.PsiTreeUtil;
+import com.jetbrains.php.PhpIndex;
 import com.jetbrains.php.lang.psi.elements.ClassReference;
 import com.jetbrains.php.lang.psi.elements.MethodReference;
 import com.jetbrains.php.lang.psi.elements.PhpClass;
@@ -37,7 +39,10 @@ import java.util.Set;
  * <p>The module files are walked and read from PSI rather than looked up in an index, so the
  * answer is available while the project index is still building, and it reflects unsaved editor
  * changes. A context narrows the scan to the modules that context installs, and resolving a
- * context needs the index, so only that form of the question waits for it.
+ * context needs the index, so only that form of the question waits for it. One binding form asks
+ * the index a question it can do without: a bind that names no target binds a CONCRETE class to
+ * itself and an interface to nothing, and while the index cannot say which it is, that binding is
+ * answered for as it was before -- with no implementation named.
  *
  * <p>What this version reads is one construct: a {@code $this->bind(...)} chain. Without a context
  * the answer is every binding in the scanned root, whichever context installs it; with one, the
@@ -144,7 +149,7 @@ public final class DiBindingLookupService {
 
         ClassFilter interfaceFilter = ClassFilter.of(interfaceName);
         QualifierFilter qualifierFilter = QualifierFilter.of(qualifier);
-        Answer answer = new Answer(interfaceFilter, qualifierFilter);
+        Answer answer = new Answer(interfaceFilter, qualifierFilter, this::isConcreteClass);
         List<VirtualFile> found = FactsFiles.phpFilesUnder(rootDir);
         // A root such as "vendor" holds tens of thousands of files, and every one of them would be
         // parsed inside one read action. The files are walked in path order, so the cut is at least
@@ -201,7 +206,7 @@ public final class DiBindingLookupService {
             ).toJson();
         }
 
-        Answer answer = new Answer(ClassFilter.of(interfaceName), QualifierFilter.of(qualifier));
+        Answer answer = new Answer(ClassFilter.of(interfaceName), QualifierFilter.of(qualifier), this::isConcreteClass);
         Set<VirtualFile> read = new HashSet<>();
         for (DiModuleTreeService.WalkedModule module : walk.modules()) {
             Reach reach = new Reach(module.segment(), module.priority());
@@ -362,6 +367,39 @@ public final class DiBindingLookupService {
             && phpClass.findOwnMethodByName(method) == null;
     }
 
+    /**
+     * Whether an FQN names a class Ray.Di would bind to itself, which {@code Bind::__construct}
+     * decides with {@code class_exists($i) && ! (new ReflectionClass($i))->isAbstract()}.
+     *
+     * <p>This is the one question here that needs the index, and it is asked only of a bind that
+     * named no target. While the index is building the answer is no, which leaves such a binding
+     * reported the way it was before this could resolve anything -- an implementation this cannot
+     * name is not one it should guess at.
+     */
+    private boolean isConcreteClass(String fqn) {
+        if (DumbService.isDumb(project)) {
+            return false;
+        }
+
+        try {
+            for (PhpClass phpClass : PhpIndex.getInstance(project).getAnyByFQN(fqn)) {
+                if (!phpClass.isInterface() && !phpClass.isTrait() && !phpClass.isEnum() && !phpClass.isAbstract()) {
+                    return true;
+                }
+            }
+        } catch (IndexNotReadyException exception) {
+            return false;
+        }
+
+        return false;
+    }
+
+    /** Resolves an FQN to "Ray.Di would build this class itself", or not. */
+    @FunctionalInterface
+    private interface ConcreteClasses {
+        boolean contains(String fqn);
+    }
+
     private static boolean isThis(@Nullable PsiElement receiver) {
         return receiver instanceof Variable variable && "this".equals(variable.getName());
     }
@@ -371,7 +409,7 @@ public final class DiBindingLookupService {
      * {@code bind()} is the innermost node of {@code $this->bind(X)->annotatedWith(n)->to(Y)}, and
      * each following call has the previous one as its receiver.
      */
-    private static Binding readBinding(MethodReference bindCall) {
+    private static Binding readBinding(MethodReference bindCall, ConcreteClasses concrete) {
         PsiElement[] parameters = bindCall.getParameters();
         // bind() with no argument binds a name alone, which is a binding with no interface, not an
         // unreadable one. So does bind(''), which passes Ray.Di's own default explicitly. Only an
@@ -411,9 +449,14 @@ public final class DiBindingLookupService {
                 // My\Impl::class -- the same two forms bind() accepts -- while toInstance() takes
                 // a value, whose string is a string and not the name of a class.
                 String argumentClass = namesAClass ? readInterface(firstArgument) : classConstFqn(firstArgument);
-                if (TO.equals(target)) {
+                // toConstructor() names the class Ray.Di builds as surely as to() does --
+                // DependencyFactory::newToConstructor() reflects on this argument -- so the
+                // implementation is stated here. Only the arguments it is handed come from
+                // elsewhere, which is what the target keeps saying.
+                if (TO.equals(target) || TO_CONSTRUCTOR.equals(target)) {
                     implementation = argumentClass;
-                } else {
+                }
+                if (!TO.equals(target)) {
                     targetClass = argumentClass;
                 }
                 // When the argument of a class-naming target is one this cannot read, saying so is
@@ -430,6 +473,15 @@ public final class DiBindingLookupService {
         PsiElement end = current.getParent();
         if (BOUND_BY_UNTARGETED.equals(boundBy) && (!(end instanceof Statement) || end instanceof PhpReturn)) {
             boundBy = BOUND_BY_UNKNOWN;
+        }
+
+        // An untargeted binding is Ray.Di building the bound class itself: Bind::__destruct hands
+        // it to Untarget, which registers a dependency on that very class. It does so only for a
+        // concrete class, though -- given an interface, Bind::__construct validates the name and
+        // registers nothing -- so a name this cannot resolve to a concrete class is left as it
+        // was, with no implementation claimed for it.
+        if (BOUND_BY_UNTARGETED.equals(boundBy) && boundInterface != null && concrete.contains(boundInterface)) {
+            implementation = boundInterface;
         }
 
         return new Binding(
@@ -581,20 +633,22 @@ public final class DiBindingLookupService {
 
         private final ClassFilter interfaceFilter;
         private final QualifierFilter qualifierFilter;
+        private final ConcreteClasses concrete;
         private final JsonArray bindings = new JsonArray();
         private final JsonArray unresolved = new JsonArray();
         private int moduleFiles;
         private int bindingsFound;
         private int renamesFound;
 
-        Answer(ClassFilter interfaceFilter, QualifierFilter qualifierFilter) {
+        Answer(ClassFilter interfaceFilter, QualifierFilter qualifierFilter, ConcreteClasses concrete) {
             this.interfaceFilter = interfaceFilter;
             this.qualifierFilter = qualifierFilter;
+            this.concrete = concrete;
         }
 
         void addBinding(MethodReference bindCall, Site site, @Nullable Reach reach) {
             bindingsFound++;
-            Binding binding = readBinding(bindCall);
+            Binding binding = readBinding(bindCall, concrete);
             if (binding.interfaceUnreadable() && !interfaceFilter.matchesEverything()) {
                 unresolved.add(entry(REASON_INTERFACE, bindCall, site, null, binding.text(), reach));
 

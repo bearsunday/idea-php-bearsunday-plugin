@@ -51,7 +51,11 @@ class DiBindingLookupServiceFixtureTest {
         }
         """;
 
-    /** Every binding form whose implementation only a running container knows. */
+    /**
+     * The binding forms whose target is not a plain {@code to()}. Only {@code toProvider()} and
+     * {@code toInstance()} leave the implementation to a running container; the other two name a
+     * class the source states outright.
+     */
     private static final String CACHE_MODULE = """
         <?php
 
@@ -78,6 +82,48 @@ class DiBindingLookupServiceFixtureTest {
                 $this->bind(OptionsMethods::class);
                 $this->bind()->annotatedWith(AppName::class)->toInstance($this->appName);
             }
+        }
+        """;
+
+    /**
+     * The class {@code CACHE_MODULE} binds without a target. Ray.Di only binds a CONCRETE class to
+     * itself, so whether this file is in the project is what decides the answer.
+     */
+    private static final String OPTIONS_METHODS = """
+        <?php
+
+        namespace MyVendor\\MyProject;
+
+        final class OptionsMethods
+        {
+        }
+        """;
+
+    /** An untargeted bind on an interface, which Ray.Di validates and then registers nothing for. */
+    private static final String AUDIT_MODULE = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Module;
+
+        use MyVendor\\MyProject\\AuditInterface;
+        use Ray\\Di\\AbstractModule;
+
+        final class AuditModule extends AbstractModule
+        {
+            protected function configure(): void
+            {
+                $this->bind(AuditInterface::class);
+            }
+        }
+        """;
+
+    private static final String AUDIT_INTERFACE = """
+        <?php
+
+        namespace MyVendor\\MyProject;
+
+        interface AuditInterface
+        {
         }
         """;
 
@@ -616,7 +662,7 @@ class DiBindingLookupServiceFixtureTest {
     }
 
     /**
-     * Every form whose implementation a running container decides is reported rather than dropped,
+     * A form whose implementation a running container decides is reported rather than dropped,
      * with the class its argument names kept: an agent must be able to tell "not bound" from
      * "bound in a way I cannot follow".
      */
@@ -625,20 +671,80 @@ class DiBindingLookupServiceFixtureTest {
         addFile("src/Module/CacheModule.php", CACHE_MODULE);
 
         JsonObject provider = binding(envelope(lookup("Memcached", null, null)), 0);
-        JsonObject constructor = binding(envelope(lookup("CacheItemPoolInterface", null, null)), 0);
-        JsonObject untargeted = binding(envelope(lookup("OptionsMethods", null, null)), 0);
 
         assertEquals("toProvider", provider.get("boundBy").getAsString());
         assertEquals("dynamic-unresolved", provider.get("resolution").getAsString());
         assertFalse(provider.has("implementation"), provider::toString);
         assertEquals("\\MyVendor\\MyProject\\MemcachedProvider", provider.get("targetClass").getAsString());
+    }
 
-        assertEquals("toConstructor", constructor.get("boundBy").getAsString());
-        assertEquals("dynamic-unresolved", constructor.get("resolution").getAsString());
-        assertEquals("\\MyVendor\\MyProject\\ApcuAdapter", constructor.get("targetClass").getAsString());
+    /**
+     * {@code toConstructor()} names the class Ray.Di builds, exactly as {@code to()} does:
+     * {@code DependencyFactory::newToConstructor()} reflects on this very argument. Only the
+     * arguments handed to that constructor are decided elsewhere, and calling the whole binding
+     * unresolved hid an implementation the source states outright.
+     */
+    @Test
+    void namesTheClassToConstructorBuilds() {
+        addFile("src/Module/CacheModule.php", CACHE_MODULE);
 
-        assertEquals("untargeted", untargeted.get("boundBy").getAsString());
-        assertEquals("dynamic-unresolved", untargeted.get("resolution").getAsString());
+        JsonObject binding = binding(envelope(lookup("CacheItemPoolInterface", null, null)), 0);
+
+        assertEquals("toConstructor", binding.get("boundBy").getAsString());
+        assertEquals("static", binding.get("resolution").getAsString());
+        assertEquals("\\MyVendor\\MyProject\\ApcuAdapter", binding.get("implementation").getAsString());
+        // Kept as well: which of the two roles the class plays is what the caller reads it for.
+        assertEquals("\\MyVendor\\MyProject\\ApcuAdapter", binding.get("targetClass").getAsString());
+    }
+
+    /**
+     * A bind that names no target is Ray.Di's untargeted binding: {@code Bind::__destruct} hands it
+     * to {@code Untarget}, which binds the class to ITSELF. The implementation is the class in the
+     * bind call.
+     */
+    @Test
+    void namesTheClassAnUntargetedBindBindsToItself() {
+        addFile("src/Module/CacheModule.php", CACHE_MODULE);
+        addFile("src/OptionsMethods.php", OPTIONS_METHODS);
+
+        JsonObject binding = binding(envelope(lookup("OptionsMethods", null, null)), 0);
+
+        assertEquals("untargeted", binding.get("boundBy").getAsString());
+        assertEquals("static", binding.get("resolution").getAsString());
+        assertEquals("\\MyVendor\\MyProject\\OptionsMethods", binding.get("implementation").getAsString());
+    }
+
+    /**
+     * {@code Bind::__construct} untargets a concrete class only; given an interface it validates
+     * the name and registers nothing at all. Naming the interface as its own implementation would
+     * invent a binding Ray.Di never makes.
+     */
+    @Test
+    void doesNotBindAnInterfaceToItself() {
+        addFile("src/Module/AuditModule.php", AUDIT_MODULE);
+        addFile("src/AuditInterface.php", AUDIT_INTERFACE);
+
+        JsonObject binding = binding(envelope(lookup("AuditInterface", null, null)), 0);
+
+        assertEquals("untargeted", binding.get("boundBy").getAsString());
+        assertEquals("dynamic-unresolved", binding.get("resolution").getAsString());
+        assertFalse(binding.has("implementation"), binding::toString);
+    }
+
+    /**
+     * A name the project holds no class for cannot be told from an interface, so the answer stays
+     * the one this gave before it could resolve anything: "I cannot name the implementation" is
+     * still true of a class it cannot find.
+     */
+    @Test
+    void leavesAnUntargetedBindUnresolvedWhenTheClassIsNotInTheProject() {
+        addFile("src/Module/CacheModule.php", CACHE_MODULE);
+
+        JsonObject binding = binding(envelope(lookup("OptionsMethods", null, null)), 0);
+
+        assertEquals("untargeted", binding.get("boundBy").getAsString());
+        assertEquals("dynamic-unresolved", binding.get("resolution").getAsString());
+        assertFalse(binding.has("implementation"), binding::toString);
     }
 
     /** {@code bind()} with no argument binds a name alone; that is a binding, not an unreadable one. */

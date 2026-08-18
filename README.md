@@ -169,13 +169,15 @@ binding that another module later overrides is still listed.
 
 Every binding says how Ray.Di gave it its target and how far this could follow that:
 
-* `resolution: static` — the chain itself names the implementation class, which is `bind()->to()`.
+* `resolution: static` — the source itself names the implementation class. That is `bind()->to()`,
+  `toConstructor()` (whose first argument is the class Ray.Di builds; only the arguments handed to that
+  constructor are wired at build time), and an untargeted bind — `bind()` with no target at all, which binds
+  a concrete class to itself. The untargeted one needs the project index to tell a concrete class from an
+  interface, which Ray.Di binds to nothing; while the index is building it is reported as unresolved instead.
 * `resolution: dynamic-unresolved` — the implementation is decided when the application is built, not where
-  the binding is written: `toProvider()` (a factory class produces it), `toConstructor()` (constructor
-  arguments are wired by name), `toInstance()` (an object built on the spot), `toNull()` (a do-nothing
-  stand-in), and an untargeted bind, which is `bind()` with no target at all and means Ray.Di builds the
-  class itself. These say the tool does not name the implementation, not that none exists — the class their
-  argument does name is reported under `targetClass`.
+  the binding is written: `toProvider()` (a factory class produces it), `toInstance()` (an object built on
+  the spot) and `toNull()` (a do-nothing stand-in). These say the tool does not name the implementation, not
+  that none exists — the class their argument does name is reported under `targetClass`.
 
 A binding a filter cannot be applied to, because the element being filtered is the one whose value the source
 does not state (`annotatedWith($this->qualifier)`, or `annotatedWith("{$this->prefix}_dsn")`, where the source
