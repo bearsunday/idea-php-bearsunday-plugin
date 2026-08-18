@@ -226,8 +226,10 @@ class BearSundayMcpToolset : McpToolset {
             "value or the class of an attribute marked #[Qualifier]. Each node carries \"resolution\": " +
             "\"static\" (a binding names the class, and \"implementation\" is it), \"provider\" (a " +
             "ProviderInterface builds it -- the provider's OWN dependencies are walked, what its get() " +
-            "returns is not), \"instance\", \"null-object\", \"dynamic-unresolved\", \"scalar\" (a key " +
-            "with no type, so no class to build), \"class-unresolved\", \"entry-untargeted\" (nothing binds " +
+            "returns is not), \"instance\", \"null-object\", \"dynamic-unresolved\", \"builtin\" (the " +
+            "two keys the container answers for with no module binding them -- InjectorInterface, which " +
+            "Injector::__construct binds after the modules have run, and InjectionPointInterface), " +
+            "\"class-unresolved\", \"entry-untargeted\" (nothing binds " +
             "the entry, which Ray.Di alone binds on the spot -- Injector::getInstance catches Untargeted) and " +
             "\"unbound\", which is NOT a gap in this answer: below the entry Ray.Di has no such fallback, so " +
             "an unbound key is what the application would throw, unless the edge carries " +
@@ -240,7 +242,8 @@ class BearSundayMcpToolset : McpToolset {
             "Edges carry \"kind\" (constructor-param or setter-param), the parameter and method they are " +
             "written at, and \"cycle\" when they lead back into the path they came from. " +
             "\"scan\" says what the answer could not deliver, each only when it happened: " +
-            "\"renamesNotApplied\", \"bindingsWithNoReadableKey\", \"nodesCapped\", \"depthCapped\", " +
+            "\"renamesNotApplied\", \"bindingsWithNoReadableKey\", \"qualifiersUnreadable\", " +
+            "\"nodesCapped\", \"depthCapped\", " +
             "\"unresolvedSegments\", \"classesUnresolved\", \"installsUnreadable\", \"modulesSkipped\", " +
             "\"appNamespaceUnknown\". Limits: MultiBinder, #[Set] and #[Assisted] are not followed; a " +
             "rename() is reported rather than applied; interception does not appear, because it wraps a node " +

@@ -224,6 +224,11 @@ A node is a container key spelled the way Ray.Di spells it, `"{type}-{name}"` --
 names no class to bind. A qualifier is the FIRST attribute a parameter carries and no other, so
 `#[Other] #[Named('x')] $foo` is bound under no name at all, exactly as `Name::withAttributes()` reads it.
 
+Two keys are answered for without any module binding them, because Ray.Di binds them in PHP rather than in a
+module: `InjectorInterface`, which `Injector::__construct()` binds after the modules have built the container,
+and `InjectionPointInterface`. They carry `resolution: builtin`, since calling either unbound would report a
+failure no application has -- and every `ProviderInterface` in `bear/resource` takes an injector.
+
 An `unbound` node is not a gap in the answer. Ray.Di binds an unbound concrete class on the spot only at the
 entry, where `Injector::getInstance()` catches `Untargeted`; below it `Arguments::getParameter()` lets
 `Unbound` out, and the compiled path throws the same, so an unbound key in the middle of a graph is what the
