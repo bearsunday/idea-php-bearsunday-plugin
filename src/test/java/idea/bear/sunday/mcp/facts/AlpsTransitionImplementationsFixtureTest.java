@@ -64,7 +64,11 @@ class AlpsTransitionImplementationsFixtureTest {
         }
         """;
 
-    /** The same transition reached with every near-miss spelling of its id, and no exact one. */
+    /**
+     * The state that offers the transition, carrying every near-miss spelling of its id and no
+     * exact one. The class name matches the ALPS state, so the source side of the join holds and
+     * only the rel comparison decides.
+     */
     private static final String NEAR_MISS = """
         <?php
 
@@ -73,7 +77,7 @@ class AlpsTransitionImplementationsFixtureTest {
         use BEAR\\Resource\\Annotation\\Link;
         use BEAR\\Resource\\ResourceObject;
 
-        final class NearMiss extends ResourceObject
+        final class BlogPosting extends ResourceObject
         {
             #[Link(rel: 'go-entry', href: 'app://self/entry')]
             #[Link(rel: 'GoEntry', href: 'app://self/entry')]
@@ -175,7 +179,7 @@ class AlpsTransitionImplementationsFixtureTest {
     @Test
     void doesNotMatchARelThatOnlyResemblesTheTransitionId() {
         fixture.addFileToProject("alps.json", PROFILE);
-        fixture.addFileToProject("src/Resource/App/NearMiss.php", NEAR_MISS);
+        fixture.addFileToProject("src/Resource/App/BlogPosting.php", NEAR_MISS);
         fixture.addFileToProject("src/Resource/App/Entry.php", ENTRY);
 
         JsonObject transition = lookup("BlogPosting", null, null)
