@@ -19,7 +19,9 @@ import javax.xml.parsers.ParserConfigurationException;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -57,7 +59,7 @@ public final class AlpsNormalizer {
             readString(profile, "title"),
             readDoc(profile),
             readJsonLinks(profile),
-            readJsonDescriptors(profile, json, 0),
+            readJsonDescriptors(profile, jsonIdOffsets(json), 0),
             sourcePath,
             false
         );
@@ -73,25 +75,25 @@ public final class AlpsNormalizer {
             childText(root, "title"),
             childText(root, "doc"),
             readXmlLinks(root),
-            readXmlDescriptors(root, xml, 0),
+            readXmlDescriptors(root, xmlIdOffsets(xml), 0),
             sourcePath,
             true
         );
     }
 
-    private static List<AlpsDescriptor> readJsonDescriptors(JsonObject parent, String raw, int depth) {
+    private static List<AlpsDescriptor> readJsonDescriptors(JsonObject parent, Map<String, Integer> idOffsets, int depth) {
         if (depth > MAX_DEPTH) {
             throw new AlpsParseException("Descriptors nested deeper than " + MAX_DEPTH + " levels");
         }
         List<AlpsDescriptor> descriptors = new ArrayList<>();
         for (JsonObject object : readObjects(parent, "descriptor")) {
-            descriptors.add(toJsonDescriptor(object, raw, depth));
+            descriptors.add(toJsonDescriptor(object, idOffsets, depth));
         }
 
         return List.copyOf(descriptors);
     }
 
-    private static AlpsDescriptor toJsonDescriptor(JsonObject object, String raw, int depth) {
+    private static AlpsDescriptor toJsonDescriptor(JsonObject object, Map<String, Integer> idOffsets, int depth) {
         String id = readString(object, "id");
 
         return new AlpsDescriptor(
@@ -105,26 +107,41 @@ public final class AlpsNormalizer {
             readString(object, "tag"),
             readString(object, "title"),
             readJsonLinks(object),
-            readJsonDescriptors(object, raw, depth + 1),
-            jsonIdOffset(raw, id)
+            readJsonDescriptors(object, idOffsets, depth + 1),
+            id == null ? -1 : idOffsets.getOrDefault(new JsonPrimitive(id).toString(), -1)
         );
     }
 
-    /**
-     * Offset of the descriptor's own id, anchored to the {@code "id"} member the way the XML
-     * side anchors to {@code id="..."}. The bare value is not enough: a descriptor whose id is
-     * "id", "type" or "title" collides with the key names themselves, and any id appears as a
-     * value -- in an rt, an href, a rel -- before the definition that owns it. Still best-effort:
-     * two descriptors sharing an id both point at the first, and an id the file spells with a
-     * different escape than Gson writes is not found at all, which answers -1.
-     */
-    private static int jsonIdOffset(String raw, @Nullable String id) {
-        if (id == null) {
-            return -1;
-        }
-        Matcher matcher = Pattern.compile("\"id\"\\s*:\\s*" + Pattern.quote(new JsonPrimitive(id).toString())).matcher(raw);
+    /** Any {@code "id"} member with a string value; group 1 is the value as the file spells it. */
+    private static final Pattern JSON_ID_MEMBER = Pattern.compile("\"id\"\\s*:\\s*(\"(?:[^\"\\\\]|\\\\.)*\")");
 
-        return matcher.find() ? matcher.start() : -1;
+    /** An {@code id="..."} attribute token; group 1 is the value as the file spells it. */
+    private static final Pattern XML_ID_ATTRIBUTE = Pattern.compile("id=\"([^\"]*)\"");
+
+    /**
+     * Offsets of every descriptor id, found in one pass over the profile text instead of one
+     * search per descriptor. Each offset is anchored to the {@code "id"} member ({@code id="..."}
+     * on the XML side): the bare value is not enough, because a descriptor whose id is "id",
+     * "type" or "title" collides with the key names themselves, and any id appears as a value --
+     * in an rt, an href, a rel -- before the definition that owns it. Still best-effort: two
+     * descriptors sharing an id both point at the first, and an id the file spells with a
+     * different escape than Gson writes is not in the map, which answers -1.
+     */
+    private static Map<String, Integer> jsonIdOffsets(String raw) {
+        return firstOffsets(JSON_ID_MEMBER.matcher(raw));
+    }
+
+    private static Map<String, Integer> xmlIdOffsets(String raw) {
+        return firstOffsets(XML_ID_ATTRIBUTE.matcher(raw));
+    }
+
+    private static Map<String, Integer> firstOffsets(Matcher matcher) {
+        Map<String, Integer> offsets = new HashMap<>();
+        while (matcher.find()) {
+            offsets.putIfAbsent(matcher.group(1), matcher.start());
+        }
+
+        return offsets;
     }
 
     private static List<AlpsLink> readJsonLinks(JsonObject parent) {
@@ -186,19 +203,19 @@ public final class AlpsNormalizer {
         return element != null && element.isJsonPrimitive() ? element.getAsString() : null;
     }
 
-    private static List<AlpsDescriptor> readXmlDescriptors(Element parent, String raw, int depth) {
+    private static List<AlpsDescriptor> readXmlDescriptors(Element parent, Map<String, Integer> idOffsets, int depth) {
         if (depth > MAX_DEPTH) {
             throw new AlpsParseException("Descriptors nested deeper than " + MAX_DEPTH + " levels");
         }
         List<AlpsDescriptor> descriptors = new ArrayList<>();
         for (Element element : childElements(parent, "descriptor")) {
-            descriptors.add(toXmlDescriptor(element, raw, depth));
+            descriptors.add(toXmlDescriptor(element, idOffsets, depth));
         }
 
         return List.copyOf(descriptors);
     }
 
-    private static AlpsDescriptor toXmlDescriptor(Element element, String raw, int depth) {
+    private static AlpsDescriptor toXmlDescriptor(Element element, Map<String, Integer> idOffsets, int depth) {
         String id = attribute(element, "id");
 
         return new AlpsDescriptor(
@@ -212,8 +229,8 @@ public final class AlpsNormalizer {
             attribute(element, "tag"),
             attribute(element, "title"),
             readXmlLinks(element),
-            readXmlDescriptors(element, raw, depth + 1),
-            id == null ? -1 : raw.indexOf("id=\"" + id + '"')
+            readXmlDescriptors(element, idOffsets, depth + 1),
+            id == null ? -1 : idOffsets.getOrDefault(id, -1)
         );
     }
 
