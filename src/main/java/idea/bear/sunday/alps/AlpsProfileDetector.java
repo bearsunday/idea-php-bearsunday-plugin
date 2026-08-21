@@ -3,6 +3,7 @@ package idea.bear.sunday.alps;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
+import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.vfs.VfsUtilCore;
@@ -88,9 +89,13 @@ public final class AlpsProfileDetector {
             return List.of();
         }
         List<VirtualFile> profiles = new ArrayList<>();
-        VfsUtilCore.visitChildrenRecursively(root, new VirtualFileVisitor<Void>() {
+        // NO_FOLLOW_SYMLINKS: a link pointing at an ancestor makes the walk recurse forever, and
+        // one pointing outside the project would answer with a profile the project does not hold.
+        VfsUtilCore.visitChildrenRecursively(root, new VirtualFileVisitor<Void>(VirtualFileVisitor.NO_FOLLOW_SYMLINKS) {
             @Override
             public boolean visitFile(@NotNull VirtualFile file) {
+                // The walk covers the whole project; without this it cannot be called off.
+                ProgressManager.checkCanceled();
                 if (file.isDirectory()) {
                     return file.equals(root) || !SKIPPED_DIRECTORIES.contains(file.getName());
                 }
