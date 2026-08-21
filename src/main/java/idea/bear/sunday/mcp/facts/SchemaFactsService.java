@@ -281,7 +281,13 @@ public final class SchemaFactsService {
         json.addProperty("kind", match.kind());
         json.add("properties", stringArray(propertyNames(match.raw())));
         json.add("required", stringArray(requiredNames(match.raw())));
-        json.add("raw", match.raw());
+        // The names above are the answer; the raw schema is the convenience. A generated schema
+        // can be larger than the caller's whole context, and path is enough to open it.
+        if (Payloads.fitsInAnAnswer(match.raw())) {
+            json.add("raw", match.raw());
+        } else {
+            json.addProperty("truncated", true);
+        }
 
         return json;
     }

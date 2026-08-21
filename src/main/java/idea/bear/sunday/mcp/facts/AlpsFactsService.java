@@ -420,7 +420,14 @@ public final class AlpsFactsService {
         addIfPresent(json, "title", profile.title());
         addIfPresent(json, "doc", profile.doc());
         json.add("links", linkArray(profile.links()));
-        json.add("descriptors", descriptorArray(profile.descriptors()));
+        JsonArray descriptors = descriptorArray(profile.descriptors());
+        // A profile large enough to fill the caller's context is answered without its tree; the
+        // descriptors are still reachable one at a time through bear_alps_descriptor_lookup.
+        if (Payloads.fitsInAnAnswer(descriptors)) {
+            json.add("descriptors", descriptors);
+        } else {
+            json.addProperty("truncated", true);
+        }
 
         return json;
     }

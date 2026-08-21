@@ -160,8 +160,12 @@ public final class ApiDocFactsService {
         json.addProperty("path", path);
         json.addProperty("method", method);
         json.addProperty("jsonPointer", jsonPointer(path, method));
-        if (withBody) {
+        if (withBody && Payloads.fitsInAnAnswer(operation)) {
             json.add("operation", operation);
+        } else if (withBody) {
+            // jsonPointer above names where the operation is; carrying a body this large would
+            // cost the caller the context it needed for the rest of the task.
+            json.addProperty("truncated", true);
         }
 
         return json;

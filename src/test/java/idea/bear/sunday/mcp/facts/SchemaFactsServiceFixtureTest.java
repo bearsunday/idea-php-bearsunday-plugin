@@ -286,6 +286,28 @@ class SchemaFactsServiceFixtureTest {
         assertEquals("not_found", envelope.get("status").getAsString(), envelope::toString);
     }
 
+    /**
+     * The property names are the answer and the path is enough to open the file, so a schema
+     * larger than the caller's context is answered without its text rather than at its cost.
+     */
+    @Test
+    void leavesOutASchemaTooLargeToCarryAndSaysSo() {
+        StringBuilder properties = new StringBuilder();
+        for (int i = 0; properties.length() < Payloads.MAX_EMBEDDED_CHARS * 2; i++) {
+            properties.append(properties.isEmpty() ? "" : ",")
+                .append("\"field").append(i).append("\": {\"type\": \"string\"}");
+        }
+        addPhysicalFile("src/Resource/App/Point.php", POINT);
+        addPhysicalFile("var/json_schema/point.json", "{\"type\": \"object\", \"properties\": {" + properties + "}}");
+
+        JsonObject match = envelope(facts().lookup("app://self/point", null, null, null))
+            .getAsJsonArray("matches").get(0).getAsJsonObject();
+
+        assertTrue(match.get("truncated").getAsBoolean(), match::toString);
+        assertEquals("var/json_schema/point.json", match.get("path").getAsString());
+        assertTrue(match.getAsJsonArray("properties").size() > 0, match::toString);
+    }
+
     private static JsonObject envelope(String json) {
         return JsonParser.parseString(json).getAsJsonObject();
     }
