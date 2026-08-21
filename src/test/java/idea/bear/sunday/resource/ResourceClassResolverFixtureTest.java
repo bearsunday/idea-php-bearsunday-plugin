@@ -81,14 +81,9 @@ class ResourceClassResolverFixtureTest {
         assertNull(resolvedFqn("app://self/does-not-exist"));
     }
 
-    @Test
-    void returnsRelativePathWithoutTouchingPsi() {
-        assertEquals("src/Resource/App/BlogPosting.php", ResourceClassResolver.toRelativePath("app://self/blog-posting"));
-    }
-
     private @Nullable String resolvedFqn(String normalizedUri) {
         return ApplicationManager.getApplication().runReadAction((Computable<@Nullable String>) () ->
-            ResourceClassResolver.resolve(fixture.getProject(), normalizedUri)
+            ResourceClassResolver.resolveCached(fixture.getProject(), normalizedUri)
                 .map(PhpClass::getFQN)
                 .orElse(null));
     }

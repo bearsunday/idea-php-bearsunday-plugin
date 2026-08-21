@@ -29,25 +29,16 @@ public final class ResourceClassResolver {
     }
 
     /**
-     * Answers empty when the URI names no class this project holds. While the indexes are still
-     * building the question has no answer yet, and {@code IndexNotReadyException} is left to
-     * reach the caller rather than being turned into an empty answer: "not here" and "ask again
-     * once the index is built" are different things to tell an agent.
-     */
-    public static Optional<PhpClass> resolve(Project project, String normalizedUri) {
-        return resolve(project, normalizedUri, true);
-    }
-
-    /**
-     * Same as {@link #resolve(Project, String)} but never triggers a synchronous VFS refresh,
-     * which the platform forbids under a read lock on a background thread. Callers that run
-     * inside {@code ReadAction} off the EDT (e.g. MCP tools) must use this variant.
+     * Answers empty when the URI names no class this project holds. Never triggers a synchronous
+     * VFS refresh, which the platform forbids under a read lock on a background thread, so it is
+     * safe from inside a {@code ReadAction} off the EDT -- where every caller now runs.
+     *
+     * <p>While the indexes are still building the question has no answer yet, and
+     * {@code IndexNotReadyException} is left to reach the caller rather than being turned into an
+     * empty answer: "not here" and "ask again once the index is built" are different things to
+     * tell an agent.
      */
     public static Optional<PhpClass> resolveCached(Project project, String normalizedUri) {
-        return resolve(project, normalizedUri, false);
-    }
-
-    private static Optional<PhpClass> resolve(Project project, String normalizedUri, boolean refresh) {
         String relPath = UriUtil.toResourceRelativePath(normalizedUri, false);
         if (relPath == null) {
             return Optional.empty();
@@ -55,13 +46,6 @@ public final class ResourceClassResolver {
 
         // Every stage is a fallback for the one before it: a stage that finds nothing hands over
         // rather than ending the lookup, so a missing file still reaches the index stages.
-        if (refresh) {
-            Optional<PhpClass> nioClass = resolveFromNioPath(project, relPath);
-            if (nioClass.isPresent()) {
-                return nioClass;
-            }
-        }
-
         Optional<PhpClass> fileClass = resolveFromVirtualFile(project, relPath);
         if (fileClass.isPresent()) {
             return fileClass;
@@ -73,14 +57,6 @@ public final class ResourceClassResolver {
         }
 
         return resolveFromFilenameIndex(project, relPath);
-    }
-
-    /**
-     * Resolves a normalized BEAR.Resource URI to its resource class file path, relative to the
-     * project root, without touching the PSI/index layers.
-     */
-    public static @Nullable String toRelativePath(String normalizedUri) {
-        return UriUtil.toResourceRelativePath(normalizedUri, false);
     }
 
     static @Nullable VirtualFile projectBaseDir(Project project) {
@@ -96,25 +72,6 @@ public final class ResourceClassResolver {
     private static Optional<PhpClass> resolveFromVirtualFile(Project project, String relPath) {
         VirtualFile baseDir = projectBaseDir(project);
         VirtualFile targetFile = baseDir == null ? null : baseDir.findFileByRelativePath(relPath);
-        if (targetFile == null) {
-            return Optional.empty();
-        }
-
-        PsiFile psiFile = PsiManager.getInstance(project).findFile(targetFile);
-        if (psiFile == null) {
-            return Optional.empty();
-        }
-
-        return Optional.ofNullable(PsiTreeUtil.findChildOfType(psiFile, PhpClass.class));
-    }
-
-    private static Optional<PhpClass> resolveFromNioPath(Project project, String relPath) {
-        String basePath = project.getBasePath();
-        if (basePath == null) {
-            return Optional.empty();
-        }
-
-        VirtualFile targetFile = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(Path.of(basePath, relPath));
         if (targetFile == null) {
             return Optional.empty();
         }

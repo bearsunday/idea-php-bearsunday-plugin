@@ -13,6 +13,7 @@
 
 ### Changed
 - Minimum supported PhpStorm version is now **2025.2** (`since-build = 252`), the release that bundles the MCP server the tools plug into
+- Resource URI type inference no longer triggers a synchronous VFS refresh, which the platform forbids under a read lock off the EDT. A resource file created outside the IDE now resolves once the file system event reaches the IDE rather than on the next inference.
 - Ray.Aop bound-interceptor gutter/action now uses a dedicated AOP icon instead of the BEAR resource icon.
 - BEAR and Ray gutter icons now use transparent backgrounds.
 - Incoming resource relation gutters moved from the resource class name to the target resource method (`#[Embed]` always maps to `onGet`; `#[Link]` maps from its `method` argument and defaults to `onGet`).
