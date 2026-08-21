@@ -1,5 +1,9 @@
 package idea.bear.sunday.alps;
 
+import com.intellij.openapi.application.ReadAction;
+import com.intellij.openapi.command.WriteCommandAction;
+import com.intellij.openapi.editor.Document;
+import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.testFramework.fixtures.CodeInsightTestFixture;
@@ -19,6 +23,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 class AlpsProfileDetectorFixtureTest {
 
@@ -84,14 +90,50 @@ class AlpsProfileDetectorFixtureTest {
         return AlpsProfileDetector.getInstance(fixture.getProject());
     }
 
-    private void addPhysicalFile(String relativePath, String contents) {
+    /** The same text parses once; the second ask is answered from what the first read. */
+    @Test
+    void answersASecondParseFromTheFirst() {
+        VirtualFile file = addPhysicalFile("alps.json", EMPTY_PROFILE);
+        AlpsProfileDetector detector = AlpsProfileDetector.getInstance(fixture.getProject());
+
+        AlpsProfile first = ReadAction.compute(() -> detector.parse(file));
+        AlpsProfile second = ReadAction.compute(() -> detector.parse(file));
+
+        assertSame(first, second);
+    }
+
+    /**
+     * Edited text is read again. The editor is the case that matters: a profile open and being
+     * typed into is exactly where an answer from a stale parse would be wrong.
+     */
+    @Test
+    void parsesAgainOnceTheProfileChangesInTheEditor() {
+        VirtualFile file = addPhysicalFile("alps.json", EMPTY_PROFILE);
+        AlpsProfileDetector detector = AlpsProfileDetector.getInstance(fixture.getProject());
+
+        AlpsProfile first = ReadAction.compute(() -> detector.parse(file));
+        WriteCommandAction.runWriteCommandAction(fixture.getProject(), () -> {
+            Document document = FileDocumentManager.getInstance().getDocument(file);
+            assertNotNull(document);
+            document.setText("{\"alps\": {\"title\": \"Renamed\"}}");
+        });
+        AlpsProfile second = ReadAction.compute(() -> detector.parse(file));
+
+        assertEquals("Renamed", second.title());
+        assertNotSame(first, second);
+    }
+
+    private VirtualFile addPhysicalFile(String relativePath, String contents) {
         try {
             String basePath = fixture.getProject().getBasePath();
             assertNotNull(basePath);
             Path path = Path.of(basePath, relativePath);
             Files.createDirectories(path.getParent());
             Files.writeString(path, contents, StandardCharsets.UTF_8);
-            assertNotNull(LocalFileSystem.getInstance().refreshAndFindFileByNioFile(path));
+            VirtualFile file = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(path);
+            assertNotNull(file);
+
+            return file;
         } catch (IOException exception) {
             throw new IllegalStateException(exception);
         }

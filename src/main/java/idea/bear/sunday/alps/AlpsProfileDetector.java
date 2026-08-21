@@ -16,7 +16,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Locates ALPS profiles in the project by walking the virtual file system. Deliberately avoids
@@ -24,6 +26,8 @@ import java.util.Set;
  */
 @Service(Service.Level.PROJECT)
 public final class AlpsProfileDetector {
+
+    private static final int MAX_CACHED_PROFILES = 64;
 
     private static final Set<String> SKIPPED_DIRECTORIES = Set.of("vendor", "node_modules", "tests", ".git", ".idea", "build");
 
@@ -33,6 +37,7 @@ public final class AlpsProfileDetector {
     // change could publish a stale list stamped with the current modification count, and the
     // stale answer would then live until the next structure change.
     private volatile Cache cache = new Cache(-1, List.of());
+    private final Map<VirtualFile, Parsed> parsed = new ConcurrentHashMap<>();
 
     public AlpsProfileDetector(Project project) {
         this.project = project;
@@ -74,13 +79,42 @@ public final class AlpsProfileDetector {
         return FileDocumentManager.getInstance().isFileModified(file);
     }
 
-    /** Parses a profile in the format its file name implies. Must be called inside a read action. */
+    /**
+     * Parses a profile in the format its file name implies. Must be called inside a read action.
+     *
+     * <p>The result is kept until the text behind it changes. Several tools parse every profile
+     * in the project on every call -- the contract comparison and the link suggestions walk them
+     * all -- and a profile is a file that changes when someone edits it, not between two
+     * questions asked a second apart. Unsaved editor changes still take effect: the stamp is the
+     * document's whenever one is open, which is the same text {@link #contentOf} reads.
+     */
     public AlpsProfile parse(VirtualFile file) {
+        Stamp stamp = stampOf(file);
+        Parsed cached = parsed.get(file);
+        if (cached != null && cached.stamp().equals(stamp)) {
+            return cached.profile();
+        }
         String text = contentOf(file);
-
-        return file.getName().toLowerCase(Locale.ROOT).endsWith(".xml")
+        AlpsProfile profile = file.getName().toLowerCase(Locale.ROOT).endsWith(".xml")
             ? AlpsNormalizer.fromXml(text, file.getPath())
             : AlpsNormalizer.fromJson(text, file.getPath());
+        // A profile that fails to parse is not cached, so it is re-read once it is fixed.
+        // The map holds one entry per profile file ever asked for; projects have a handful, and
+        // clearing at a bound keeps a long-lived one from growing without anyone watching.
+        if (parsed.size() >= MAX_CACHED_PROFILES) {
+            parsed.clear();
+        }
+        parsed.put(file, new Parsed(stamp, profile));
+
+        return profile;
+    }
+
+    private static Stamp stampOf(VirtualFile file) {
+        Document document = FileDocumentManager.getInstance().getDocument(file);
+
+        return document == null
+            ? new Stamp(-1, file.getModificationStamp())
+            : new Stamp(document.getModificationStamp(), -1);
     }
 
     private List<VirtualFile> scan() {
@@ -119,5 +153,15 @@ public final class AlpsProfileDetector {
 
     /** The profile list and the modification count it was scanned under, published together. */
     private record Cache(long stamp, List<VirtualFile> profiles) {
+    }
+
+    /**
+     * Which text a parse was of. The two halves are kept apart because a document's stamp and a
+     * file's come from different counters and would otherwise collide at the same number.
+     */
+    private record Stamp(long document, long file) {
+    }
+
+    private record Parsed(Stamp stamp, AlpsProfile profile) {
     }
 }
