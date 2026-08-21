@@ -4,7 +4,9 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.components.Service;
+import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
 import com.jetbrains.php.lang.psi.elements.PhpClass;
@@ -45,10 +47,7 @@ public final class ContractCompareService {
     }
 
     public String compare(@Nullable String uri, @Nullable String method) {
-        // Non-blocking so a pending write action is not made to wait out the read; cancelled and
-        // retried instead. See DiBindingLookupService#lookup.
-        return ReadAction.nonBlocking(() -> compareContract(uri, method))
-            .executeSynchronously();
+        return answer(() -> compareContract(uri, method));
     }
 
     private String compareContract(@Nullable String uri, @Nullable String method) {
@@ -296,5 +295,21 @@ public final class ContractCompareService {
     }
 
     private record AlpsFields(String descriptorId, String profilePath, VirtualFile file, List<String> fields) {
+    }
+
+    /**
+     * Runs the read off the write lock and names the one failure the caller must not read as an
+     * answer: while the indexes are building, a resource the project does hold cannot be found,
+     * and reporting that as not_found would have an agent conclude the resource does not exist.
+     *
+     * <p>Non-blocking so a pending write action is not made to wait out the read; the read is
+     * cancelled and retried instead, paying with its own latency rather than the editor's.
+     */
+    private static String answer(Computable<String> read) {
+        try {
+            return ReadAction.nonBlocking(read::compute).executeSynchronously();
+        } catch (IndexNotReadyException exception) {
+            return Envelope.indexNotReady("The project indexes are still building; ask again once indexing finishes.").toJson();
+        }
     }
 }

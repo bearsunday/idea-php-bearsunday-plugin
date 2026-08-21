@@ -1,5 +1,6 @@
 package idea.bear.sunday.resource;
 
+import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
@@ -10,6 +11,7 @@ import com.jetbrains.php.lang.psi.elements.AssignmentExpression;
 import com.jetbrains.php.lang.psi.elements.FieldReference;
 import com.jetbrains.php.lang.psi.elements.Function;
 import com.jetbrains.php.lang.psi.elements.MethodReference;
+import com.jetbrains.php.lang.psi.elements.PhpClass;
 import com.jetbrains.php.lang.psi.elements.PhpExpression;
 import com.jetbrains.php.lang.psi.elements.PhpNamedElement;
 import com.jetbrains.php.lang.psi.elements.PhpPsiElement;
@@ -76,7 +78,7 @@ public final class ResourceMethodTypeProvider implements PhpTypeProvider4 {
         }
 
         return Optional.of(decodedRequest.get())
-            .flatMap(request -> ResourceClassResolver.resolveCached(project, request.uri()))
+            .flatMap(request -> resolveQuietly(project, request.uri()))
             .map(List::of)
             .orElse(null);
     }
@@ -99,7 +101,7 @@ public final class ResourceMethodTypeProvider implements PhpTypeProvider4 {
 
     private @Nullable PhpType completeRequest(SignedResourceRequest request, Project project) {
         if (SIGNATURE_RESOURCE.equals(request.kind())) {
-            return ResourceClassResolver.resolveCached(project, request.uri())
+            return resolveQuietly(project, request.uri())
                 .map(phpClass -> PhpType.from(phpClass.getFQN()))
                 .orElse(null);
         }
@@ -113,9 +115,22 @@ public final class ResourceMethodTypeProvider implements PhpTypeProvider4 {
     }
 
     private Optional<BodyTypeDeclaration> resolveBodyType(Project project, SignedResourceRequest request) {
-        return ResourceClassResolver.resolveCached(project, request.uri())
+        return resolveQuietly(project, request.uri())
             .flatMap(bodyTypeCollector::collect)
             .flatMap(collection -> collection.declarationForResourceMethod(request.method()));
+    }
+
+    /**
+     * Type inference is an offer to the editor, not a report to an agent: while the indexes are
+     * building there is no type to offer, so the exception the resolver raises for a question it
+     * cannot answer yet becomes "nothing" here.
+     */
+    private static Optional<PhpClass> resolveQuietly(Project project, String uri) {
+        try {
+            return ResourceClassResolver.resolveCached(project, uri);
+        } catch (IndexNotReadyException exception) {
+            return Optional.empty();
+        }
     }
 
     private static Optional<ResourceRequest> resourceRequestFromBodyField(FieldReference fieldReference) {

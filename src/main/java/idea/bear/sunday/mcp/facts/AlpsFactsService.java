@@ -261,9 +261,15 @@ public final class AlpsFactsService {
         if (viaHref) {
             json.addProperty("via", "href");
         }
-        JsonArray implementations = implementationsJson(descriptor, parentId);
-        if (implementations.size() > 0) {
-            json.add("implementations", implementations);
+        try {
+            JsonArray implementations = implementationsJson(descriptor, parentId);
+            if (implementations.size() > 0) {
+                json.add("implementations", implementations);
+            }
+        } catch (IndexNotReadyException exception) {
+            // The profile is a file and answers either way; only the code side needs the index,
+            // and an empty list there would read as "no resource implements this transition".
+            json.addProperty("implementationsUnavailable", Status.index_not_ready.name());
         }
 
         return json;
@@ -288,21 +294,16 @@ public final class AlpsFactsService {
             return implementations;
         }
         String resourceName = Names.kebab(targetId);
-        try {
-            for (String uri : List.of("app://self/" + resourceName, "page://self/" + resourceName)) {
-                String resourcePath = UriUtil.toSupportedResourceRelativePath(uri, false);
-                if (resourcePath == null) {
-                    continue;
-                }
-                for (ResourceRelation relation : ResourceRelationIndex.findIncoming(resourcePath, project)) {
-                    if (descriptor.id().equals(relation.rel()) && sourceMatches(relation, parentId)) {
-                        implementations.add(relationJson(relation));
-                    }
+        for (String uri : List.of("app://self/" + resourceName, "page://self/" + resourceName)) {
+            String resourcePath = UriUtil.toSupportedResourceRelativePath(uri, false);
+            if (resourcePath == null) {
+                continue;
+            }
+            for (ResourceRelation relation : ResourceRelationIndex.findIncoming(resourcePath, project)) {
+                if (descriptor.id().equals(relation.rel()) && sourceMatches(relation, parentId)) {
+                    implementations.add(relationJson(relation));
                 }
             }
-        } catch (IndexNotReadyException exception) {
-            // Profile facts stay available in dumb mode; only the implementation match is dropped.
-            return new JsonArray();
         }
 
         return implementations;

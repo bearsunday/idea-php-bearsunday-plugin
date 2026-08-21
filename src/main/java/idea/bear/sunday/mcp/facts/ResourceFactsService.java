@@ -6,6 +6,7 @@ import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
@@ -48,10 +49,7 @@ public final class ResourceFactsService {
     }
 
     public String describe(@Nullable String uri) {
-        // Non-blocking so a pending write action is not made to wait out the read; cancelled and
-        // retried instead. See DiBindingLookupService#lookup.
-        return ReadAction.nonBlocking(() -> describeResource(uri))
-            .executeSynchronously();
+        return answer(() -> describeResource(uri));
     }
 
     private String describeResource(@Nullable String uri) {
@@ -230,5 +228,21 @@ public final class ResourceFactsService {
         ClassReference classReference = attribute.getClassReference();
 
         return classReference == null ? null : classReference.getName();
+    }
+
+    /**
+     * Runs the read off the write lock and names the one failure the caller must not read as an
+     * answer: while the indexes are building, a resource the project does hold cannot be found,
+     * and reporting that as not_found would have an agent conclude the resource does not exist.
+     *
+     * <p>Non-blocking so a pending write action is not made to wait out the read; the read is
+     * cancelled and retried instead, paying with its own latency rather than the editor's.
+     */
+    private static String answer(Computable<String> read) {
+        try {
+            return ReadAction.nonBlocking(read::compute).executeSynchronously();
+        } catch (IndexNotReadyException exception) {
+            return Envelope.indexNotReady("The project indexes are still building; ask again once indexing finishes.").toJson();
+        }
     }
 }

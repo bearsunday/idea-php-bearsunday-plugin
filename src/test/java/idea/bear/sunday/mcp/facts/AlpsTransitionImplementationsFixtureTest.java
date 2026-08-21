@@ -200,6 +200,7 @@ class AlpsTransitionImplementationsFixtureTest {
             JsonObject transition = transitions.get(0).getAsJsonObject();
             assertEquals("goEntry", transition.get("id").getAsString());
             assertFalse(transition.has("implementations"), transition::toString);
+            assertEquals("index_not_ready", transition.get("implementationsUnavailable").getAsString());
         });
     }
 }

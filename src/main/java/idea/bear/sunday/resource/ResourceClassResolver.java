@@ -1,6 +1,5 @@
 package idea.bear.sunday.resource;
 
-import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.vfs.LocalFileSystem;
@@ -29,6 +28,12 @@ public final class ResourceClassResolver {
     private ResourceClassResolver() {
     }
 
+    /**
+     * Answers empty when the URI names no class this project holds. While the indexes are still
+     * building the question has no answer yet, and {@code IndexNotReadyException} is left to
+     * reach the caller rather than being turned into an empty answer: "not here" and "ask again
+     * once the index is built" are different things to tell an agent.
+     */
     public static Optional<PhpClass> resolve(Project project, String normalizedUri) {
         return resolve(project, normalizedUri, true);
     }
@@ -130,25 +135,21 @@ public final class ResourceClassResolver {
 
         String fileName = className + ".php";
         String expectedSuffix = "/" + relPath;
-        try {
-            PsiManager psiManager = PsiManager.getInstance(project);
-            for (VirtualFile virtualFile : FilenameIndex.getVirtualFilesByName(fileName, GlobalSearchScope.allScope(project))) {
-                if (!virtualFile.getPath().replace('\\', '/').endsWith(expectedSuffix)) {
-                    continue;
-                }
-
-                PsiFile psiFile = psiManager.findFile(virtualFile);
-                if (psiFile == null) {
-                    continue;
-                }
-
-                PhpClass phpClass = PsiTreeUtil.findChildOfType(psiFile, PhpClass.class);
-                if (phpClass != null) {
-                    return Optional.of(phpClass);
-                }
+        PsiManager psiManager = PsiManager.getInstance(project);
+        for (VirtualFile virtualFile : FilenameIndex.getVirtualFilesByName(fileName, GlobalSearchScope.allScope(project))) {
+            if (!virtualFile.getPath().replace('\\', '/').endsWith(expectedSuffix)) {
+                continue;
             }
-        } catch (IndexNotReadyException exception) {
-            return Optional.empty();
+
+            PsiFile psiFile = psiManager.findFile(virtualFile);
+            if (psiFile == null) {
+                continue;
+            }
+
+            PhpClass phpClass = PsiTreeUtil.findChildOfType(psiFile, PhpClass.class);
+            if (phpClass != null) {
+                return Optional.of(phpClass);
+            }
         }
 
         return Optional.empty();
@@ -165,13 +166,9 @@ public final class ResourceClassResolver {
             .replaceFirst("\\.php$", "")
             .replace('/', '\\');
 
-        try {
-            return PhpIndex.getInstance(project).getClassesByName(className).stream()
-                .filter(phpClass -> phpClass.getFQN().endsWith(expectedFqnSuffix))
-                .findFirst();
-        } catch (IndexNotReadyException exception) {
-            return Optional.empty();
-        }
+        return PhpIndex.getInstance(project).getClassesByName(className).stream()
+            .filter(phpClass -> phpClass.getFQN().endsWith(expectedFqnSuffix))
+            .findFirst();
     }
 
     private static @Nullable String classNameFromRelPath(String relPath) {

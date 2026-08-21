@@ -43,6 +43,15 @@ public final class Envelope {
         return error(Status.not_found, detail);
     }
 
+    /**
+     * The question cannot be answered yet because the indexes are still building. Distinct from
+     * {@link #notFound(String)} on purpose: an agent told "not found" concludes the thing does
+     * not exist, while this says the same question is worth asking again.
+     */
+    public static Envelope indexNotReady(String detail) {
+        return error(Status.index_not_ready, detail);
+    }
+
     public static Envelope parseError(String detail) {
         return error(Status.parse_error, detail);
     }
