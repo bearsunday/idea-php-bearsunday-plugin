@@ -25,8 +25,10 @@ import com.jetbrains.php.lang.psi.elements.StringLiteralExpression;
 import com.jetbrains.php.lang.psi.elements.Variable;
 import com.jetbrains.php.lang.psi.resolve.types.PhpType;
 import com.jetbrains.php.lang.psi.resolve.types.PhpTypeProvider4;
+import idea.bear.sunday.body.BodyType;
 import idea.bear.sunday.body.BodyTypeCollector;
 import idea.bear.sunday.body.BodyTypeDeclaration;
+import idea.bear.sunday.body.BodyTypes;
 import idea.bear.sunday.util.UriUtil;
 import org.jetbrains.annotations.Nullable;
 
@@ -109,16 +111,32 @@ public final class ResourceMethodTypeProvider implements PhpTypeProvider4 {
     private @Nullable PhpType completeRequest(SignedResourceRequest request, Project project) {
         if (SIGNATURE_RESOURCE.equals(request.kind())) {
             return resolveResourceClass(project, request.uri())
-                .map(phpClass -> PhpType.from(phpClass.getFQN()))
+                .map(phpClass -> new PhpType().add(phpClass.getFQN()))
                 .orElse(null);
         }
         if (SIGNATURE_BODY.equals(request.kind())) {
             return resolveBodyType(project, request)
-                .map(declaration -> PhpType.from(declaration.bodyType().render(), PhpType._NULL))
+                .map(declaration -> bodyPhpType(declaration.bodyType()))
                 .orElse(null);
         }
 
         return null;
+    }
+
+    private static PhpType bodyPhpType(BodyType bodyType) {
+        // PhpType.add(String) stores the argument as one opaque type, so a rendered union
+        // ("array{…}|array{…}") must be added component by component to stay a real union.
+        PhpType phpType = new PhpType();
+        List<BodyType> unionParts = BodyTypes.unionTypes(bodyType);
+        if (unionParts == null) {
+            phpType.add(bodyType.render());
+        } else {
+            for (BodyType part : unionParts) {
+                phpType.add(part.render());
+            }
+        }
+
+        return phpType.add(PhpType._NULL);
     }
 
     private Optional<BodyTypeDeclaration> resolveBodyType(Project project, SignedResourceRequest request) {
@@ -305,9 +323,14 @@ public final class ResourceMethodTypeProvider implements PhpTypeProvider4 {
         String fileName = className + ".php";
         String expectedSuffix = "/" + relPath;
         try {
-            for (PsiFile psiFile : FilenameIndex.getFilesByName(project, fileName, GlobalSearchScope.allScope(project))) {
-                VirtualFile virtualFile = psiFile.getVirtualFile();
-                if (virtualFile == null || !virtualFile.getPath().replace('\\', '/').endsWith(expectedSuffix)) {
+            PsiManager psiManager = PsiManager.getInstance(project);
+            for (VirtualFile virtualFile : FilenameIndex.getVirtualFilesByName(fileName, GlobalSearchScope.allScope(project))) {
+                if (!virtualFile.getPath().replace('\\', '/').endsWith(expectedSuffix)) {
+                    continue;
+                }
+
+                PsiFile psiFile = psiManager.findFile(virtualFile);
+                if (psiFile == null) {
                     continue;
                 }
 

@@ -13,6 +13,7 @@
 - BEAR and Ray gutter icons now use transparent backgrounds.
 - Incoming resource relation gutters moved from the resource class name to the target resource method (`#[Embed]` always maps to `onGet`; `#[Link]` maps from its `method` argument and defaults to `onGet`).
 - Replaced the deprecated `Project#getBaseDir()` with `ProjectUtil.guessProjectDir()` (with null guards) across the resource / router / SQL / JSON Schema goto handlers and the resource index
+- Replaced the remaining deprecated/internal API usages reported by the plugin verifier against IntelliJ IDEA 2026.2.1: `FilenameIndex.getFilesByName()` → `FilenameIndex.getVirtualFilesByName()` and internal `PhpType.from()` → public `new PhpType().add()` in the resource method type provider
 - Refreshed README and plugin description metadata, including current feature wording and Marketplace links
 - Removed stale README TODOs and legacy Php Annotations Plugin references from public documentation
 - Updated the MIT license notice to cover 2015-2026 Shingo Kumagai and contributors
