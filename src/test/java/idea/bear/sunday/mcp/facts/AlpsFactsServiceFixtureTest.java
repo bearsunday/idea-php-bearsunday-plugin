@@ -194,6 +194,14 @@ class AlpsFactsServiceFixtureTest {
         assertEquals(0, envelope.getAsJsonArray("transitions").size());
     }
 
+    /** Malformed text and an unread file are different things to tell a caller. */
+    @Test
+    void reportsAMalformedProfileAsAParseError() {
+        addPhysicalFile("alps.json", "{ not json");
+
+        assertEquals("parse_error", envelope(facts().profileRead(null)).get("status").getAsString());
+    }
+
     @Test
     void resolvesProfileLinks() {
         addPhysicalFile("alps.json", PROFILE);

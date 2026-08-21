@@ -12,7 +12,8 @@ import com.intellij.psi.PsiFile;
 import com.jetbrains.php.lang.psi.elements.PhpClass;
 import idea.bear.sunday.alps.AlpsDescriptor;
 import idea.bear.sunday.alps.AlpsLinkResolver;
-import idea.bear.sunday.alps.AlpsParseException;
+import idea.bear.sunday.alps.AlpsProfileException;
+import idea.bear.sunday.alps.AlpsUnreadableException;
 import idea.bear.sunday.alps.AlpsProfile;
 import idea.bear.sunday.alps.AlpsProfileDetector;
 import idea.bear.sunday.mcp.facts.BodyShapeFactsService.BodyLookup;
@@ -63,7 +64,8 @@ public final class ContractCompareService {
         String resolvedMethod = BodyShapeFactsService.resourceMethodName(method);
 
         SchemaMatch schemaMatch = firstReadableSchema(normalizedUri, resolvedMethod);
-        AlpsFields alpsFields = alpsFields(normalizedUri);
+        AlpsSide alps = alpsSide(normalizedUri);
+        AlpsFields alpsFields = alps.fields();
         BodyLookup bodyLookup = BodyShapeFactsService.lookUp(project, normalizedUri, resolvedMethod);
         List<String> schemaSide = schemaMatch == null ? null : SchemaFactsService.propertyNames(schemaMatch.raw());
         List<String> alpsSide = alpsFields == null ? null : alpsFields.fields();
@@ -76,7 +78,7 @@ public final class ContractCompareService {
         payload.addProperty("uri", normalizedUri);
         payload.addProperty("method", resolvedMethod);
         payload.add("schema", schemaJson(schemaMatch, schemaSide));
-        payload.add("alps", alpsJson(alpsFields));
+        payload.add("alps", alpsJson(alps));
         payload.add("body", bodyJson(bodyLookup, bodySide));
         addOnlyIn(payload, schemaSide, alpsSide, bodySide);
         Provenance provenance = Provenance.derived(normalizedUri, anyUnsaved(schemaMatch, alpsFields, bodyLookup));
@@ -124,17 +126,18 @@ public final class ContractCompareService {
      * Finds the semantic descriptor named after the resource ({@code app://self/blog-posting} ->
      * {@code BlogPosting}) and takes its non-transition children as the described fields.
      */
-    @Nullable
-    private AlpsFields alpsFields(String normalizedUri) {
+    private AlpsSide alpsSide(String normalizedUri) {
         String descriptorId = descriptorId(normalizedUri);
         if (descriptorId == null) {
-            return null;
+            return new AlpsSide(null, null);
         }
+        AlpsProfileException failure = null;
         for (VirtualFile file : AlpsProfileDetector.getInstance(project).findProfiles()) {
             AlpsProfile profile;
             try {
                 profile = AlpsProfileDetector.getInstance(project).parse(file);
-            } catch (AlpsParseException exception) {
+            } catch (AlpsProfileException exception) {
+                failure = failure == null ? exception : failure;
                 continue;
             }
             AlpsDescriptor descriptor = AlpsLinkResolver.findById(profile.descriptors(), descriptorId);
@@ -142,10 +145,20 @@ public final class ContractCompareService {
                 continue;
             }
 
-            return new AlpsFields(descriptorId, FactsFiles.relativePath(project, file), file, fieldsOf(descriptor, profile));
+            return new AlpsSide(
+                new AlpsFields(descriptorId, FactsFiles.relativePath(project, file), file, fieldsOf(descriptor, profile)),
+                null
+            );
         }
 
-        return null;
+        // A profile that failed to parse is not the same as a project with no profile: told only
+        // "available: false", a caller reads a broken profile as one that never described this
+        // resource, and the fields it does describe silently become "only in" the other sides.
+        return new AlpsSide(null, failure);
+    }
+
+    /** The ALPS side of the comparison: the fields it named, or why it named none. */
+    private record AlpsSide(@Nullable AlpsFields fields, @Nullable AlpsProfileException failure) {
     }
 
     private static List<String> fieldsOf(AlpsDescriptor descriptor, AlpsProfile profile) {
@@ -192,10 +205,21 @@ public final class ContractCompareService {
         return json;
     }
 
-    private static JsonObject alpsJson(@Nullable AlpsFields alpsFields) {
+    private static JsonObject alpsJson(AlpsSide alps) {
         JsonObject json = new JsonObject();
+        AlpsFields alpsFields = alps.fields();
         if (alpsFields == null) {
             json.addProperty("available", false);
+            AlpsProfileException failure = alps.failure();
+            if (failure != null) {
+                json.addProperty(
+                    "unavailable",
+                    failure instanceof AlpsUnreadableException
+                        ? Status.engine_unavailable.name()
+                        : Status.parse_error.name()
+                );
+                json.addProperty("error", failure.getMessage());
+            }
 
             return json;
         }

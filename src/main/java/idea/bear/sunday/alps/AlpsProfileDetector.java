@@ -66,7 +66,7 @@ public final class AlpsProfileDetector {
         try {
             return VfsUtilCore.loadText(file);
         } catch (IOException exception) {
-            throw new AlpsParseException("Cannot read ALPS profile " + file.getPath() + ": " + exception.getMessage());
+            throw new AlpsUnreadableException("Cannot read ALPS profile " + file.getPath() + ": " + exception.getMessage());
         }
     }
 

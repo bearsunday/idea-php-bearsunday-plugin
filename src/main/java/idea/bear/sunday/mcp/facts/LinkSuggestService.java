@@ -9,7 +9,8 @@ import com.intellij.openapi.vfs.VirtualFile;
 import idea.bear.sunday.alps.AlpsDescriptor;
 import idea.bear.sunday.alps.AlpsLink;
 import idea.bear.sunday.alps.AlpsLinkResolver;
-import idea.bear.sunday.alps.AlpsParseException;
+import idea.bear.sunday.alps.AlpsProfileException;
+import idea.bear.sunday.alps.AlpsUnreadableException;
 import idea.bear.sunday.alps.AlpsProfile;
 import idea.bear.sunday.alps.AlpsProfileDetector;
 import idea.bear.sunday.mcp.facts.SchemaFactsService.SchemaMatch;
@@ -64,14 +65,14 @@ public final class LinkSuggestService {
         if (profiles.isEmpty()) {
             return Envelope.notFound(NO_PROFILE).toJson();
         }
-        String parseError = null;
+        AlpsProfileException failure = null;
         VirtualFile firstReadable = null;
         for (VirtualFile file : profiles) {
             AlpsProfile profile;
             try {
                 profile = detector.parse(file);
-            } catch (AlpsParseException exception) {
-                parseError = parseError == null ? exception.getMessage() : parseError;
+            } catch (AlpsProfileException exception) {
+                failure = failure == null ? exception : failure;
                 continue;
             }
             firstReadable = firstReadable == null ? file : firstReadable;
@@ -90,7 +91,9 @@ public final class LinkSuggestService {
             return Envelope.ok(provenanceOf(file), payload(suggestions)).toJson();
         }
         if (firstReadable == null) {
-            return Envelope.parseError(parseError).toJson();
+            return failure instanceof AlpsUnreadableException
+                ? Envelope.engineUnavailable(failure.getMessage()).toJson()
+                : Envelope.parseError(failure.getMessage()).toJson();
         }
         if (wantedId != null) {
             return Envelope.notFound("Descriptor not found: " + wantedId).toJson();

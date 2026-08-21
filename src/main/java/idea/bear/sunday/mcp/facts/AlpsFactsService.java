@@ -11,7 +11,8 @@ import com.intellij.openapi.vfs.VirtualFile;
 import idea.bear.sunday.alps.AlpsDescriptor;
 import idea.bear.sunday.alps.AlpsLink;
 import idea.bear.sunday.alps.AlpsLinkResolver;
-import idea.bear.sunday.alps.AlpsParseException;
+import idea.bear.sunday.alps.AlpsProfileException;
+import idea.bear.sunday.alps.AlpsUnreadableException;
 import idea.bear.sunday.alps.AlpsProfile;
 import idea.bear.sunday.alps.AlpsProfileDetector;
 import idea.bear.sunday.alps.ResolvedLink;
@@ -78,8 +79,8 @@ public final class AlpsFactsService {
         AlpsProfile profile;
         try {
             profile = parse(file);
-        } catch (AlpsParseException exception) {
-            return Envelope.parseError(exception.getMessage()).toJson();
+        } catch (AlpsProfileException exception) {
+            return unreadable(exception).toJson();
         }
         JsonObject payload = new JsonObject();
         payload.add("profile", profileJson(profile));
@@ -96,7 +97,7 @@ public final class AlpsFactsService {
         if (files.isEmpty()) {
             return Envelope.notFound(missingProfileDetail(profilePath)).toJson();
         }
-        String parseError = null;
+        AlpsProfileException failure = null;
         // A broken profile only decides the answer when no profile could be read at all, the
         // same order of precedence firstMatching() applies.
         boolean anyReadable = false;
@@ -104,8 +105,8 @@ public final class AlpsFactsService {
             AlpsProfile profile;
             try {
                 profile = parse(file);
-            } catch (AlpsParseException exception) {
-                parseError = parseError == null ? exception.getMessage() : parseError;
+            } catch (AlpsProfileException exception) {
+                failure = failure == null ? exception : failure;
                 continue;
             }
             anyReadable = true;
@@ -120,7 +121,7 @@ public final class AlpsFactsService {
 
         return anyReadable
             ? Envelope.notFound("Descriptor not found: " + wanted).toJson()
-            : Envelope.parseError(parseError).toJson();
+            : unreadable(failure).toJson();
     }
 
     private String lookupTransitions(@Nullable String from, @Nullable String rel, @Nullable String rt, @Nullable String profilePath) {
@@ -151,14 +152,14 @@ public final class AlpsFactsService {
         if (files.isEmpty()) {
             return Envelope.notFound(missingProfileDetail(profilePath)).toJson();
         }
-        String parseError = null;
+        AlpsProfileException failure = null;
         VirtualFile firstReadable = null;
         for (VirtualFile file : files) {
             AlpsProfile profile;
             try {
                 profile = parse(file);
-            } catch (AlpsParseException exception) {
-                parseError = parseError == null ? exception.getMessage() : parseError;
+            } catch (AlpsProfileException exception) {
+                failure = failure == null ? exception : failure;
                 continue;
             }
             firstReadable = firstReadable == null ? file : firstReadable;
@@ -171,7 +172,7 @@ public final class AlpsFactsService {
             }
         }
         if (firstReadable == null) {
-            return Envelope.parseError(parseError).toJson();
+            return unreadable(failure).toJson();
         }
         JsonObject payload = new JsonObject();
         payload.add(key, new JsonArray());
@@ -570,5 +571,16 @@ public final class AlpsFactsService {
     @FunctionalInterface
     private interface ProfileQuery {
         JsonArray run(VirtualFile file, AlpsProfile profile);
+    }
+
+    /**
+     * The envelope for a profile nothing could be read from. Malformed text and an unreadable
+     * file are told apart: the first stays wrong until someone edits the profile, the second may
+     * answer on the next attempt.
+     */
+    private static Envelope unreadable(AlpsProfileException failure) {
+        return failure instanceof AlpsUnreadableException
+            ? Envelope.engineUnavailable(failure.getMessage())
+            : Envelope.parseError(failure.getMessage());
     }
 }
