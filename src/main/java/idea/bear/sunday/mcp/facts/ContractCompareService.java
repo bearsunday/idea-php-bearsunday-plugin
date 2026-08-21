@@ -302,15 +302,6 @@ public final class ContractCompareService {
         return id.isEmpty() ? null : id;
     }
 
-    @Nullable
-    private static String stripHash(@Nullable String href) {
-        if (href == null) {
-            return null;
-        }
-
-        return href.startsWith("#") ? href.substring(1) : href;
-    }
-
     private static JsonArray stringArray(List<String> values) {
         JsonArray array = new JsonArray();
         values.forEach(array::add);

@@ -394,7 +394,7 @@ public final class AlpsFactsService {
         JsonObject json = new JsonObject();
         addIfPresent(json, "rel", resolved.rel());
         addIfPresent(json, "href", resolved.href());
-        addIfPresent(json, "resolvedPath", resolved.resolvedPath());
+        addIfPresent(json, "resolvedPath", projectRelative(resolved.resolvedPath()));
         json.addProperty("exists", resolved.exists());
         json.addProperty("external", resolved.external());
         addIfPresent(json, "owner", owner);
@@ -582,5 +582,24 @@ public final class AlpsFactsService {
         return failure instanceof AlpsUnreadableException
             ? Envelope.engineUnavailable(failure.getMessage())
             : Envelope.parseError(failure.getMessage());
+    }
+
+    /**
+     * Every other path in an answer -- provenance, schema files, resource files -- is written
+     * relative to the project, so a link's resolved path is written the same way instead of as
+     * the absolute path of whichever machine answered. A fragment is kept, and a path outside
+     * the project stays absolute because there is nothing to write it relative to.
+     */
+    @Nullable
+    private String projectRelative(@Nullable String resolvedPath) {
+        if (resolvedPath == null) {
+            return null;
+        }
+        int fragment = resolvedPath.indexOf('#');
+        String filePart = fragment < 0 ? resolvedPath : resolvedPath.substring(0, fragment);
+        String suffix = fragment < 0 ? "" : resolvedPath.substring(fragment);
+        VirtualFile file = LocalFileSystem.getInstance().findFileByPath(filePart);
+
+        return (file == null ? filePart : FactsFiles.relativePath(project, file)) + suffix;
     }
 }

@@ -214,7 +214,7 @@ class AlpsFactsServiceFixtureTest {
         assertEquals(3, links.size());
         assertTrue(fragment.get("exists").getAsBoolean());
         assertFalse(fragment.get("external").getAsBoolean());
-        assertTrue(fragment.get("resolvedPath").getAsString().endsWith("/alps.json#User"));
+        assertEquals("alps.json#User", fragment.get("resolvedPath").getAsString());
         assertEquals("profile", relative.get("owner").getAsString());
         assertFalse(relative.get("exists").getAsBoolean());
         assertFalse(relative.get("external").getAsBoolean());
@@ -232,7 +232,7 @@ class AlpsFactsServiceFixtureTest {
         JsonObject resolved = link(envelope(facts().linksResolve(null, null)).getAsJsonArray("links"), "profile");
 
         assertTrue(resolved.get("exists").getAsBoolean());
-        assertTrue(resolved.get("resolvedPath").getAsString().endsWith("/other.json"));
+        assertEquals("other.json", resolved.get("resolvedPath").getAsString());
     }
 
     /** Only a fragment or a sibling file resolves locally; other href forms must not pretend to. */
