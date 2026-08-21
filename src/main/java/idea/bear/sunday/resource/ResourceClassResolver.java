@@ -93,8 +93,12 @@ public final class ResourceClassResolver {
         String fileName = className + ".php";
         String expectedSuffix = "/" + relPath;
         PsiManager psiManager = PsiManager.getInstance(project);
-        for (VirtualFile virtualFile : FilenameIndex.getVirtualFilesByName(fileName, GlobalSearchScope.allScope(project))) {
-            if (!virtualFile.getPath().replace('\\', '/').endsWith(expectedSuffix)) {
+        // Project scope only, and never inside `vendor/`: an installed BEAR application carries
+        // `src/Resource/App/*.php` of its own, which matches the path suffix by shape alone and
+        // would resolve the URI to a dependency's resource.
+        for (VirtualFile virtualFile : FilenameIndex.getVirtualFilesByName(fileName, GlobalSearchScope.projectScope(project))) {
+            String path = virtualFile.getPath().replace('\\', '/');
+            if (!path.endsWith(expectedSuffix) || path.contains("/vendor/")) {
                 continue;
             }
 
@@ -125,7 +129,26 @@ public final class ResourceClassResolver {
 
         return PhpIndex.getInstance(project).getClassesByName(className).stream()
             .filter(phpClass -> phpClass.getFQN().endsWith(expectedFqnSuffix))
+            .filter(phpClass -> !isInVendor(phpClass))
             .findFirst();
+    }
+
+    /**
+     * A dependency's own resources share the {@code \Resource\App\Foo} namespace tail with the
+     * project's, so an FQN suffix match alone would resolve a URI to an installed package.
+     */
+    private static boolean isInVendor(PhpClass phpClass) {
+        PsiFile containingFile = phpClass.getContainingFile();
+        if (containingFile == null) {
+            return false;
+        }
+
+        VirtualFile virtualFile = containingFile.getVirtualFile();
+        if (virtualFile == null) {
+            return false;
+        }
+
+        return virtualFile.getPath().replace('\\', '/').contains("/vendor/");
     }
 
     private static @Nullable String classNameFromRelPath(String relPath) {
