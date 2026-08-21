@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.intellij.openapi.vfs.LocalFileSystem;
+import com.intellij.testFramework.DumbModeTestUtils;
 import com.intellij.testFramework.fixtures.CodeInsightTestFixture;
 import com.intellij.testFramework.fixtures.IdeaProjectTestFixture;
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory;
@@ -60,6 +61,23 @@ class ResourceFactsServiceFixtureTest {
             #[Embed(src: 'app://self/user{?id}', rel: 'user')]
             #[Link(rel: 'profile', href: 'app://self/profile{?id}')]
             public function onGet(int $id): static
+            {
+                return $this;
+            }
+        }
+        """;
+
+    /** Named as app://self/relocated but not filed there, so only the index can find it. */
+    private static final String RELOCATED = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Resource\\App;
+
+        use BEAR\\Resource\\ResourceObject;
+
+        final class Relocated extends ResourceObject
+        {
+            public function onGet(): static
             {
                 return $this;
             }
@@ -163,6 +181,41 @@ class ResourceFactsServiceFixtureTest {
             }
         }
         throw new AssertionError("relation not found: " + rel);
+    }
+
+    /**
+     * A resource at its conventional path is found by looking, so it answers in dumb mode too,
+     * and only the relations it cannot look up are marked unavailable.
+     */
+    @Test
+    void answersForAResourceAtItsConventionalPathWhileTheIndexesBuild() {
+        addPhysicalFile("src/Resource/App/User.php", USER);
+
+        DumbModeTestUtils.runInDumbModeSynchronously(fixture.getProject(), () -> {
+            JsonObject envelope = envelope(facts().describe("app://self/user"));
+
+            assertEquals("ok", envelope.get("status").getAsString(), envelope::toString);
+            assertEquals(
+                "index_not_ready",
+                envelope.getAsJsonObject("resource").get("relationsUnavailable").getAsString()
+            );
+        });
+    }
+
+    /**
+     * A resource whose file is not where the URI says has to be found through the index, so
+     * while the index is building the question has no answer yet. "Not found" would tell an
+     * agent the resource does not exist and to stop asking, which is a different thing.
+     */
+    @Test
+    void reportsIndexNotReadyForAResourceOnlyTheIndexCouldFind() {
+        addPhysicalFile("lib/Relocated.php", RELOCATED);
+
+        DumbModeTestUtils.runInDumbModeSynchronously(fixture.getProject(), () -> {
+            JsonObject envelope = envelope(facts().describe("app://self/relocated"));
+
+            assertEquals("index_not_ready", envelope.get("status").getAsString(), envelope::toString);
+        });
     }
 
     private static JsonObject envelope(String json) {
