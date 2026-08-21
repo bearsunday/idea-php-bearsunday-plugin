@@ -187,13 +187,30 @@ class SchemaFactsServiceFixtureTest {
         assertEquals("attribute", match.get("source").getAsString());
     }
 
+    /**
+     * The boundary is the schema directory the name is resolved under, and it is checked against
+     * the file the name reached rather than against the spelling of the name: a path that walks
+     * out of the directory answers with nothing even though the file it reached is one the
+     * project holds.
+     */
     @Test
     void rejectsASchemaFileArgumentThatLeavesTheSchemaDirectories() {
+        addPhysicalFile("var/json_schema/point.json", POINT_SCHEMA);
+        addPhysicalFile("var/elsewhere/point.json", POINT_SCHEMA);
+
+        JsonObject envelope = envelope(facts().lookup(null, null, "../elsewhere/point.json", null));
+
+        assertEquals(0, envelope.getAsJsonArray("matches").size());
+    }
+
+    /** A name that walks out and back in names a file the directory does hold, so it answers. */
+    @Test
+    void acceptsASchemaFileArgumentThatStaysInsideTheSchemaDirectories() {
         addPhysicalFile("var/json_schema/point.json", POINT_SCHEMA);
 
         JsonObject envelope = envelope(facts().lookup(null, null, "../json_schema/point.json", null));
 
-        assertEquals(0, envelope.getAsJsonArray("matches").size());
+        assertEquals(1, envelope.getAsJsonArray("matches").size());
     }
 
     @Test

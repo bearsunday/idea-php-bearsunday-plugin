@@ -34,11 +34,40 @@ final class FactsFiles {
         return basePath == null ? null : LocalFileSystem.getInstance().findFileByNioFile(Path.of(basePath));
     }
 
+    /**
+     * Resolves a project-relative path, answering {@code null} for anything that lands outside
+     * the project. The paths reaching here come from tool arguments and from project settings
+     * alike, and the answers carry file contents, so containment is decided once here rather
+     * than by each caller's own reading of the path: a ".." segment, an absolute path and a
+     * symbolic link pointing out of the tree all end up outside, and only the resolved file
+     * says so.
+     */
     @Nullable
     static VirtualFile find(Project project, String relativePath) {
         VirtualFile baseDir = baseDir(project);
+        if (baseDir == null) {
+            return null;
+        }
+        VirtualFile file = baseDir.findFileByRelativePath(relativePath);
 
-        return baseDir == null ? null : baseDir.findFileByRelativePath(relativePath);
+        return file != null && isInside(baseDir, file) ? file : null;
+    }
+
+    /**
+     * Whether a file lies under a directory. Callers with a narrower boundary than the project
+     * -- the configured schema directories, say -- ask here too, so containment means the same
+     * thing everywhere. Both sides are compared as the paths they finally name, so a symbolic
+     * link is judged by where it points, and a project that itself lives behind one
+     * (/tmp -> /private/tmp on macOS) is not mistaken for somewhere else.
+     */
+    static boolean isInside(VirtualFile directory, VirtualFile file) {
+        return VfsUtilCore.isAncestor(canonical(directory), canonical(file), false);
+    }
+
+    private static VirtualFile canonical(VirtualFile file) {
+        VirtualFile canonical = file.getCanonicalFile();
+
+        return canonical == null ? file : canonical;
     }
 
     /** Project-relative path of a file, falling back to the absolute path when it lies outside. */

@@ -201,17 +201,17 @@ public final class SchemaFactsService {
 
     /** Every configured schema directory that holds a file of this name. */
     List<SchemaMatch> byFileName(String fileName, String kind, String source) {
-        // The answer carries the file contents, so a name may never leave the schema
-        // directories. Subpaths like "admin/user.json" are legitimate #[JsonSchema] values,
-        // so "/" stays allowed; ".." (escape), "\" and absolute paths are not.
-        if (fileName.contains("..") || fileName.indexOf('\\') >= 0 || fileName.startsWith("/")) {
-            return List.of();
-        }
+        // The answer carries the file contents, so a name may never leave the schema directory
+        // it is resolved under. Subpaths like "admin/user.json" are legitimate #[JsonSchema]
+        // values, so "/" stays allowed and the boundary is checked against the file the name
+        // reached: a ".." segment and a symbolic link are then the same question, and neither
+        // is answered by reading the spelling of the path.
         List<SchemaMatch> matches = new ArrayList<>();
         for (String directory : schemaDirectories(kind)) {
-            String relativePath = directory.endsWith("/") ? directory + fileName : directory + "/" + fileName;
-            VirtualFile file = FactsFiles.find(project, relativePath);
-            if (file != null && !file.isDirectory()) {
+            String directoryPath = directory.endsWith("/") ? directory.substring(0, directory.length() - 1) : directory;
+            VirtualFile directoryFile = FactsFiles.find(project, directoryPath);
+            VirtualFile file = FactsFiles.find(project, directoryPath + "/" + fileName);
+            if (directoryFile != null && file != null && !file.isDirectory() && FactsFiles.isInside(directoryFile, file)) {
                 matches.add(parse(file, source, kind));
             }
         }

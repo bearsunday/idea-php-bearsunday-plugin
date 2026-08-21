@@ -7,7 +7,6 @@ import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.LocalFileSystem;
-import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import idea.bear.sunday.alps.AlpsDescriptor;
 import idea.bear.sunday.alps.AlpsLink;
@@ -456,7 +455,7 @@ public final class AlpsFactsService {
     /**
      * The answer carries the profile contents and its path, so a caller-given path may never
      * leave the project: whatever it resolves to has to sit under the project base directory,
-     * mirroring the schema directory guard in {@link SchemaFactsService#byFileName}.
+     * decided by the same containment check every other file answer goes through.
      */
     @Nullable
     private VirtualFile resolveProfileFile(String profilePath) {
@@ -474,7 +473,7 @@ public final class AlpsFactsService {
             return null;
         }
 
-        return file != null && VfsUtilCore.isAncestor(baseDir, file, false) ? file : null;
+        return file != null && FactsFiles.isInside(baseDir, file) ? file : null;
     }
 
     private AlpsProfile parse(VirtualFile file) {
