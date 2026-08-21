@@ -76,15 +76,26 @@ public final class SchemaFactsService {
             return List.of();
         }
         PhpClass phpClass = resolved.get();
+        List<Method> targets = targetMethods(phpClass, method);
+        if (isSet(method) && targets.isEmpty()) {
+            // The conventional schema belongs to the class, so offering it for a method this
+            // resource does not declare would answer a question nobody asked.
+            return List.of();
+        }
         Map<String, SchemaMatch> matches = new LinkedHashMap<>();
-        for (Method resourceMethod : targetMethods(phpClass, method)) {
+        boolean declared = false;
+        for (Method resourceMethod : targets) {
             for (String fileName : declaredSchemaFiles(resourceMethod, kind)) {
+                declared = true;
                 for (SchemaMatch match : byFileName(fileName, kind, SOURCE_ATTRIBUTE)) {
                     matches.putIfAbsent(match.path(), match);
                 }
             }
         }
-        if (!matches.isEmpty() || !KIND_RESPONSE.equals(kind)) {
+        // The convention answers for a resource that declares no schema at all. A resource that
+        // declares one naming a file that is not on disk has said which file it means, and the
+        // convention is not it.
+        if (!matches.isEmpty() || declared || !KIND_RESPONSE.equals(kind)) {
             return List.copyOf(matches.values());
         }
         SchemaMatch conventional = conventionMatch(phpClass);
@@ -99,6 +110,11 @@ public final class SchemaFactsService {
         }
         if (!isSet(resourceUri) && !isSet(schemaFile)) {
             return Envelope.notFound("Either resourceUri or schemaFile is required.").toJson();
+        }
+        if (isSet(resourceUri) && UriUtil.normalizeSupportedResourceUri(resourceUri.trim(), false) == null) {
+            // Every other tool answers not_found for a URI it does not support; answering ok with
+            // an empty list would read as "this resource has no schema" for what is a typo.
+            return Envelope.notFound("Unsupported resource URI: " + resourceUri).toJson();
         }
         List<SchemaMatch> matches = new ArrayList<>();
         if (isSet(schemaFile)) {

@@ -238,6 +238,54 @@ class SchemaFactsServiceFixtureTest {
         assertEquals("not_found", envelope(facts().lookup(null, null, "point.json", "sideways")).get("status").getAsString());
     }
 
+    /**
+     * The declaration says which file the resource means. When that file is not on disk the
+     * answer is that there is none, not the conventional file the resource never named.
+     */
+    @Test
+    void doesNotFallBackToTheConventionWhenTheDeclaredSchemaFileIsMissing() {
+        addPhysicalFile("src/Resource/App/MissingSchema.php", """
+            <?php
+            namespace MyVendor\\MyProject\\Resource\\App;
+
+            use BEAR\\Resource\\Annotation\\JsonSchema;
+            use BEAR\\Resource\\ResourceObject;
+
+            final class MissingSchema extends ResourceObject
+            {
+                #[JsonSchema(schema: 'nowhere.json')]
+                public function onGet(): static
+                {
+                    return $this;
+                }
+            }
+            """);
+        addPhysicalFile("var/json_schema/missing-schema.json", POINT_SCHEMA);
+
+        JsonObject envelope = envelope(facts().lookup("app://self/missing-schema", null, null, null));
+
+        assertEquals(0, envelope.getAsJsonArray("matches").size(), envelope::toString);
+    }
+
+    /** A method the resource does not declare is not answered for with the class's own schema. */
+    @Test
+    void doesNotFallBackToTheConventionForAMethodTheResourceDoesNotDeclare() {
+        addPhysicalFile("src/Resource/App/Point.php", POINT);
+        addPhysicalFile("var/json_schema/point.json", POINT_SCHEMA);
+
+        JsonObject envelope = envelope(facts().lookup("app://self/point", "delete", null, null));
+
+        assertEquals(0, envelope.getAsJsonArray("matches").size(), envelope::toString);
+    }
+
+    /** A URI the tools do not support is a typo, not a resource that happens to have no schema. */
+    @Test
+    void reportsNotFoundForAnUnsupportedResourceUri() {
+        JsonObject envelope = envelope(facts().lookup("http://example.com/user", null, null, null));
+
+        assertEquals("not_found", envelope.get("status").getAsString(), envelope::toString);
+    }
+
     private static JsonObject envelope(String json) {
         return JsonParser.parseString(json).getAsJsonObject();
     }

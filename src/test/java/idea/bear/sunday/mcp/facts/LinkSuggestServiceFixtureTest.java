@@ -132,6 +132,19 @@ class LinkSuggestServiceFixtureTest {
         assertEquals("not_found", envelope(facts().suggest("Point", null)).get("status").getAsString());
     }
 
+    /**
+     * An unreadable URI used to become "no filter", so every descriptor in the profile was
+     * suggested under status=ok -- a confident answer to a typo.
+     */
+    @Test
+    void reportsNotFoundForAnUnsupportedResourceUri() {
+        addPhysicalFile("alps.json", PROFILE);
+
+        JsonObject envelope = envelope(facts().suggest(null, "http://example.com/point"));
+
+        assertEquals("not_found", envelope.get("status").getAsString(), envelope::toString);
+    }
+
     private static JsonObject suggestion(JsonArray suggestions, String rel) {
         for (JsonElement element : suggestions) {
             if (rel.equals(element.getAsJsonObject().get("rel").getAsString())) {

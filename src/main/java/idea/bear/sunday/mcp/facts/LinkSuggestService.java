@@ -51,6 +51,13 @@ public final class LinkSuggestService {
     }
 
     private String suggestLinks(@Nullable String descriptorId, @Nullable String resourceUri) {
+        boolean filterByUri = (descriptorId == null || descriptorId.isBlank()) && resourceUri != null && !resourceUri.isBlank();
+        if (filterByUri && UriUtil.normalizeSupportedResourceUri(resourceUri.trim(), false) == null) {
+            // Without this the unreadable URI became "no filter", and every descriptor in the
+            // profile was suggested under status=ok -- a confident answer to a typo. The other
+            // tools answer not_found for the same input.
+            return Envelope.notFound("Unsupported resource URI: " + resourceUri).toJson();
+        }
         String wantedId = wantedId(descriptorId, resourceUri);
         AlpsProfileDetector detector = AlpsProfileDetector.getInstance(project);
         List<VirtualFile> profiles = detector.findProfiles();
