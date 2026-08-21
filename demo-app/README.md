@@ -40,7 +40,7 @@ composer install
 
 **このプロジェクトはプロファイルを2つ持つので、`profilePath` を省いた ALPS ツール呼び出しは `status=ambiguous` を返します**（どちらを読んだのかが答えから分からなくなるため、先着順では答えません）。手動確認では読みたい方を明示してください。
 
-```
+```text
 bear_alps_profile_read(profilePath: "alps.json")
 bear_alps_descriptor_lookup(id: "Dashboard", profilePath: "alps.json")
 bear_alps_transition_lookup(from: "Dashboard", profilePath: "alps.json")
