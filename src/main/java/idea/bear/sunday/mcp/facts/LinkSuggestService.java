@@ -134,7 +134,7 @@ public final class LinkSuggestService {
         if (file == null || declared.contains(key(REL_RELATED, file.getPath()))) {
             return;
         }
-        String href = FactsFiles.relativePath(project, file) + "#/paths/~1" + name;
+        String href = FactsFiles.relativePath(project, file) + "#" + jsonPointer(path);
         suggestions.add(suggestion(
             REL_RELATED,
             href,
@@ -228,5 +228,14 @@ public final class LinkSuggestService {
 
     private Provenance provenanceOf(VirtualFile file) {
         return Provenance.ofFile(FactsFiles.relativePath(project, file), FactsFiles.isUnsaved(file));
+    }
+
+    /**
+     * RFC 6901: inside a pointer segment "~" is written "~0" and "/" is written "~1", in that
+     * order. The descriptor id reaches here as written, so a segment carrying either character
+     * would otherwise be handed over as a pointer that names something else.
+     */
+    private static String jsonPointer(String path) {
+        return "/paths/" + path.replace("~", "~0").replace("/", "~1");
     }
 }
