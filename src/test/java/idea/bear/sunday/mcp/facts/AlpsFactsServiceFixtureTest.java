@@ -168,6 +168,15 @@ class AlpsFactsServiceFixtureTest {
         assertEquals("#User", transitions.get(0).getAsJsonObject().get("rt").getAsString());
     }
 
+    /** A padded filter names the same descriptor as an unpadded one. */
+    @Test
+    void ignoresSurroundingSpaceInTheTransitionFilters() {
+        addPhysicalFile("alps.json", PROFILE);
+
+        assertEquals(1, envelope(facts().transitionLookup(null, null, " User ", null)).getAsJsonArray("transitions").size());
+        assertEquals(1, envelope(facts().transitionLookup(null, " item ", null, null)).getAsJsonArray("transitions").size());
+    }
+
     @Test
     void acceptsReturnTypeWithLeadingHash() {
         addPhysicalFile("alps.json", PROFILE);

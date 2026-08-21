@@ -124,7 +124,18 @@ public final class AlpsFactsService {
     }
 
     private String lookupTransitions(@Nullable String from, @Nullable String rel, @Nullable String rt, @Nullable String profilePath) {
-        return firstMatching(profilePath, "transitions", (file, profile) -> transitionsJson(profile, from, rel, rt));
+        // A client that pads a filter means the same descriptor by it. rt was already trimmed on
+        // the way through stripHash while from and rel were not, so the three behaved differently.
+        String trimmedFrom = trimmed(from);
+        String trimmedRel = trimmed(rel);
+        String trimmedRt = trimmed(rt);
+
+        return firstMatching(profilePath, "transitions", (file, profile) -> transitionsJson(profile, trimmedFrom, trimmedRel, trimmedRt));
+    }
+
+    @Nullable
+    private static String trimmed(@Nullable String value) {
+        return value == null ? null : value.trim();
     }
 
     private String resolveLinks(@Nullable String profilePath, @Nullable String rel) {
