@@ -129,9 +129,11 @@ public final class ContractCompareService {
     private AlpsSide alpsSide(String normalizedUri) {
         String descriptorId = descriptorId(normalizedUri);
         if (descriptorId == null) {
-            return new AlpsSide(null, null);
+            return new AlpsSide(null, null, List.of());
         }
         AlpsProfileException failure = null;
+        AlpsFields fields = null;
+        List<String> matched = new ArrayList<>();
         for (VirtualFile file : AlpsProfileDetector.getInstance(project).findProfiles()) {
             AlpsProfile profile;
             try {
@@ -144,21 +146,28 @@ public final class ContractCompareService {
             if (descriptor == null || descriptor.isTransition()) {
                 continue;
             }
-
-            return new AlpsSide(
-                new AlpsFields(descriptorId, FactsFiles.relativePath(project, file), file, fieldsOf(descriptor, profile)),
-                null
-            );
+            matched.add(FactsFiles.relativePath(project, file));
+            fields = fields != null
+                ? fields
+                : new AlpsFields(descriptorId, FactsFiles.relativePath(project, file), file, fieldsOf(descriptor, profile));
+        }
+        // Two profiles describing the same resource is ambiguous rather than first-served, but it
+        // is one side of three: the comparison still answers, and says this side stood down.
+        if (matched.size() > 1) {
+            return new AlpsSide(null, null, matched);
+        }
+        if (fields != null) {
+            return new AlpsSide(fields, null, List.of());
         }
 
         // A profile that failed to parse is not the same as a project with no profile: told only
         // "available: false", a caller reads a broken profile as one that never described this
         // resource, and the fields it does describe silently become "only in" the other sides.
-        return new AlpsSide(null, failure);
+        return new AlpsSide(null, failure, List.of());
     }
 
     /** The ALPS side of the comparison: the fields it named, or why it named none. */
-    private record AlpsSide(@Nullable AlpsFields fields, @Nullable AlpsProfileException failure) {
+    private record AlpsSide(@Nullable AlpsFields fields, @Nullable AlpsProfileException failure, List<String> candidates) {
     }
 
     private static List<String> fieldsOf(AlpsDescriptor descriptor, AlpsProfile profile) {
@@ -211,7 +220,10 @@ public final class ContractCompareService {
         if (alpsFields == null) {
             json.addProperty("available", false);
             AlpsProfileException failure = alps.failure();
-            if (failure != null) {
+            if (!alps.candidates().isEmpty()) {
+                json.addProperty("unavailable", Status.ambiguous.name());
+                json.add("candidates", stringArray(alps.candidates()));
+            } else if (failure != null) {
                 json.addProperty(
                     "unavailable",
                     failure instanceof AlpsUnreadableException

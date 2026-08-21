@@ -101,6 +101,8 @@ public final class AlpsFactsService {
         // A broken profile only decides the answer when no profile could be read at all, the
         // same order of precedence firstMatching() applies.
         boolean anyReadable = false;
+        List<VirtualFile> matched = new ArrayList<>();
+        JsonObject descriptorJson = null;
         for (VirtualFile file : files) {
             AlpsProfile profile;
             try {
@@ -112,11 +114,18 @@ public final class AlpsFactsService {
             anyReadable = true;
             AlpsDescriptor descriptor = AlpsLinkResolver.findById(profile.descriptors(), wanted);
             if (descriptor != null) {
-                JsonObject payload = new JsonObject();
-                payload.add("descriptor", descriptorJson(descriptor));
-
-                return Envelope.ok(provenanceOf(file), payload).toJson();
+                matched.add(file);
+                descriptorJson = descriptorJson == null ? descriptorJson(descriptor) : descriptorJson;
             }
+        }
+        if (matched.size() > 1) {
+            return Envelope.ambiguous(paths(matched)).toJson();
+        }
+        if (matched.size() == 1) {
+            JsonObject payload = new JsonObject();
+            payload.add("descriptor", descriptorJson);
+
+            return Envelope.ok(provenanceOf(matched.get(0)), payload).toJson();
         }
 
         return anyReadable
@@ -144,8 +153,10 @@ public final class AlpsFactsService {
     }
 
     /**
-     * Runs a list-producing query over the target profiles and answers from the first profile
-     * that yields a match, so the provenance always names a single source.
+     * Runs a list-producing query over the target profiles. One profile answering is the answer,
+     * and its file is the provenance. Several profiles answering is ambiguous: the file system
+     * order decided which one used to win, so the same question could answer differently on two
+     * machines. Naming the candidates lets the caller ask again with a profilePath.
      */
     private String firstMatching(@Nullable String profilePath, String key, ProfileQuery query) {
         List<VirtualFile> files = targetFiles(profilePath);
@@ -154,6 +165,8 @@ public final class AlpsFactsService {
         }
         AlpsProfileException failure = null;
         VirtualFile firstReadable = null;
+        List<VirtualFile> matched = new ArrayList<>();
+        JsonArray matchedResults = null;
         for (VirtualFile file : files) {
             AlpsProfile profile;
             try {
@@ -165,19 +178,20 @@ public final class AlpsFactsService {
             firstReadable = firstReadable == null ? file : firstReadable;
             JsonArray results = query.run(file, profile);
             if (results.size() > 0) {
-                JsonObject payload = new JsonObject();
-                payload.add(key, results);
-
-                return Envelope.ok(provenanceOf(file), payload).toJson();
+                matched.add(file);
+                matchedResults = matchedResults == null ? results : matchedResults;
             }
+        }
+        if (matched.size() > 1) {
+            return Envelope.ambiguous(paths(matched)).toJson();
         }
         if (firstReadable == null) {
             return unreadable(failure).toJson();
         }
         JsonObject payload = new JsonObject();
-        payload.add(key, new JsonArray());
+        payload.add(key, matched.isEmpty() ? new JsonArray() : matchedResults);
 
-        return Envelope.ok(provenanceOf(firstReadable), payload).toJson();
+        return Envelope.ok(provenanceOf(matched.isEmpty() ? firstReadable : matched.get(0)), payload).toJson();
     }
 
     private JsonArray transitionsJson(AlpsProfile profile, @Nullable String from, @Nullable String rel, @Nullable String rt) {

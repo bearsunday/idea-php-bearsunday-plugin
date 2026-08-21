@@ -194,6 +194,33 @@ class AlpsFactsServiceFixtureTest {
         assertEquals(0, envelope.getAsJsonArray("transitions").size());
     }
 
+    /**
+     * Which profile answered used to be decided by the order the file system handed them over,
+     * so the same question could answer differently on two machines. Naming the candidates lets
+     * the caller ask again with a profilePath, the way bear_alps_profile_read already did.
+     */
+    @Test
+    void reportsAmbiguousWhenSeveralProfilesDescribeTheSameDescriptor() {
+        addPhysicalFile("alps.json", PROFILE);
+        addPhysicalFile("other.alps.json", PROFILE);
+
+        JsonObject envelope = envelope(facts().descriptorLookup("User", null, null));
+
+        assertEquals("ambiguous", envelope.get("status").getAsString(), envelope::toString);
+        assertEquals(2, envelope.getAsJsonArray("candidates").size());
+    }
+
+    /** Naming one profile answers from it, however many the project holds. */
+    @Test
+    void answersFromTheNamedProfileWhenSeveralExist() {
+        addPhysicalFile("alps.json", PROFILE);
+        addPhysicalFile("other.alps.json", PROFILE);
+
+        JsonObject envelope = envelope(facts().descriptorLookup("User", null, "other.alps.json"));
+
+        assertEquals("ok", envelope.get("status").getAsString(), envelope::toString);
+    }
+
     /** Malformed text and an unread file are different things to tell a caller. */
     @Test
     void reportsAMalformedProfileAsAParseError() {

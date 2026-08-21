@@ -67,6 +67,8 @@ public final class LinkSuggestService {
         }
         AlpsProfileException failure = null;
         VirtualFile firstReadable = null;
+        List<VirtualFile> matched = new ArrayList<>();
+        JsonArray matchedSuggestions = null;
         for (VirtualFile file : profiles) {
             AlpsProfile profile;
             try {
@@ -80,6 +82,10 @@ public final class LinkSuggestService {
             if (targets.isEmpty()) {
                 continue;
             }
+            matched.add(file);
+            if (matchedSuggestions != null) {
+                continue;
+            }
             ApiDocFactsService apiDoc = ApiDocFactsService.getInstance(project);
             Set<String> openApiPaths = apiDoc.pathKeys();
             VirtualFile openApiFile = apiDoc.openApiFile();
@@ -87,8 +93,15 @@ public final class LinkSuggestService {
             for (AlpsDescriptor target : targets) {
                 suggestions.addAll(suggestionsFor(target, profile, file, openApiPaths, openApiFile));
             }
-
-            return Envelope.ok(provenanceOf(file), payload(suggestions)).toJson();
+            matchedSuggestions = suggestions;
+        }
+        // Several profiles describing the same descriptor is ambiguous rather than first-served:
+        // which one won was decided by the order the file system handed them over.
+        if (matched.size() > 1) {
+            return Envelope.ambiguous(matched.stream().map(file -> FactsFiles.relativePath(project, file)).toList()).toJson();
+        }
+        if (matchedSuggestions != null) {
+            return Envelope.ok(provenanceOf(matched.get(0)), payload(matchedSuggestions)).toJson();
         }
         if (firstReadable == null) {
             return failure instanceof AlpsUnreadableException
