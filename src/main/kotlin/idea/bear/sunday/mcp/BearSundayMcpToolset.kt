@@ -20,10 +20,6 @@ import kotlin.coroutines.coroutineContext
 class BearSundayMcpToolset : McpToolset {
 
     @McpTool
-    @McpDescription("Spike tool: returns the current project name to verify BEAR.Sunday MCP toolset registration.")
-    suspend fun bear_spike_ping(): String = "BEAR.Sunday MCP spike OK: project=" + project().name
-
-    @McpTool
     @McpDescription(
         "Read-only. Returns a normalized ALPS profile (title, doc, links and the full descriptor tree) as JSON. " +
             "profilePath is absolute or project-relative; when omitted the single profile in the project is used, " +
