@@ -303,6 +303,48 @@ class ResourceMethodTypeProviderFixtureTest {
     }
 
     @Test
+    void addsUnionBodyTypeComponentsIndividually() {
+        addPhysicalPhpFile("src/Resource/App/Article.php", """
+            <?php
+            namespace MyVendor\\MyProject\\Resource\\App;
+
+            final class Article extends \\BEAR\\Resource\\ResourceObject
+            {
+                public function onGet(bool $found): static
+                {
+                    if ($found) {
+                        $this->body = ['id' => 1];
+
+                        return $this;
+                    }
+
+                    $this->body = ['error' => 'not found'];
+
+                    return $this;
+                }
+            }
+            """);
+        PsiFile caller = fixture.addFileToProject("src/Resource/App/Caller.php", """
+            <?php
+            namespace MyVendor\\MyProject\\Resource\\App;
+
+            final class Caller
+            {
+                public function onGet(): void
+                {
+                    $body = $this->resource->get('app://self/article')->body;
+                }
+            }
+            """);
+
+        PhpType completedType = completedBodyType(caller);
+
+        assertTrue(completedType.getTypes().contains("array{id: int}"), completedType::toString);
+        assertTrue(completedType.getTypes().contains("array{error: string}"), completedType::toString);
+        assertTrue(completedType.getTypes().stream().noneMatch(type -> type.contains("|")), completedType::toString);
+    }
+
+    @Test
     void narrowsDirectResourceBodyAccess() {
         addPhysicalPhpFile("src/Resource/App/Article.php", """
             <?php
