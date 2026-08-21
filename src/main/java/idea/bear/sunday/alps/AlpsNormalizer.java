@@ -4,6 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
+import com.google.gson.JsonPrimitive;
 import org.jetbrains.annotations.Nullable;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -19,6 +20,8 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Normalizes ALPS profiles into {@link AlpsProfile}. Both representations allowed by the ALPS
@@ -103,8 +106,25 @@ public final class AlpsNormalizer {
             readString(object, "title"),
             readJsonLinks(object),
             readJsonDescriptors(object, raw, depth + 1),
-            id == null ? -1 : raw.indexOf('"' + id + '"')
+            jsonIdOffset(raw, id)
         );
+    }
+
+    /**
+     * Offset of the descriptor's own id, anchored to the {@code "id"} member the way the XML
+     * side anchors to {@code id="..."}. The bare value is not enough: a descriptor whose id is
+     * "id", "type" or "title" collides with the key names themselves, and any id appears as a
+     * value -- in an rt, an href, a rel -- before the definition that owns it. Still best-effort:
+     * two descriptors sharing an id both point at the first, and an id the file spells with a
+     * different escape than Gson writes is not found at all, which answers -1.
+     */
+    private static int jsonIdOffset(String raw, @Nullable String id) {
+        if (id == null) {
+            return -1;
+        }
+        Matcher matcher = Pattern.compile("\"id\"\\s*:\\s*" + Pattern.quote(new JsonPrimitive(id).toString())).matcher(raw);
+
+        return matcher.find() ? matcher.start() : -1;
     }
 
     private static List<AlpsLink> readJsonLinks(JsonObject parent) {

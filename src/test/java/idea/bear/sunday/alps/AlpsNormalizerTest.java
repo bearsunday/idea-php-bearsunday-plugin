@@ -136,7 +136,22 @@ class AlpsNormalizerTest {
         int offset = descriptor(profile, "Blog").textOffset();
 
         assertTrue(offset >= 0);
-        assertTrue(raw.startsWith("\"Blog\"", offset));
+        assertTrue(raw.startsWith("\"id\": \"Blog\"", offset));
+    }
+
+    /**
+     * The fixture holds a descriptor whose id is "id". Searching for the bare value found the
+     * key name of the very first descriptor in the file, so the offset pointed at another
+     * descriptor entirely.
+     */
+    @Test
+    void anchorsTheOffsetToTheIdMemberWhenTheIdCollidesWithAKeyName() {
+        String raw = fixture("alps.json");
+        AlpsProfile profile = AlpsNormalizer.fromJson(raw, "/project/alps.json");
+        int offset = descriptor(profile, "id").textOffset();
+
+        assertTrue(offset >= 0);
+        assertTrue(raw.startsWith("\"id\": \"id\"", offset), () -> raw.substring(offset, offset + 20));
     }
 
     @Test
