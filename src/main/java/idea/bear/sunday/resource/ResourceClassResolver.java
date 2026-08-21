@@ -19,9 +19,9 @@ import java.util.Optional;
 
 /**
  * Resolves a normalized BEAR.Resource URI (e.g. {@code app://self/blog-posting}) to its
- * backing {@link PhpClass}. Tries, in order, an on-disk NIO lookup, the containing VirtualFile,
- * the PHP class index, and finally a filename-index fallback for cases the index has not yet
- * caught up to a freshly created file.
+ * backing {@link PhpClass}. Tries, in order, the file the URI names, the PHP class index, and
+ * finally a filename-index lookup. The two index stages answer for layouts that keep resources
+ * off the path their URI spells, and they look only inside the project.
  */
 public final class ResourceClassResolver {
 
