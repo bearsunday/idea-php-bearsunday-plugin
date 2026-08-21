@@ -24,8 +24,10 @@ import org.jetbrains.annotations.Nullable;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * Answers ALPS questions as JSON envelopes for the MCP tools. Every answer is read-only and
@@ -166,24 +168,68 @@ public final class AlpsFactsService {
 
     private JsonArray transitionsJson(AlpsProfile profile, @Nullable String from, @Nullable String rel, @Nullable String rt) {
         JsonArray transitions = new JsonArray();
-        collectTransitions(profile.descriptors(), null, from, rel, rt, transitions);
+        Set<String> referenced = new HashSet<>();
+        collectReferencedIds(profile, profile.descriptors(), referenced);
+        collectTransitions(profile, profile.descriptors(), null, from, rel, rt, referenced, transitions);
 
         return transitions;
     }
 
+    /**
+     * A state names the transitions it offers by reference ({@code {"href": "#goUser"}}) far more
+     * often than by defining them inside itself, so a reference is followed to the transition it
+     * points at and reported under the state that holds it. The bare top-level definition of a
+     * transition reached this way is left out: what the reference adds is the state it is
+     * available from, and reporting the definition again would double every such transition.
+     */
+    private static void collectReferencedIds(AlpsProfile profile, List<AlpsDescriptor> descriptors, Set<String> referenced) {
+        for (AlpsDescriptor descriptor : descriptors) {
+            AlpsDescriptor target = referencedTransition(profile, descriptor);
+            if (target != null) {
+                referenced.add(target.id());
+            }
+            collectReferencedIds(profile, descriptor.children(), referenced);
+        }
+    }
+
+    /** The transition a child reference points at, or {@code null} when it points elsewhere. */
+    @Nullable
+    private static AlpsDescriptor referencedTransition(AlpsProfile profile, AlpsDescriptor descriptor) {
+        if (!descriptor.isReference()) {
+            return null;
+        }
+        String href = descriptor.href();
+        if (href == null || !href.startsWith("#")) {
+            return null;
+        }
+        AlpsDescriptor target = AlpsLinkResolver.findById(profile.descriptors(), href.substring(1));
+
+        return target != null && target.isTransition() && target.id() != null ? target : null;
+    }
+
     private void collectTransitions(
+        AlpsProfile profile,
         List<AlpsDescriptor> descriptors,
         @Nullable String parentId,
         @Nullable String from,
         @Nullable String rel,
         @Nullable String rt,
+        Set<String> referenced,
         JsonArray transitions
     ) {
         for (AlpsDescriptor descriptor : descriptors) {
-            if (descriptor.isTransition() && matchesFilters(descriptor, parentId, from, rel, rt)) {
-                transitions.add(transitionJson(descriptor, parentId));
+            AlpsDescriptor target = referencedTransition(profile, descriptor);
+            if (target != null) {
+                if (matchesFilters(target, parentId, from, rel, rt)) {
+                    transitions.add(transitionJson(target, parentId, true));
+                }
+                continue;
             }
-            collectTransitions(descriptor.children(), descriptor.id(), from, rel, rt, transitions);
+            boolean supersededByReference = parentId == null && referenced.contains(descriptor.id());
+            if (descriptor.isTransition() && !supersededByReference && matchesFilters(descriptor, parentId, from, rel, rt)) {
+                transitions.add(transitionJson(descriptor, parentId, false));
+            }
+            collectTransitions(profile, descriptor.children(), descriptor.id(), from, rel, rt, referenced, transitions);
         }
     }
 
@@ -204,11 +250,14 @@ public final class AlpsFactsService {
         return !isSet(rt) || rtMatches(descriptor.rt(), rt);
     }
 
-    private JsonObject transitionJson(AlpsDescriptor descriptor, @Nullable String parentId) {
+    private JsonObject transitionJson(AlpsDescriptor descriptor, @Nullable String parentId, boolean viaHref) {
         JsonObject json = new JsonObject();
         addIfPresent(json, "from", parentId);
         for (var entry : descriptorJson(descriptor).entrySet()) {
             json.add(entry.getKey(), entry.getValue());
+        }
+        if (viaHref) {
+            json.addProperty("via", "href");
         }
         JsonArray implementations = implementationsJson(descriptor, parentId);
         if (implementations.size() > 0) {
@@ -220,15 +269,20 @@ public final class AlpsFactsService {
 
     /**
      * Matches an ALPS transition against BEAR.Resource {@code #[Link]} / {@code #[Embed]}
-     * declarations by convention: the target descriptor id names the resource
-     * ({@code BlogPosting} -> {@code app://self/blog-posting}). A nested transition only
-     * matches relations declared by its containing state, so another resource pointing at the
-     * same target with the same rel is not misattributed.
+     * declarations by two conventions: the target descriptor id names the resource
+     * ({@code BlogPosting} -> {@code app://self/blog-posting}), and a relation's {@code rel}
+     * spells the transition's id ({@code #[Link(rel: 'goUser')]} -> {@code id="goUser"}). A
+     * transition id is an opaque identifier, so it is compared exactly -- no case folding, no
+     * hyphenation, and no stripping of the {@code go}/{@code do} prefix, which is a habit rather
+     * than a rule. The ALPS {@code rel} attribute is not a join key: it is absent from real
+     * profiles, and it does not identify a transition. A nested transition only matches relations
+     * declared by its containing state, so another resource pointing at the same target with the
+     * same rel is not misattributed.
      */
     private JsonArray implementationsJson(AlpsDescriptor descriptor, @Nullable String parentId) {
         JsonArray implementations = new JsonArray();
         String targetId = localId(descriptor.rt());
-        if (targetId == null || descriptor.rel() == null) {
+        if (targetId == null || descriptor.id() == null) {
             return implementations;
         }
         String resourceName = Names.kebab(targetId);
@@ -239,7 +293,7 @@ public final class AlpsFactsService {
                     continue;
                 }
                 for (ResourceRelation relation : ResourceRelationIndex.findIncoming(resourcePath, project)) {
-                    if (relMatches(descriptor.rel(), relation.rel()) && sourceMatches(relation, parentId)) {
+                    if (descriptor.id().equals(relation.rel()) && sourceMatches(relation, parentId)) {
                         implementations.add(relationJson(relation));
                     }
                 }

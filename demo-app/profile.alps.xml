@@ -46,11 +46,11 @@
         <descriptor href="#goProfile"/>
     </descriptor>
 
-    <descriptor id="goUser" type="safe" rt="#User" rel="https://bearsunday.github.io/rels/user">
-        <doc>Embedded as rel=user from Dashboard.</doc>
+    <descriptor id="goUser" type="safe" rt="#User">
+        <doc>Embedded from Dashboard, whose #[Embed(rel: 'goUser')] names this id.</doc>
     </descriptor>
-    <descriptor id="goProfile" type="safe" rt="#Profile" rel="profile">
-        <doc>Linked as rel=profile from Dashboard.</doc>
+    <descriptor id="goProfile" type="safe" rt="#Profile">
+        <doc>Linked from Dashboard, whose #[Link(rel: 'goProfile')] names this id.</doc>
     </descriptor>
     <descriptor id="goPoint" type="safe" rt="#Point"/>
 </alps>

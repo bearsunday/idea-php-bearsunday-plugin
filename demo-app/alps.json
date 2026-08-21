@@ -39,8 +39,8 @@
                 {"href": "#goProfile"}
             ]},
 
-            {"id": "goUser", "type": "safe", "rt": "#User", "rel": "https://bearsunday.github.io/rels/user", "doc": {"value": "Embedded as rel=user from Dashboard."}},
-            {"id": "goProfile", "type": "safe", "rt": "#Profile", "rel": "profile", "doc": {"value": "Linked as rel=profile from Dashboard."}},
+            {"id": "goUser", "type": "safe", "rt": "#User", "doc": {"value": "Embedded from Dashboard, whose #[Embed(rel: 'goUser')] names this id."}},
+            {"id": "goProfile", "type": "safe", "rt": "#Profile", "doc": {"value": "Linked from Dashboard, whose #[Link(rel: 'goProfile')] names this id."}},
             {"id": "goPoint", "type": "safe", "rt": "#Point"}
         ]
     }
