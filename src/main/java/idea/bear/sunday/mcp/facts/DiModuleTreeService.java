@@ -8,6 +8,7 @@ import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.jetbrains.php.PhpIndex;
@@ -328,7 +329,7 @@ public final class DiModuleTreeService {
             // The names this install binds, said on the node: without it an install that expanded
             // to twenty bindings looks exactly like one that expanded to none.
             json.addProperty("boundFromInstall", constants.entries().size());
-            if (constants.site() == null) {
+            if (constants.argumentUnreadable()) {
                 // The module binds an array, and this install does not state which array. Marked
                 // rather than expanded, because the names it binds are the ones a caller would
                 // otherwise be told nobody binds.
@@ -609,20 +610,26 @@ public final class DiModuleTreeService {
         VirtualFile file = fileOf(installed);
         state.unsaved |= file != null && FactsFiles.isUnsaved(file);
         if (!(call.getParameters()[0] instanceof NewExpression newExpression)) {
-            return new Constants(shape.bindCall(), List.of(), null, 0);
+            state.installArgumentsUnreadable++;
+
+            return new Constants(shape.bindCall(), List.of(), installSite(call), 0, true);
         }
         ArrayBindings.Expansion expansion = ArrayBindings.expand(shape, newExpression);
         if (expansion == null) {
             state.installArgumentsUnreadable++;
 
-            return new Constants(shape.bindCall(), List.of(), null, 0);
+            // Still sited. Two installs of one module with an array neither states are two
+            // installs, and folding them into one node would report one of them as expanded
+            // somewhere else and count the names it binds only once.
+            return new Constants(shape.bindCall(), List.of(), installSite(newExpression), 0, true);
         }
 
         return new Constants(
             expansion.bindCall(),
             expansion.entries(),
             installSite(newExpression),
-            expansion.keysUnreadable()
+            expansion.keysUnreadable(),
+            false
         );
     }
 
@@ -632,7 +639,7 @@ public final class DiModuleTreeService {
      * the same for one call read twice.
      */
     @Nullable
-    private String installSite(NewExpression call) {
+    private String installSite(PsiElement call) {
         PsiFile file = call.getContainingFile();
         VirtualFile virtualFile = file == null ? null : file.getVirtualFile();
 
@@ -763,7 +770,9 @@ public final class DiModuleTreeService {
      * are empty and {@code site} is null for the first, and there is no {@code Constants} for the
      * second.
      *
-     * <p>{@code site} is what tells two installs of one module apart when their bindings collide.
+     * <p>{@code site} is what tells two installs of one module apart -- when their bindings
+     * collide, and when neither states an array, so that two installs neither of which could be
+     * read stay two rather than becoming one.
      * {@code bindCall} is the chain in the module's own body that these entries stand for, kept so
      * the scan reading that file does not count it a second time as the unreadable binding it is
      * when read alone.
@@ -772,7 +781,8 @@ public final class DiModuleTreeService {
         MethodReference bindCall,
         List<ArrayBindings.Entry> entries,
         @Nullable String site,
-        int keysUnreadable
+        int keysUnreadable,
+        boolean argumentUnreadable
     ) {
     }
 

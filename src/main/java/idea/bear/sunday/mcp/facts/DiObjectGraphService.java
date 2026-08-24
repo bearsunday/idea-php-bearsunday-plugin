@@ -293,8 +293,16 @@ public final class DiObjectGraphService {
      *       whether the bind is written before the {@code install()} or after it. Before, the merge
      *       leaves it alone; after, it overwrites what the merge brought in.
      *   <li>Two installed modules: the one installed FIRST wins, because the second merge finds the
-     *       key taken.
+     *       key taken. Two installs of ONE module that binds an array it was handed are two of
+     *       these, not the first case: each install is its own container.
      * </ul>
+     *
+     * <p>What is not modelled, in the same terms as the {@code override()} limit below: inside one
+     * install of an array-binding module, a {@code bind()} chain written in the class body and an
+     * entry of the array are one container in Ray.Di, resolved by which runs later in
+     * {@code configure()}, while here the entries are held apart and the chain keeps the key. No
+     * module in {@code bear/*} or {@code ray/*} writes both -- the one that binds an array binds
+     * nothing else -- so this is reachable only by a module of one's own written that way.
      */
     private static final class Container {
 
@@ -329,7 +337,7 @@ public final class DiObjectGraphService {
                 return;
             }
             keysUndecidable += constants.keysUnreadable();
-            if (constants.site() == null) {
+            if (constants.argumentUnreadable()) {
                 keysUndecidable++;
             }
         }

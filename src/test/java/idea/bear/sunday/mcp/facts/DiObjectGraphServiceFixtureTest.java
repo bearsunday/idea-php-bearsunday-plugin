@@ -1062,6 +1062,31 @@ class DiObjectGraphServiceFixtureTest {
         assertTrue(scan.get("bindingsWithNoReadableKey").getAsInt() > 0, scan::toString);
     }
 
+    /**
+     * Two installs of one module, neither of them stating its array. Folding them into one node --
+     * which is what a walk keyed by class name does -- would report the second as expanded
+     * somewhere it is not, and count the names it binds once instead of twice. The scan counts two
+     * installs, so the tally against unbound answers has to count two as well.
+     */
+    @Test
+    void keepsTwoInstallsApartWhenNEITHERStatesItsArray() {
+        addApp("""
+
+                $this->install(new ConstantsModule($this->one));
+                $this->install(new ConstantsModule($this->two));"""
+        );
+        addFile("src/Module/ConstantsModule.php", CONSTANTS_MODULE);
+        addFile("src/Settings.php", SETTINGS);
+
+        JsonObject envelope = envelope(graph("Settings", "app"));
+        JsonObject scan = envelope.getAsJsonObject("scan");
+        JsonObject retries = node(envelope, "-retries");
+
+        assertEquals(2, scan.get("installArgumentsUnreadable").getAsInt(), scan::toString);
+        assertEquals(2, scan.get("bindingsWithNoReadableKey").getAsInt(), scan::toString);
+        assertEquals(2, retries.get("keysUnreadable").getAsInt(), retries::toString);
+    }
+
     private void addApp() {
         addApp("");
     }

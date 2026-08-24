@@ -73,9 +73,11 @@ final class ArrayBindings {
     }
 
     /**
-     * What one {@code install()} call expands to. {@code keysUnreadable} counts the entries whose
-     * key the source does not state -- a constant, an integer, a spread -- which are left as
-     * unreadable as the whole loop used to be rather than passed over in silence.
+     * What one {@code install()} call expands to. {@code keysUnreadable} counts the entries this
+     * could not turn into a name: one keyed by something the source does not state -- a constant,
+     * an integer, a spread -- and one past {@link #MAX_ENTRIES}, whose key was readable and whose
+     * expansion was cut. Both are counted the same way, which reports a readable entry as an
+     * unreadable one rather than the reverse.
      */
     record Expansion(MethodReference bindCall, List<Entry> entries, int keysUnreadable) {
     }
