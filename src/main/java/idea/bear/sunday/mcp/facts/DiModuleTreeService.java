@@ -187,7 +187,7 @@ public final class DiModuleTreeService {
                 continue;
             }
 
-            JsonObject json = moduleJson(resolution.phpClass(), segment, priority, visited, modules, state, null);
+            JsonObject json = moduleJson(resolution.phpClass(), segment, priority, visited, modules, state, null, null);
             json.addProperty("segment", segment);
             json.addProperty("priority", priority);
             json.addProperty("origin", resolution.origin());
@@ -222,6 +222,7 @@ public final class DiModuleTreeService {
             state.skipped,
             state.classesUnresolved,
             state.installsUnreadable,
+            state.installArgumentsUnreadable,
             unsaved
         );
     }
@@ -255,7 +256,7 @@ public final class DiModuleTreeService {
             json.addProperty("classUnresolved", true);
             state.classesUnresolved++;
         } else {
-            json = moduleJson(phpClass, null, priority, visited, modules, state, null);
+            json = moduleJson(phpClass, null, priority, visited, modules, state, null, null);
         }
         json.addProperty("priority", priority);
 
@@ -273,7 +274,8 @@ public final class DiModuleTreeService {
         Set<String> visited,
         List<WalkedModule> modules,
         WalkState state,
-        @Nullable String overriddenReceiver
+        @Nullable String overriddenReceiver,
+        @Nullable Constants constants
     ) {
         JsonObject json = new JsonObject();
         String fqn = phpClass.getFQN();
@@ -284,7 +286,12 @@ public final class DiModuleTreeService {
         }
         // PHP compares class names case-insensitively, and Locale.ROOT so that a Turkish locale
         // does not fold "I" into a dotless one and make two names of a class that has one.
-        String key = fqn.toLowerCase(Locale.ROOT);
+        // A module that binds an array it was handed is one container per INSTALL, not per class:
+        // two installs of it bind two different sets of names, and folding them into one node
+        // would drop every name the second one binds.
+        String key = constants == null || constants.site() == null
+            ? fqn.toLowerCase(Locale.ROOT)
+            : fqn.toLowerCase(Locale.ROOT) + "@" + constants.site();
         // Already expanded, so its subtree really is elsewhere in this answer -- asked before the
         // cap, because a module expanded before the cap was reached is not one the cap cut.
         if (visited.contains(key)) {
@@ -314,8 +321,22 @@ public final class DiModuleTreeService {
         // Recorded before the edges are walked, so the modules stay in walk order -- which is
         // priority order, strongest first, and what a scan reading these files goes by.
         List<VirtualFile> wiringFiles = wiringFiles(wiring);
-        if (!wiringFiles.isEmpty()) {
-            modules.add(new WalkedModule(fqn, wiringFiles, segment, priority, overriddenReceiver));
+        if (!wiringFiles.isEmpty() || constants != null) {
+            modules.add(new WalkedModule(fqn, wiringFiles, segment, priority, overriddenReceiver, constants));
+        }
+        if (constants != null) {
+            // The names this install binds, said on the node: without it an install that expanded
+            // to twenty bindings looks exactly like one that expanded to none.
+            json.addProperty("boundFromInstall", constants.entries().size());
+            if (constants.site() == null) {
+                // The module binds an array, and this install does not state which array. Marked
+                // rather than expanded, because the names it binds are the ones a caller would
+                // otherwise be told nobody binds.
+                json.addProperty("argumentUnreadable", true);
+            }
+            if (constants.keysUnreadable() > 0) {
+                json.addProperty("keysUnreadable", constants.keysUnreadable());
+            }
         }
         // A base module the index cannot resolve is the one thing this walk could not read, and
         // saying nothing would make the node identical to a module that installs nothing -- the
@@ -500,7 +521,8 @@ public final class DiModuleTreeService {
                     visited,
                     modules,
                     state,
-                    KIND_OVERRIDE.equals(kind) ? receiver : null
+                    KIND_OVERRIDE.equals(kind) ? receiver : null,
+                    constantsOf(installed, call, state)
                 );
             }
         }
@@ -564,6 +586,59 @@ public final class DiModuleTreeService {
         String fqn = reference == null ? null : reference.getFQN();
 
         return fqn == null || fqn.isBlank() ? null : InterceptorBindingIndexUtil.normalizeFqn(fqn);
+    }
+
+    /**
+     * The array entries an {@code install(new FooModule([...]))} binds, when {@code FooModule} is
+     * written to bind the entries of an array it was handed. {@code null} when it is not one --
+     * which is nearly every module, and the only case that costs nothing to ask about.
+     *
+     * <p>A shape that matched but an argument that could not be read is NOT null: the module still
+     * binds names this walk cannot list, and saying so is the difference between "these twenty
+     * names are bound here" and a silence that reads as "nobody binds them".
+     */
+    @Nullable
+    private Constants constantsOf(PhpClass installed, MethodReference call, WalkState state) {
+        ArrayBindings.Shape shape = ArrayBindings.shapeOf(installed);
+        if (shape == null) {
+            return null;
+        }
+        // The loop this expands was read from the module's own file, and once expanded that file
+        // is no longer read for this binding -- so the sweep that notices an unsaved edit to it
+        // would stop noticing. Counted here instead, where the body was actually read.
+        VirtualFile file = fileOf(installed);
+        state.unsaved |= file != null && FactsFiles.isUnsaved(file);
+        if (!(call.getParameters()[0] instanceof NewExpression newExpression)) {
+            return new Constants(shape.bindCall(), List.of(), null, 0);
+        }
+        ArrayBindings.Expansion expansion = ArrayBindings.expand(shape, newExpression);
+        if (expansion == null) {
+            state.installArgumentsUnreadable++;
+
+            return new Constants(shape.bindCall(), List.of(), null, 0);
+        }
+
+        return new Constants(
+            expansion.bindCall(),
+            expansion.entries(),
+            installSite(newExpression),
+            expansion.keysUnreadable()
+        );
+    }
+
+    /**
+     * What tells one {@code install()} of a module from another one: the file it is written in and
+     * where in that file it starts. Never shown -- it only has to be different for two calls and
+     * the same for one call read twice.
+     */
+    @Nullable
+    private String installSite(NewExpression call) {
+        PsiFile file = call.getContainingFile();
+        VirtualFile virtualFile = file == null ? null : file.getVirtualFile();
+
+        return virtualFile == null
+            ? null
+            : FactsFiles.relativePath(project, virtualFile) + ":" + call.getTextOffset();
     }
 
     /**
@@ -655,6 +730,7 @@ public final class DiModuleTreeService {
         private boolean unsaved;
         private int classesUnresolved;
         private int installsUnreadable;
+        private int installArgumentsUnreadable;
     }
 
     /** The bodies a module's wiring is read from, and the base class that could not be read. */
@@ -675,7 +751,28 @@ public final class DiModuleTreeService {
         List<VirtualFile> files,
         @Nullable String segment,
         int priority,
-        @Nullable String overriddenReceiver
+        @Nullable String overriddenReceiver,
+        @Nullable Constants constants
+    ) {
+    }
+
+    /**
+     * A module that binds the entries of an array it was constructed with, as one {@code install()}
+     * of it hands them over. Present whenever the module has that SHAPE, so a reader can tell an
+     * install whose array could not be read from a module that binds no array at all: the entries
+     * are empty and {@code site} is null for the first, and there is no {@code Constants} for the
+     * second.
+     *
+     * <p>{@code site} is what tells two installs of one module apart when their bindings collide.
+     * {@code bindCall} is the chain in the module's own body that these entries stand for, kept so
+     * the scan reading that file does not count it a second time as the unreadable binding it is
+     * when read alone.
+     */
+    record Constants(
+        MethodReference bindCall,
+        List<ArrayBindings.Entry> entries,
+        @Nullable String site,
+        int keysUnreadable
     ) {
     }
 
@@ -695,6 +792,7 @@ public final class DiModuleTreeService {
         int modulesSkipped,
         int classesUnresolved,
         int installsUnreadable,
+        int installArgumentsUnreadable,
         boolean unsaved
     ) {
     }

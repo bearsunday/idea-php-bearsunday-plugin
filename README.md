@@ -243,6 +243,30 @@ application would throw -- unless the edge says the parameter has a default or t
 a module that binds in a loop states its qualifier in a variable, and the node carries `keysUnreadable` saying
 how many such bindings there are, any of which may be the one it was looking for.
 
+The commonest of those loops is no longer one of them. Every BEAR application installs its constants through a
+module that binds the entries of an array it was handed:
+
+```php
+$this->install(new NamedModule(['S3_BUCKET' => (string) getenv('S3_BUCKET'), ...]));
+```
+
+Read as the one chain it is written as, that binds under a qualifier the source states nowhere, and every name
+in the array came back as bound by nobody. But the two halves together do state them: the VALUES are calls no
+reading of the source can evaluate, while the KEYS are string literals sitting in the installing module's own
+file, and a key is all the container needs. So the chain is read once per entry, with that entry's key standing
+for the loop variable and nothing else substituted -- this says who sets a name, never what the value is.
+
+Such a node names both the files it takes to read it: `moduleClass` is the module the bind is written in,
+`filePath` and `line` are the array entry, and `installedBy` is the module whose `install()` brought the two
+together. Two installs of one such module are two containers, not one, so the earlier install keeps a key they
+both bind -- and the later one is named under `shadowedBy` rather than dropped.
+
+The module is found by its shape and not by its name: nothing matches on `NamedModule`, so a module of one's
+own written the same way is read the same way. An entry whose key is not a literal, and an install whose array
+is a variable, are counted exactly as the whole loop used to be -- as `keysUnreadable` on the node and
+`installArgumentsUnreadable` in the scan -- because an expansion that quietly skipped them would make an
+`unbound` answer surer than the reading is.
+
 It is not `print_o`, and does not pretend to be: `print_o` walks the properties of a live object, so a property
 assigned inside `onGet()` is in its picture, while this walks injection points, so only what Ray.Di puts there
 is in this one. `MultiBinder`, `#[Set]` and `#[Assisted]` are not followed, a `rename()` is reported rather

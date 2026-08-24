@@ -166,7 +166,7 @@ public final class DiBindingLookupService {
             // Every walked file counts towards freshness: an unsaved edit can add a binding as
             // easily as it can remove one, and this answer is read from PSI either way.
             unsaved |= FactsFiles.isUnsaved(file);
-            readCalls(file, answer, null);
+            readCalls(file, answer, null, Set.of());
         }
 
         JsonObject scan = new JsonObject();
@@ -233,6 +233,11 @@ public final class DiBindingLookupService {
         if (walk.installsUnreadable() > 0) {
             scan.addProperty("installsUnreadable", walk.installsUnreadable());
         }
+        // A module that binds the entries of an array it was handed, installed with an array this
+        // could not read: it binds names that are not in this answer and cannot be listed.
+        if (walk.installArgumentsUnreadable() > 0) {
+            scan.addProperty("installArgumentsUnreadable", walk.installArgumentsUnreadable());
+        }
         if (walk.modulesSkipped() > 0) {
             scan.addProperty("modulesSkipped", walk.modulesSkipped());
         }
@@ -262,15 +267,27 @@ public final class DiBindingLookupService {
         Answer answer,
         @Nullable List<ModuleBindings> perModule
     ) {
+        // Collected before a single file is read. A chain that is expanded once per entry of the
+        // array it binds is not the binding its own file states, and the file holding it can be
+        // reached through a module walked earlier than the install that expanded it.
+        Set<PsiElement> expanded = new HashSet<>();
+        for (DiModuleTreeService.WalkedModule module : walk.modules()) {
+            if (module.constants() != null) {
+                expanded.add(module.constants().bindCall());
+            }
+        }
         Set<VirtualFile> read = new HashSet<>();
         for (DiModuleTreeService.WalkedModule module : walk.modules()) {
             Reach reach = new Reach(module.segment(), module.priority());
             int before = answer.bound.size();
             for (VirtualFile file : module.files()) {
                 if (read.add(file)) {
-                    readCalls(file, answer, reach);
+                    readCalls(file, answer, reach, expanded);
                 }
             }
+            // After the module's files, because these are bindings of the module's own container
+            // and the merge that resolves them goes by which container, not by which line.
+            addConstants(module, answer, reach);
             if (perModule != null) {
                 List<Bound> declared = List.copyOf(answer.bound.subList(before, answer.bound.size()));
                 perModule.add(new ModuleBindings(module, declared));
@@ -299,7 +316,39 @@ public final class DiBindingLookupService {
         return new ContextBindings(walk, List.copyOf(perModule), answer.renamesFound, filesRead);
     }
 
-    private void readCalls(VirtualFile file, Answer answer, @Nullable Reach reach) {
+    /**
+     * The bindings one install of an array-binding module makes: the module's own {@code bind()}
+     * chain read once per entry, with that entry's key standing for the qualifier the chain names
+     * in a variable. Nothing else is substituted -- what an entry is bound TO is as unread here as
+     * it is in the file, which is why this can only ever answer who sets a name.
+     *
+     * <p>The site reported is the ENTRY, in the installing module's file, because that is the line
+     * a reader has to open to change the binding. The class reported is the one the chain is
+     * written in, which is a different file again; {@code installedBy} names the third party, the
+     * module whose install brought the two together.
+     */
+    private void addConstants(DiModuleTreeService.WalkedModule module, Answer answer, @Nullable Reach reach) {
+        DiModuleTreeService.Constants constants = module.constants();
+        if (constants == null || constants.entries().isEmpty()) {
+            return;
+        }
+        // Every entry of one install is written in one file: the file the install is written in.
+        PsiFile psiFile = constants.entries().get(0).anchor().getContainingFile();
+        VirtualFile file = psiFile == null ? null : psiFile.getVirtualFile();
+        if (file == null) {
+            return;
+        }
+        Site site = new Site(
+            FactsFiles.relativePath(project, file),
+            PsiDocumentManager.getInstance(project).getDocument(psiFile)
+        );
+        for (ArrayBindings.Entry entry : constants.entries()) {
+            ProgressManager.checkCanceled();
+            answer.addConstant(constants.bindCall(), entry, site, constants.site(), reach);
+        }
+    }
+
+    private void readCalls(VirtualFile file, Answer answer, @Nullable Reach reach, Set<PsiElement> expanded) {
         PsiFile psiFile = PsiManager.getInstance(project).findFile(file);
         if (psiFile == null) {
             return;
@@ -312,6 +361,12 @@ public final class DiBindingLookupService {
             ProgressManager.checkCanceled();
             boolean bind = isBindCall(call);
             if (!bind && !isRenameCall(call)) {
+                continue;
+            }
+            // Already read, once per entry of the array it binds, at the install that states them.
+            // Reading it here as well would report the same loop twice: once as the names it
+            // really binds, and once as the unreadable binding it looks like on its own.
+            if (bind && expanded.contains(call)) {
                 continue;
             }
             if (site == null) {
@@ -452,6 +507,21 @@ public final class DiBindingLookupService {
      * each following call has the previous one as its receiver.
      */
     private static Binding readBinding(MethodReference bindCall, ConcreteClasses concrete) {
+        return readBinding(bindCall, concrete, null);
+    }
+
+    /**
+     * The same, with the qualifier supplied rather than read. A module that binds the entries of an
+     * array it was handed writes its qualifier as the loop variable, and the chain is read once per
+     * entry with that entry's key in its place. Only the qualifier is supplied: everything else the
+     * chain states -- what it binds, what it binds TO, its scope -- is read from the source as it
+     * always was, and everything the chain leaves in a variable stays unread.
+     */
+    private static Binding readBinding(
+        MethodReference bindCall,
+        ConcreteClasses concrete,
+        @Nullable Qualifier suppliedQualifier
+    ) {
         PsiElement[] parameters = bindCall.getParameters();
         // bind() with no argument binds a name alone, which is a binding with no interface, not an
         // unreadable one. So does bind(''), which passes Ray.Di's own default explicitly. Only an
@@ -460,7 +530,7 @@ public final class DiBindingLookupService {
         String boundInterface = readInterface(argument);
         boolean interfaceUnreadable = argument != null && boundInterface == null && !isEmptyString(argument);
 
-        Qualifier qualifier = null;
+        Qualifier qualifier = suppliedQualifier;
         String boundBy = BOUND_BY_UNTARGETED;
         String implementation = null;
         String targetClass = null;
@@ -481,7 +551,9 @@ public final class DiBindingLookupService {
             PsiElement firstArgument = next.getParameters().length == 0 ? null : next.getParameters()[0];
             String target = targetMethod(name);
             if (ANNOTATED_WITH.equalsIgnoreCase(name)) {
-                qualifier = readQualifier(firstArgument);
+                // A supplied qualifier IS what this call names; reading the variable written here
+                // would put the chain back to naming a qualifier the source does not state.
+                qualifier = suppliedQualifier != null ? suppliedQualifier : readQualifier(firstArgument);
             } else if (IN.equalsIgnoreCase(name)) {
                 scope = firstArgument == null ? null : text(firstArgument);
             } else if (target != null) {
@@ -694,8 +766,21 @@ public final class DiBindingLookupService {
      * A binding with the place it was read from, for a consumer that resolves bindings rather than
      * printing them -- {@link DiObjectGraphService}, which has to choose one of several bindings of
      * the same key and then follow it.
+     *
+     * <p>{@code fromInstall} names the {@code install(new FooModule(...))} whose argument this
+     * binding was read out of, and is {@code null} for a binding written as a {@code bind()} chain
+     * of its own. Two bindings of one key are resolved by which container they were registered in,
+     * and one module class installed twice registers in two -- so the install site, not the class,
+     * is what tells the two apart.
      */
-    record Bound(Binding binding, @Nullable String moduleClass, String filePath, @Nullable Integer line) {
+    record Bound(
+        Binding binding,
+        @Nullable String moduleClass,
+        String filePath,
+        @Nullable Integer line,
+        @Nullable String fromInstall,
+        @Nullable String installedBy
+    ) {
     }
 
     /**
@@ -755,7 +840,9 @@ public final class DiBindingLookupService {
                 binding,
                 moduleClassOf(bindCall),
                 site.filePath(),
-                lineOf(site.document(), bindCall.getTextOffset())
+                lineOf(site.document(), bindCall.getTextOffset()),
+                null,
+                null
             ));
             if (binding.interfaceUnreadable() && !interfaceFilter.matchesEverything()) {
                 unresolved.add(entry(REASON_INTERFACE, bindCall, site, null, binding.text(), reach));
@@ -783,7 +870,49 @@ public final class DiBindingLookupService {
             if (!qualifierFilter.matches(binding.qualifier())) {
                 return;
             }
-            bindings.add(json(binding, bindCall, site, reach));
+            bindings.add(json(binding, bindCall, site, reach, moduleClassOf(bindCall), null));
+        }
+
+        /**
+         * One entry of an array a module was installed with, read through that module's own
+         * {@code bind()} chain. Counted and filtered exactly as a written binding is: to a caller
+         * asking who binds a name, this IS a binding -- the only difference is that the source
+         * spells it in two files instead of one.
+         */
+        void addConstant(
+            MethodReference bindCall,
+            ArrayBindings.Entry entry,
+            Site site,
+            @Nullable String installSite,
+            @Nullable Reach reach
+        ) {
+            bindingsFound++;
+            Binding binding = readBinding(bindCall, concrete, new Qualifier(QUALIFIER_NAME, entry.key()));
+            String moduleClass = moduleClassOf(bindCall);
+            String installedBy = PhpSource.enclosingClassFqn(entry.anchor());
+            bound.add(new Bound(
+                binding,
+                moduleClass,
+                site.filePath(),
+                lineOf(site.document(), entry.anchor().getTextOffset()),
+                installSite,
+                installedBy
+            ));
+            // The interface half can still be unreadable -- bind($x)->annotatedWith($k) inside the
+            // loop names one this cannot read -- and the qualifier half never is, because it was
+            // supplied rather than read. So only the interface filter can fail to decide here.
+            if (binding.interfaceUnreadable() && !interfaceFilter.matchesEverything()) {
+                unresolved.add(entry(REASON_INTERFACE, entry.anchor(), site, null, binding.text(), reach));
+
+                return;
+            }
+            if (!interfaceFilter.matches(binding.boundInterface())) {
+                return;
+            }
+            if (!qualifierFilter.matches(binding.qualifier())) {
+                return;
+            }
+            bindings.add(json(binding, entry.anchor(), site, reach, moduleClass, installedBy));
         }
 
         /**
@@ -815,7 +944,14 @@ public final class DiBindingLookupService {
             return qualifier != null && QUALIFIER_UNRESOLVED.equals(qualifier.kind());
         }
 
-        private static JsonObject json(Binding binding, MethodReference bindCall, Site site, @Nullable Reach reach) {
+        private static JsonObject json(
+            Binding binding,
+            PsiElement at,
+            Site site,
+            @Nullable Reach reach,
+            @Nullable String moduleClass,
+            @Nullable String installedBy
+        ) {
             JsonObject json = new JsonObject();
             if (binding.boundInterface() != null) {
                 json.addProperty("interface", binding.boundInterface());
@@ -850,7 +986,13 @@ public final class DiBindingLookupService {
             if (binding.scope() != null) {
                 json.addProperty("scope", binding.scope());
             }
-            addSite(json, bindCall, site, reach);
+            addSite(json, at, site, reach, moduleClass);
+            // The chain is written in one class and the entry it binds in another's file, so the
+            // class and the line below it belong to different files. Naming the module that put
+            // the two together is what keeps that from reading as a mistake.
+            if (installedBy != null) {
+                json.addProperty("installedBy", installedBy);
+            }
             json.addProperty("text", binding.text());
 
             return json;
@@ -858,7 +1000,7 @@ public final class DiBindingLookupService {
 
         private static JsonObject entry(
             String reason,
-            MethodReference call,
+            PsiElement call,
             Site site,
             @Nullable String boundInterface,
             String text,
@@ -869,19 +1011,24 @@ public final class DiBindingLookupService {
             if (boundInterface != null) {
                 json.addProperty("interface", boundInterface);
             }
-            addSite(json, call, site, reach);
+            addSite(json, call, site, reach, moduleClassOf(call));
             json.addProperty("text", text);
 
             return json;
         }
 
-        private static void addSite(JsonObject json, MethodReference call, Site site, @Nullable Reach reach) {
-            String moduleClass = moduleClassOf(call);
+        private static void addSite(
+            JsonObject json,
+            PsiElement at,
+            Site site,
+            @Nullable Reach reach,
+            @Nullable String moduleClass
+        ) {
             if (moduleClass != null) {
                 json.addProperty("moduleClass", moduleClass);
             }
             json.addProperty("filePath", site.filePath());
-            Integer line = lineOf(site.document(), call.getTextOffset());
+            Integer line = lineOf(site.document(), at.getTextOffset());
             if (line != null) {
                 json.addProperty("line", line);
             }

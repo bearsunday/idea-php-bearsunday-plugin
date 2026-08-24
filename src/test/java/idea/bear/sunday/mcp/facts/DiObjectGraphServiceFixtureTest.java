@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -282,6 +283,53 @@ class DiObjectGraphServiceFixtureTest {
 
             public function get(): StoreInterface
             {
+            }
+        }
+        """;
+
+    /**
+     * A module written the way {@code BEAR\\Sunday\\Module\\Constant\\NamedModule} is written, under a
+     * name of the project's own: nothing in the reading matches on the class name, so a module of
+     * one's own in this shape is read the same way the framework's is.
+     */
+    /** An entry whose every parameter is keyed by a name alone, which is what an array binds. */
+    private static final String SETTINGS = """
+        <?php
+
+        namespace MyVendor\\MyProject;
+
+        use Ray\\Di\\Di\\Named;
+
+        final class Settings
+        {
+            public function __construct(
+                #[Named('retries')] private readonly string $retries,
+                #[Named('timeout')] private readonly string $timeout,
+                #[Named('elsewhere')] private readonly string $elsewhere,
+            ) {
+            }
+        }
+        """;
+
+    private static final String CONSTANTS_MODULE = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Module;
+
+        use Ray\\Di\\AbstractModule;
+
+        final class ConstantsModule extends AbstractModule
+        {
+            public function __construct(private readonly array $names)
+            {
+                parent::__construct();
+            }
+
+            protected function configure(): void
+            {
+                foreach ($this->names as $annotatedWith => $instance) {
+                    $this->bind()->annotatedWith($annotatedWith)->toInstance($instance);
+                }
             }
         }
         """;
@@ -841,6 +889,178 @@ class DiObjectGraphServiceFixtureTest {
     }
 
     // --------------------------------------------------------------- helpers
+
+    /**
+     * The shape {@code BEAR\\Sunday\\Module\\Constant\\NamedModule} has, and the reason this reading
+     * exists: the VALUES are calls no reading of the source can evaluate, while the KEYS are string
+     * literals in the installing module's own file -- and a key is all the container needs. Read as
+     * one chain this binds under a variable and could be filed under nothing at all.
+     */
+    @Test
+    void bindsEveryEntryOfAnArrayAModuleWasInstalledWith() {
+        addApp("\n        $this->install(new ConstantsModule(['retries' => getenv('RETRIES')]));");
+        addFile("src/Module/ConstantsModule.php", CONSTANTS_MODULE);
+        addFile("src/Settings.php", SETTINGS);
+
+        JsonObject envelope = envelope(graph("Settings", "app"));
+        JsonObject retries = node(envelope, "-retries");
+
+        assertEquals("instance", retries.get("resolution").getAsString(), retries::toString);
+        // The bind is written in the module that loops; the entry is written in the module that
+        // installs it. Both are named, because they are in different files.
+        assertEquals("\\MyVendor\\MyProject\\Module\\ConstantsModule", retries.get("moduleClass").getAsString());
+        assertEquals("\\MyVendor\\MyProject\\Module\\AppModule", retries.get("installedBy").getAsString());
+        assertEquals("src/Module/AppModule.php", retries.get("filePath").getAsString(), retries::toString);
+    }
+
+    /**
+     * A module that binds an array is one container per INSTALL and not one per class: Ray.Di
+     * merges each install separately, so of two installs of one module the FIRST keeps the key.
+     * Folding the two into one node -- which is what walking a module once per class name does --
+     * would drop every name the second install binds.
+     */
+    @Test
+    void letsTheFirstOfTwoInstallsOfOneArrayModuleKeepTheKey() {
+        addApp("""
+
+                $this->install(new ConstantsModule(['retries' => 'first']));
+                $this->install(new ConstantsModule(['retries' => 'second', 'timeout' => '30']));"""
+        );
+        addFile("src/Module/ConstantsModule.php", CONSTANTS_MODULE);
+        addFile("src/Settings.php", SETTINGS);
+
+        JsonObject envelope = envelope(graph("Settings", "app"));
+        JsonObject retries = node(envelope, "-retries");
+
+        assertEquals("instance", retries.get("resolution").getAsString(), retries::toString);
+        // The loser is named rather than dropped: a reader whose second array is not taking effect
+        // has no other way to find out why. It is the LATER of the two lines, which is the whole
+        // rule: what the first install put in the container, the second one does not replace.
+        assertEquals(1, retries.getAsJsonArray("shadowedBy").size(), retries::toString);
+        assertTrue(
+            retries.get("line").getAsInt()
+                < retries.getAsJsonArray("shadowedBy").get(0).getAsJsonObject().get("line").getAsInt(),
+            retries::toString
+        );
+        // The second install is walked as well, or the name only it binds would be unbound.
+        assertEquals("instance", node(envelope, "-timeout").get("resolution").getAsString());
+    }
+
+    /**
+     * {@code Container::merge()} keeps what the RECEIVING container holds, so a module's own bind
+     * beats one from a module it installs -- including when it is written BEFORE the install, which
+     * is the case a reading that just took the later statement would get backwards.
+     */
+    @Test
+    void letsAModulesOwnBindingBeatAnEntryOfAnArrayItInstallsAfterIt() {
+        addApp("""
+
+                $this->bind()->annotatedWith('retries')->toInstance('own');
+                $this->install(new ConstantsModule(['retries' => 'installed']));"""
+        );
+        addFile("src/Module/ConstantsModule.php", CONSTANTS_MODULE);
+        addFile("src/Settings.php", SETTINGS);
+
+        JsonObject envelope = envelope(graph("Settings", "app"));
+        JsonObject retries = node(envelope, "-retries");
+
+        assertEquals("\\MyVendor\\MyProject\\Module\\AppModule", retries.get("moduleClass").getAsString(), retries::toString);
+        assertFalse(retries.has("installedBy"), retries::toString);
+    }
+
+    /**
+     * Two entries of ONE array under one key: PHP builds the array before the module ever sees it
+     * and keeps the last, and so does this -- the two are the same container, which is the one case
+     * where a later binding replaces an earlier one.
+     */
+    @Test
+    void keepsTheLastOfTwoEntriesWrittenUnderOneKeyInOneArray() {
+        addApp("\n        $this->install(new ConstantsModule(['retries' => 'first', 'retries' => 'last']));");
+        addFile("src/Module/ConstantsModule.php", CONSTANTS_MODULE);
+        addFile("src/Settings.php", SETTINGS);
+
+        JsonObject envelope = envelope(graph("Settings", "app"));
+        JsonObject retries = node(envelope, "-retries");
+
+        assertEquals("instance", retries.get("resolution").getAsString(), retries::toString);
+        assertEquals(1, retries.getAsJsonArray("shadowedBy").size(), retries::toString);
+    }
+
+    /**
+     * An entry whose key is not a literal is left as unreadable as the whole loop used to be. The
+     * expansion is partial, and a node this walk calls unbound still says how sure that is --
+     * because the entry it could not read may be the very key being asked about.
+     */
+    @Test
+    void countsAnEntryWhoseKeyTheSourceDoesNotState() {
+        addApp("\n        $this->install(new ConstantsModule(['retries' => '3', self::TAG => 'x']));");
+        addFile("src/Module/ConstantsModule.php", CONSTANTS_MODULE);
+        addFile("src/Settings.php", SETTINGS);
+
+        JsonObject envelope = envelope(graph("Settings", "app"));
+        JsonObject unbound = node(envelope, "-elsewhere");
+
+        assertEquals("instance", node(envelope, "-retries").get("resolution").getAsString());
+        assertEquals("unbound", unbound.get("resolution").getAsString(), unbound::toString);
+        assertEquals(1, unbound.get("keysUnreadable").getAsInt(), unbound::toString);
+    }
+
+    /**
+     * The module is found by its SHAPE, and a loop that binds under something other than its own
+     * key is not that shape: the entries would all be filed under one name. Left unexpanded, and
+     * counted, which is what the reading did before it could expand anything.
+     */
+    @Test
+    void refusesToExpandALoopThatBindsUnderSomethingOtherThanItsKey() {
+        addApp("\n        $this->install(new FixedModule(['retries' => '3']));");
+        addFile("src/Settings.php", SETTINGS);
+        addFile("src/Module/FixedModule.php", """
+            <?php
+
+            namespace MyVendor\\MyProject\\Module;
+
+            use Ray\\Di\\AbstractModule;
+
+            final class FixedModule extends AbstractModule
+            {
+                public function __construct(private readonly array $names)
+                {
+                    parent::__construct();
+                }
+
+                protected function configure(): void
+                {
+                    foreach ($this->names as $name => $value) {
+                        $this->bind()->annotatedWith($value)->toInstance($name);
+                    }
+                }
+            }
+            """);
+
+        JsonObject envelope = envelope(graph("Settings", "app"));
+        JsonObject retries = node(envelope, "-retries");
+
+        assertEquals("unbound", retries.get("resolution").getAsString(), retries::toString);
+        assertTrue(retries.get("keysUnreadable").getAsInt() > 0, retries::toString);
+    }
+
+    /**
+     * An install whose array the source does not state binds names this cannot list. Reported as
+     * its own count, and still counted against every unbound answer, because the alternative is an
+     * expansion that quietly made the reading surer than it is.
+     */
+    @Test
+    void saysWhenAModuleBindsAnArrayItWasNotShown() {
+        addApp("\n        $this->install(new ConstantsModule($this->names));");
+        addFile("src/Module/ConstantsModule.php", CONSTANTS_MODULE);
+        addFile("src/Settings.php", SETTINGS);
+
+        JsonObject envelope = envelope(graph("Settings", "app"));
+        JsonObject scan = envelope.getAsJsonObject("scan");
+
+        assertEquals(1, scan.get("installArgumentsUnreadable").getAsInt(), scan::toString);
+        assertTrue(scan.get("bindingsWithNoReadableKey").getAsInt() > 0, scan::toString);
+    }
 
     private void addApp() {
         addApp("");

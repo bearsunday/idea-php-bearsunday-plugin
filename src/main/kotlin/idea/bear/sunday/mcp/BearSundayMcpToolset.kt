@@ -137,8 +137,16 @@ class BearSundayMcpToolset : McpToolset {
             "final AppMetaModule override and the priority past the last segment its innermost " +
             "AssistedModule). \"scan\" then says what the tree could not deliver, each only when it happened: " +
             "\"unresolvedSegments\" (segments no class answered to, whose modules are therefore in no part of " +
-            "this answer), \"classesUnresolved\", \"installsUnreadable\", \"modulesSkipped\" and " +
-            "\"appNamespaceUnknown\". Passing both context and moduleRoot is refused rather than resolved by " +
+            "this answer), \"classesUnresolved\", \"installsUnreadable\", \"installArgumentsUnreadable\", " +
+            "\"modulesSkipped\" and " +
+            "\"appNamespaceUnknown\". WITH context, a module that binds the entries of an array it was " +
+            "constructed with -- install(new NamedModule(['S3_BUCKET' => getenv('S3_BUCKET'), ...])) -- " +
+            "answers for every name in that array: the keys are literals even where the values are calls, so " +
+            "each entry is a binding here. Those carry \"installedBy\", the module whose install() states the " +
+            "array, because their \"moduleClass\" (where the bind is written) and their \"filePath\"/\"line\" " +
+            "(the entry itself) are in two different files. WITHOUT context there is no install to read them " +
+            "from, and the loop is reported as qualifier-unreadable as before. " +
+            "Passing both context and moduleRoot is refused rather than resolved by " +
             "precedence. Limits: WITHOUT context, bindings are collected project-wide, so a binding an " +
             "installed module overrides is still listed; WITH context, resolving the tree needs the project " +
             "index, so this answers status=index_not_ready while the index builds, and whole files are read, " +
@@ -236,19 +244,30 @@ class BearSundayMcpToolset : McpToolset {
             "\"unbound\", which is NOT a gap in this answer: below the entry Ray.Di has no such fallback, so " +
             "an unbound key is what the application would throw, unless the edge carries " +
             "\"defaultAvailable\" or \"optional\" -- or the node carries \"keysUnreadable\", which says how many " +
-            "bindings in this context state their qualifier in a variable (a module binding in a loop, such as " +
-            "NamedModule([...])), any of which may be this very key. A node also carries the binding's \"scope\", the module " +
+            "bindings in this context still state their qualifier in a variable, any of which may be this " +
+            "very key. A module that binds the entries of an array it was constructed with -- " +
+            "install(new NamedModule(['S3_BUCKET' => getenv('S3_BUCKET'), ...])), the form every BEAR app " +
+            "installs -- is no longer one of them: the array's KEYS are literals in the installing module's " +
+            "file even when its VALUES are calls nothing static can evaluate, so each entry is answered for " +
+            "as the name it binds. Such a node names both files it takes to read it: \"moduleClass\" is where " +
+            "the bind is written, \"filePath\"/\"line\" are the array entry, and \"installedBy\" is the module " +
+            "whose install() brought the two together. What the entry is bound TO stays unread -- this says " +
+            "who sets a name, never what the value is. " +
+            "A node also carries the binding's \"scope\", the module " +
             "and file/line it was bound at, and \"shadowedBy\": the bindings of that key that LOST, so the " +
             "module that nearly supplied another implementation is named rather than dropped. The winner is " +
             "decided by Ray.Di's own merge -- a later bind() in one module replaces an earlier one, a " +
             "module's own bind beats one from a module it installs, and of two installed modules the one " +
-            "installed first wins, with override() reversing the last of those. " +
+            "installed first wins, with override() reversing the last of those. Two installs of ONE " +
+            "array-binding module are two of that third case, not the first: the earlier install keeps the key. " +
             "Edges carry \"kind\" (constructor-param or setter-param), the parameter and method they are " +
             "written at, and \"cycle\" when they lead back into the path they came from. " +
             "\"scan\" says what the answer could not deliver, each only when it happened: " +
             "\"renamesNotApplied\", \"bindingsWithNoReadableKey\", \"qualifiersUnreadable\", " +
             "\"nodesCapped\", \"depthCapped\", " +
-            "\"unresolvedSegments\", \"classesUnresolved\", \"installsUnreadable\", \"modulesSkipped\", " +
+            "\"unresolvedSegments\", \"classesUnresolved\", \"installsUnreadable\", " +
+            "\"installArgumentsUnreadable\" (a module that binds an array, installed with an array this " +
+            "could not read -- it binds names not listed here), \"modulesSkipped\", " +
             "\"appNamespaceUnknown\". Limits: MultiBinder, #[Set] and #[Assisted] are not followed; a " +
             "rename() is reported rather than applied; interception does not appear, because it wraps a node " +
             "without changing what is injected into it -- ask bear_aop_pointcut_lookup for that. Resolving " +

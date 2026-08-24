@@ -1209,6 +1209,67 @@ class DiBindingLookupServiceFixtureTest {
         assertTrue(envelope.get("error").getAsString().contains("either context or moduleRoot"), envelope::toString);
     }
 
+    /**
+     * The reading this tool gained from the graph tool's side: a module installed with an array it
+     * binds the entries of answers for every name in that array. Asked for one of them, the answer
+     * names the entry's own line -- in the INSTALLING module's file, which is where a reader goes
+     * to change it -- while the module class is the one the bind is written in, and
+     * {@code installedBy} names the third module that brought the two together.
+     */
+    @Test
+    void answersForANameBoundByAnEntryOfAnArrayAModuleWasInstalledWith() {
+        addFile("src/Module/AppModule.php", """
+            <?php
+
+            namespace MyVendor\\MyProject\\Module;
+
+            use Ray\\Di\\AbstractModule;
+
+            class AppModule extends AbstractModule
+            {
+                protected function configure(): void
+                {
+                    $this->install(new ConstantsModule(['dsn' => getenv('DSN')]));
+                }
+            }
+            """);
+        addFile("src/Module/ConstantsModule.php", """
+            <?php
+
+            namespace MyVendor\\MyProject\\Module;
+
+            use Ray\\Di\\AbstractModule;
+
+            final class ConstantsModule extends AbstractModule
+            {
+                public function __construct(private readonly array $names)
+                {
+                    parent::__construct();
+                }
+
+                protected function configure(): void
+                {
+                    foreach ($this->names as $annotatedWith => $instance) {
+                        $this->bind()->annotatedWith($annotatedWith)->toInstance($instance);
+                    }
+                }
+            }
+            """);
+
+        JsonObject envelope = envelope(lookupInContext(null, "dsn", "app"));
+        JsonObject binding = binding(envelope, 0);
+
+        assertEquals("toInstance", binding.get("boundBy").getAsString(), binding::toString);
+        assertEquals("dsn", binding.getAsJsonObject("qualifier").get("value").getAsString());
+        assertEquals("\\MyVendor\\MyProject\\Module\\ConstantsModule", binding.get("moduleClass").getAsString());
+        assertEquals("\\MyVendor\\MyProject\\Module\\AppModule", binding.get("installedBy").getAsString());
+        assertEquals("src/Module/AppModule.php", binding.get("filePath").getAsString(), binding::toString);
+        // Read once, as the names it binds -- not a second time as the unreadable binding the loop
+        // is when the array it walks is out of sight.
+        assertEquals(1, envelope.getAsJsonArray("bindings").size(), envelope::toString);
+        assertEquals(0, envelope.getAsJsonArray("unresolved").size(), envelope::toString);
+    }
+
     private void addContextApp() {
         addFile("src/Module/AppModule.php", CONTEXT_APP_MODULE);
         addFile("src/Module/MailModule.php", CONTEXT_MAIL_MODULE);

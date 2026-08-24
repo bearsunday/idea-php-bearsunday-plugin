@@ -308,12 +308,30 @@ public final class DiObjectGraphService {
         static Container of(List<DiBindingLookupService.ModuleBindings> modules) {
             Container container = new Container();
             for (DiBindingLookupService.ModuleBindings module : inMergeOrder(modules)) {
+                container.countUnreadableKeys(module.module().constants());
                 for (DiBindingLookupService.Bound bound : module.bound()) {
                     container.add(bound, module.module().fqn());
                 }
             }
 
             return container;
+        }
+
+        /**
+         * What an install of an array-binding module binds that this could not file. Expanding the
+         * array turns most of these into real keys, and what is left has to go on being counted:
+         * an entry keyed by something other than a literal, and an install whose array the source
+         * does not state at all, each bind a name that may be the very one a caller is asking
+         * about. Left uncounted, they would make an "unbound" answer surer than the reading is.
+         */
+        private void countUnreadableKeys(@Nullable DiModuleTreeService.Constants constants) {
+            if (constants == null) {
+                return;
+            }
+            keysUndecidable += constants.keysUnreadable();
+            if (constants.site() == null) {
+                keysUndecidable++;
+            }
         }
 
         /**
@@ -375,9 +393,13 @@ public final class DiObjectGraphService {
             }
             // The later of two binds written in one class of one module replaces the earlier: that
             // is the overwrite. Across classes or across modules the first one keeps the key,
-            // because a merge only fills what is empty.
+            // because a merge only fills what is empty. A module installed with an argument it
+            // binds from registers in a container of its own, so two install sites of one class are
+            // two containers and merge rather than overwrite -- which is why the site is compared
+            // and not only the class. Both are null for a bind() chain, leaving those unchanged.
             if (held.moduleFqn().equalsIgnoreCase(moduleFqn)
-                && Objects.equals(held.bound().moduleClass(), bound.moduleClass())) {
+                && Objects.equals(held.bound().moduleClass(), bound.moduleClass())
+                && Objects.equals(held.bound().fromInstall(), bound.fromInstall())) {
                 winners.put(key, new Held(bound, moduleFqn));
                 shadowed.computeIfAbsent(key, ignored -> new ArrayList<>()).add(held.bound());
 
@@ -882,6 +904,12 @@ public final class DiObjectGraphService {
         if (bound.moduleClass() != null) {
             node.addProperty("moduleClass", bound.moduleClass());
         }
+        // The class the bind is written in and the file the line is counted in are the same file
+        // for a chain, and two different files for an entry of an array a module was installed
+        // with. Naming the installing module is what tells the reader which of the two this is.
+        if (bound.installedBy() != null) {
+            node.addProperty("installedBy", bound.installedBy());
+        }
         node.addProperty("filePath", bound.filePath());
         if (bound.line() != null) {
             node.addProperty("line", bound.line());
@@ -896,6 +924,9 @@ public final class DiObjectGraphService {
         json.addProperty("boundBy", loser.binding().boundBy());
         if (loser.moduleClass() != null) {
             json.addProperty("moduleClass", loser.moduleClass());
+        }
+        if (loser.installedBy() != null) {
+            json.addProperty("installedBy", loser.installedBy());
         }
         json.addProperty("filePath", loser.filePath());
         if (loser.line() != null) {
@@ -953,6 +984,11 @@ public final class DiObjectGraphService {
         }
         if (bindings.walk().installsUnreadable() > 0) {
             scan.addProperty("installsUnreadable", bindings.walk().installsUnreadable());
+        }
+        // A module that binds an array, installed with an array this could not read. Separate from
+        // installsUnreadable, which is an install that names no module at all.
+        if (bindings.walk().installArgumentsUnreadable() > 0) {
+            scan.addProperty("installArgumentsUnreadable", bindings.walk().installArgumentsUnreadable());
         }
         if (bindings.walk().modulesSkipped() > 0) {
             scan.addProperty("modulesSkipped", bindings.walk().modulesSkipped());
