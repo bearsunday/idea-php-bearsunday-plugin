@@ -19,6 +19,8 @@
 - `bear_alps_transition_lookup` matches an ALPS transition to the `#[Link]` / `#[Embed]` declarations that implement it by the transition's `id` (`#[Link(rel: 'goUser')]` implements `id="goUser"`), compared exactly, rather than by the ALPS `rel` attribute, which does not identify a transition and which real profiles do not carry. A transition a state names by reference (`{"href": "#goUser"}`) is reported under that state, marked `via: "href"`.
 - Every ALPS tool answers `status=ambiguous` with the candidate paths when more than one profile in the project matches, instead of answering from whichever the file system offered first. Naming a `profilePath` answers from that one. `bear_contract_compare` marks only its ALPS side.
 - A profile that cannot be read at all answers `engine_unavailable` rather than `parse_error`, which had said the profile is malformed when nothing had read it.
+- Build against PhpStorm 2026.2 (`platformVersion = 2026.2`)
+- IntelliJ Platform Gradle Plugin updated to 2.18.1, Gradle to 9.7, Kotlin plugin to 2.4.10; JDK toolchain (Java 25) is auto-provisioned via the foojay resolver when not installed locally
 - Ray.Aop bound-interceptor gutter/action now uses a dedicated AOP icon instead of the BEAR resource icon.
 - BEAR and Ray gutter icons now use transparent backgrounds.
 - Incoming resource relation gutters moved from the resource class name to the target resource method (`#[Embed]` always maps to `onGet`; `#[Link]` maps from its `method` argument and defaults to `onGet`).
