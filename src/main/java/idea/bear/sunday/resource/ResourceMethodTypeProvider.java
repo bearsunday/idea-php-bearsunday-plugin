@@ -257,19 +257,38 @@ public final class ResourceMethodTypeProvider implements PhpTypeProvider4 {
     }
 
     private static Optional<PhpClass> resolveResourceClass(Project project, String normalizedUri) {
-        VirtualFile baseDir = projectBaseDir(project);
-        if (baseDir == null) {
-            return Optional.empty();
-        }
-
         String relPath = UriUtil.toResourceRelativePath(normalizedUri, false);
         if (relPath == null) {
             return Optional.empty();
         }
 
+        // Each strategy narrows from "the resource sits exactly where the URI says" to
+        // "it is somewhere the index knows about". A strategy that cannot find the class
+        // must fall through rather than end the lookup: layouts that keep resources
+        // outside the project root (monorepo packages, for instance) only ever resolve
+        // through the index strategies below.
         Optional<PhpClass> nioClass = resolveResourceClassFromNioPath(project, relPath);
         if (nioClass.isPresent()) {
             return nioClass;
+        }
+
+        Optional<PhpClass> baseDirClass = resolveResourceClassFromBaseDir(project, relPath);
+        if (baseDirClass.isPresent()) {
+            return baseDirClass;
+        }
+
+        Optional<PhpClass> indexedClass = resolveResourceClassFromIndex(project, relPath);
+        if (indexedClass.isPresent()) {
+            return indexedClass;
+        }
+
+        return resolveResourceClassFromFilenameIndex(project, relPath);
+    }
+
+    private static Optional<PhpClass> resolveResourceClassFromBaseDir(Project project, String relPath) {
+        VirtualFile baseDir = projectBaseDir(project);
+        if (baseDir == null) {
+            return Optional.empty();
         }
 
         VirtualFile targetFile = baseDir.findFileByRelativePath(relPath);
@@ -282,17 +301,7 @@ public final class ResourceMethodTypeProvider implements PhpTypeProvider4 {
             return Optional.empty();
         }
 
-        PhpClass phpClass = PsiTreeUtil.findChildOfType(psiFile, PhpClass.class);
-        if (phpClass != null) {
-            return Optional.of(phpClass);
-        }
-
-        Optional<PhpClass> indexedClass = resolveResourceClassFromIndex(project, relPath);
-        if (indexedClass.isPresent()) {
-            return indexedClass;
-        }
-
-        return resolveResourceClassFromFilenameIndex(project, relPath);
+        return Optional.ofNullable(PsiTreeUtil.findChildOfType(psiFile, PhpClass.class));
     }
 
     private static Optional<PhpClass> resolveResourceClassFromNioPath(Project project, String relPath) {
@@ -324,8 +333,12 @@ public final class ResourceMethodTypeProvider implements PhpTypeProvider4 {
         String expectedSuffix = "/" + relPath;
         try {
             PsiManager psiManager = PsiManager.getInstance(project);
-            for (VirtualFile virtualFile : FilenameIndex.getVirtualFilesByName(fileName, GlobalSearchScope.allScope(project))) {
-                if (!virtualFile.getPath().replace('\\', '/').endsWith(expectedSuffix)) {
+            // Project scope only, and never inside `vendor/`: an installed BEAR application
+            // carries `src/Resource/App/*.php` of its own, which would otherwise match the
+            // path suffix and resolve the URI to a dependency's resource.
+            for (VirtualFile virtualFile : FilenameIndex.getVirtualFilesByName(fileName, GlobalSearchScope.projectScope(project))) {
+                String path = virtualFile.getPath().replace('\\', '/');
+                if (!path.endsWith(expectedSuffix) || path.contains("/vendor/")) {
                     continue;
                 }
 
@@ -360,10 +373,29 @@ public final class ResourceMethodTypeProvider implements PhpTypeProvider4 {
         try {
             return PhpIndex.getInstance(project).getClassesByName(className).stream()
                 .filter(phpClass -> phpClass.getFQN().endsWith(expectedFqnSuffix))
+                .filter(phpClass -> !isInVendor(phpClass))
                 .findFirst();
         } catch (IndexNotReadyException exception) {
             return Optional.empty();
         }
+    }
+
+    /**
+     * A dependency's own resources share the {@code \Resource\App\Foo} namespace tail with the
+     * project's, so an FQN suffix match alone would resolve a URI to an installed package.
+     */
+    private static boolean isInVendor(PhpClass phpClass) {
+        PsiFile containingFile = phpClass.getContainingFile();
+        if (containingFile == null) {
+            return false;
+        }
+
+        VirtualFile virtualFile = containingFile.getVirtualFile();
+        if (virtualFile == null) {
+            return false;
+        }
+
+        return virtualFile.getPath().replace('\\', '/').contains("/vendor/");
     }
 
     private static @Nullable String classNameFromRelPath(String relPath) {
