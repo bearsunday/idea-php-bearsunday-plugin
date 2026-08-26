@@ -9,6 +9,8 @@
 - Incoming Link/Embed relation gutter: BEAR.Resource methods now show incoming static `#[Link]` / `#[Embed]` relations from other resources and navigate back to the source attribute declaration.
 
 ### Changed
+- Build against PhpStorm 2026.2 (`platformVersion = 2026.2`); plugin remains compatible with 2025.1+ (`since-build = 251`)
+- IntelliJ Platform Gradle Plugin updated to 2.18.1, Gradle to 9.7, Kotlin plugin to 2.4.10; JDK toolchain (Java 25) is auto-provisioned via the foojay resolver when not installed locally
 - Ray.Aop bound-interceptor gutter/action now uses a dedicated AOP icon instead of the BEAR resource icon.
 - BEAR and Ray gutter icons now use transparent backgrounds.
 - Incoming resource relation gutters moved from the resource class name to the target resource method (`#[Embed]` always maps to `onGet`; `#[Link]` maps from its `method` argument and defaults to `onGet`).
