@@ -54,8 +54,11 @@ public final class ResourceAttributeIndexService {
         return project.getService(ResourceAttributeIndexService.class);
     }
 
+    // Non-blocking so a pending write action is not made to wait out the read; the read is
+    // cancelled and retried instead. Every other MCP facts service reads the same way.
     public String index(@Nullable String attribute, @Nullable String method, @Nullable String resourceRoot) {
-        return ReadAction.compute(() -> indexAttributes(attribute, method, resourceRoot));
+        return ReadAction.nonBlocking(() -> indexAttributes(attribute, method, resourceRoot))
+            .executeSynchronously();
     }
 
     private String indexAttributes(@Nullable String attribute, @Nullable String method, @Nullable String resourceRoot) {
