@@ -20,7 +20,7 @@
 - Every ALPS tool answers `status=ambiguous` with the candidate paths when more than one profile in the project matches, instead of answering from whichever the file system offered first. Naming a `profilePath` answers from that one. `bear_contract_compare` marks only its ALPS side.
 - A profile that cannot be read at all answers `engine_unavailable` rather than `parse_error`, which had said the profile is malformed when nothing had read it.
 - Build against PhpStorm 2026.2 (`platformVersion = 2026.2`)
-- IntelliJ Platform Gradle Plugin updated to 2.18.1, Gradle to 9.7, Kotlin plugin to 2.4.10; JDK toolchain (Java 25) is auto-provisioned via the foojay resolver when not installed locally
+- IntelliJ Platform Gradle Plugin updated to 2.18.1, Gradle to 9.5.0, Kotlin plugin to 2.4.10; JDK toolchain (Java 25) is auto-provisioned via the foojay resolver when not installed locally
 - Ray.Aop bound-interceptor gutter/action now uses a dedicated AOP icon instead of the BEAR resource icon.
 - BEAR and Ray gutter icons now use transparent backgrounds.
 - Incoming resource relation gutters moved from the resource class name to the target resource method (`#[Embed]` always maps to `onGet`; `#[Link]` maps from its `method` argument and defaults to `onGet`).
@@ -29,10 +29,15 @@
 - Refreshed README and plugin description metadata, including current feature wording and Marketplace links
 - Removed stale README TODOs and legacy Php Annotations Plugin references from public documentation
 - Updated the MIT license notice to cover 2015-2026 Shingo Kumagai and contributors
+- Java and Kotlin output now targets Java 21 explicitly (`--release` / `jvmTarget`), matching `since-build = 252`. The auto-provisioned Java 25 toolchain had been overriding both, leaving class files that the JBR bundled with PhpStorm 2025.2 and 2025.3 (Java 21) cannot load — something the plugin verifier does not report.
+- The Gradle distribution the wrapper downloads is pinned by SHA-256 checksum.
 
 ### Fixed
 - Resource URI goto failed for camelCase URIs (e.g. `app://self/blogPosting` no longer resolves to `Blogposting`); inner capitals are now preserved (#11)
 - `#[Link]` and `#[Embed]` no longer show the AOP bound-interceptor gutter/action, so relation attributes are not routed to framework interceptors.
+- The plugin verifier reported the MCP toolset as calling `McpToolset` methods that PhpStorm 2025.2 to 2026.1 do not carry: Kotlin's JVM-default compatibility mode had emitted, in the toolset class, an override of each default method that calls `super`. Those overrides are no longer emitted, so every IDE dispatches to the defaults it actually has.
+- A resource is no longer taken for a dependency's when the project itself sits under a directory named `vendor/`; the check now reads the path relative to the project directory rather than the absolute path.
+- An ALPS descriptor sitting exactly at the 64-level nesting limit is no longer rejected for having no children of its own.
 
 ## [0.7]
 
