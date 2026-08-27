@@ -3,6 +3,7 @@ package idea.bear.sunday.resource;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.vfs.LocalFileSystem;
+import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
@@ -98,7 +99,7 @@ public final class ResourceClassResolver {
         // would resolve the URI to a dependency's resource.
         for (VirtualFile virtualFile : FilenameIndex.getVirtualFilesByName(fileName, GlobalSearchScope.projectScope(project))) {
             String path = virtualFile.getPath().replace('\\', '/');
-            if (!path.endsWith(expectedSuffix) || path.contains("/vendor/")) {
+            if (!path.endsWith(expectedSuffix) || isInVendor(project, virtualFile)) {
                 continue;
             }
 
@@ -129,7 +130,7 @@ public final class ResourceClassResolver {
 
         return PhpIndex.getInstance(project).getClassesByName(className).stream()
             .filter(phpClass -> phpClass.getFQN().endsWith(expectedFqnSuffix))
-            .filter(phpClass -> !isInVendor(phpClass))
+            .filter(phpClass -> !isInVendor(project, phpClass))
             .findFirst();
     }
 
@@ -137,7 +138,7 @@ public final class ResourceClassResolver {
      * A dependency's own resources share the {@code \Resource\App\Foo} namespace tail with the
      * project's, so an FQN suffix match alone would resolve a URI to an installed package.
      */
-    private static boolean isInVendor(PhpClass phpClass) {
+    private static boolean isInVendor(Project project, PhpClass phpClass) {
         PsiFile containingFile = phpClass.getContainingFile();
         if (containingFile == null) {
             return false;
@@ -148,7 +149,23 @@ public final class ResourceClassResolver {
             return false;
         }
 
-        return virtualFile.getPath().replace('\\', '/').contains("/vendor/");
+        return isInVendor(project, virtualFile);
+    }
+
+    /**
+     * Read from the path relative to the project directory rather than from the absolute one: a
+     * project that itself sits under a directory named {@code vendor/} would otherwise have every
+     * one of its own resources taken for a dependency's.
+     */
+    private static boolean isInVendor(Project project, VirtualFile file) {
+        VirtualFile baseDir = ProjectUtil.guessProjectDir(project);
+        if (baseDir == null) {
+            return false;
+        }
+
+        String relativePath = VfsUtil.getRelativePath(file, baseDir, '/');
+
+        return relativePath != null && ("/" + relativePath).contains("/vendor/");
     }
 
     private static @Nullable String classNameFromRelPath(String relPath) {
