@@ -33,6 +33,7 @@ dependencies {
         phpstorm(properties("platformVersion"))
         bundledPlugin("com.jetbrains.php")
         bundledPlugin("com.jetbrains.twig")
+        bundledPlugin("com.intellij.mcpServer")
         testFramework(TestFrameworkType.Platform)
         pluginVerifier()
     }
@@ -87,7 +88,25 @@ java {
     targetCompatibility = JavaVersion.toVersion(properties("javaVersion").get())
 }
 
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget(properties("javaVersion").get())
+        // The MCP toolset implements a platform interface whose default methods arrived over
+        // several releases. Compatibility mode would emit, in our class, an override of each one
+        // that calls `super` -- an unresolved call on any IDE older than the method, which the
+        // plugin verifier reports as a NoSuchMethodError risk. Without the bridges each IDE
+        // dispatches to the defaults it actually has.
+        jvmDefault = org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode.NO_COMPATIBILITY
+    }
+}
+
 tasks {
+    withType<JavaCompile>().configureEach {
+        options.release = properties("javaVersion").map(String::toInt)
+    }
+    withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+        compilerOptions.jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget(properties("javaVersion").get())
+    }
     test {
         useJUnitPlatform()
     }

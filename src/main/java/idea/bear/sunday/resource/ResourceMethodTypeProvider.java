@@ -1,18 +1,12 @@
 package idea.bear.sunday.resource;
 
-import com.intellij.openapi.project.Project;
-import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.project.IndexNotReadyException;
-import com.intellij.openapi.vfs.LocalFileSystem;
+import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
-import com.intellij.psi.PsiManager;
-import com.intellij.psi.search.FilenameIndex;
-import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.util.PsiTreeUtil;
-import com.jetbrains.php.PhpIndex;
 import com.jetbrains.php.lang.psi.elements.AssignmentExpression;
 import com.jetbrains.php.lang.psi.elements.FieldReference;
 import com.jetbrains.php.lang.psi.elements.Function;
@@ -33,7 +27,6 @@ import idea.bear.sunday.util.UriUtil;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Comparator;
@@ -87,7 +80,7 @@ public final class ResourceMethodTypeProvider implements PhpTypeProvider4 {
         }
 
         return Optional.of(decodedRequest.get())
-            .flatMap(request -> resolveResourceClass(project, request.uri()))
+            .flatMap(request -> resolveQuietly(project, request.uri()))
             .map(List::of)
             .orElse(null);
     }
@@ -110,7 +103,7 @@ public final class ResourceMethodTypeProvider implements PhpTypeProvider4 {
 
     private @Nullable PhpType completeRequest(SignedResourceRequest request, Project project) {
         if (SIGNATURE_RESOURCE.equals(request.kind())) {
-            return resolveResourceClass(project, request.uri())
+            return resolveQuietly(project, request.uri())
                 .map(phpClass -> new PhpType().add(phpClass.getFQN()))
                 .orElse(null);
         }
@@ -140,9 +133,22 @@ public final class ResourceMethodTypeProvider implements PhpTypeProvider4 {
     }
 
     private Optional<BodyTypeDeclaration> resolveBodyType(Project project, SignedResourceRequest request) {
-        return resolveResourceClass(project, request.uri())
+        return resolveQuietly(project, request.uri())
             .flatMap(bodyTypeCollector::collect)
             .flatMap(collection -> collection.declarationForResourceMethod(request.method()));
+    }
+
+    /**
+     * Type inference is an offer to the editor, not a report to an agent: while the indexes are
+     * building there is no type to offer, so the exception the resolver raises for a question it
+     * cannot answer yet becomes "nothing" here.
+     */
+    private static Optional<PhpClass> resolveQuietly(Project project, String uri) {
+        try {
+            return ResourceClassResolver.resolveCached(project, uri);
+        } catch (IndexNotReadyException exception) {
+            return Optional.empty();
+        }
     }
 
     private static Optional<ResourceRequest> resourceRequestFromBodyField(FieldReference fieldReference) {
@@ -243,7 +249,7 @@ public final class ResourceMethodTypeProvider implements PhpTypeProvider4 {
         }
 
         VirtualFile file = containingFile.getVirtualFile();
-        VirtualFile baseDir = projectBaseDir(element.getProject());
+        VirtualFile baseDir = ResourceClassResolver.projectBaseDir(element.getProject());
         if (file == null || baseDir == null) {
             return false;
         }
@@ -254,168 +260,6 @@ public final class ResourceMethodTypeProvider implements PhpTypeProvider4 {
 
     private static boolean isSelfUri(String normalizedUri) {
         return normalizedUri.startsWith("app://self/") || normalizedUri.startsWith("page://self/");
-    }
-
-    private static Optional<PhpClass> resolveResourceClass(Project project, String normalizedUri) {
-        String relPath = UriUtil.toResourceRelativePath(normalizedUri, false);
-        if (relPath == null) {
-            return Optional.empty();
-        }
-
-        // Each strategy narrows from "the resource sits exactly where the URI says" to
-        // "it is somewhere the index knows about". A strategy that cannot find the class
-        // must fall through rather than end the lookup: layouts that keep resources
-        // outside the project root (monorepo packages, for instance) only ever resolve
-        // through the index strategies below.
-        Optional<PhpClass> nioClass = resolveResourceClassFromNioPath(project, relPath);
-        if (nioClass.isPresent()) {
-            return nioClass;
-        }
-
-        Optional<PhpClass> baseDirClass = resolveResourceClassFromBaseDir(project, relPath);
-        if (baseDirClass.isPresent()) {
-            return baseDirClass;
-        }
-
-        Optional<PhpClass> indexedClass = resolveResourceClassFromIndex(project, relPath);
-        if (indexedClass.isPresent()) {
-            return indexedClass;
-        }
-
-        return resolveResourceClassFromFilenameIndex(project, relPath);
-    }
-
-    private static Optional<PhpClass> resolveResourceClassFromBaseDir(Project project, String relPath) {
-        VirtualFile baseDir = projectBaseDir(project);
-        if (baseDir == null) {
-            return Optional.empty();
-        }
-
-        VirtualFile targetFile = baseDir.findFileByRelativePath(relPath);
-        if (targetFile == null) {
-            return Optional.empty();
-        }
-
-        PsiFile psiFile = PsiManager.getInstance(project).findFile(targetFile);
-        if (psiFile == null) {
-            return Optional.empty();
-        }
-
-        return Optional.ofNullable(PsiTreeUtil.findChildOfType(psiFile, PhpClass.class));
-    }
-
-    private static Optional<PhpClass> resolveResourceClassFromNioPath(Project project, String relPath) {
-        String basePath = project.getBasePath();
-        if (basePath == null) {
-            return Optional.empty();
-        }
-
-        VirtualFile targetFile = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(Path.of(basePath, relPath));
-        if (targetFile == null) {
-            return Optional.empty();
-        }
-
-        PsiFile psiFile = PsiManager.getInstance(project).findFile(targetFile);
-        if (psiFile == null) {
-            return Optional.empty();
-        }
-
-        return Optional.ofNullable(PsiTreeUtil.findChildOfType(psiFile, PhpClass.class));
-    }
-
-    private static Optional<PhpClass> resolveResourceClassFromFilenameIndex(Project project, String relPath) {
-        String className = classNameFromRelPath(relPath);
-        if (className == null) {
-            return Optional.empty();
-        }
-
-        String fileName = className + ".php";
-        String expectedSuffix = "/" + relPath;
-        try {
-            PsiManager psiManager = PsiManager.getInstance(project);
-            // Project scope only, and never inside `vendor/`: an installed BEAR application
-            // carries `src/Resource/App/*.php` of its own, which would otherwise match the
-            // path suffix and resolve the URI to a dependency's resource.
-            for (VirtualFile virtualFile : FilenameIndex.getVirtualFilesByName(fileName, GlobalSearchScope.projectScope(project))) {
-                String path = virtualFile.getPath().replace('\\', '/');
-                if (!path.endsWith(expectedSuffix) || path.contains("/vendor/")) {
-                    continue;
-                }
-
-                PsiFile psiFile = psiManager.findFile(virtualFile);
-                if (psiFile == null) {
-                    continue;
-                }
-
-                PhpClass phpClass = PsiTreeUtil.findChildOfType(psiFile, PhpClass.class);
-                if (phpClass != null) {
-                    return Optional.of(phpClass);
-                }
-            }
-        } catch (IndexNotReadyException exception) {
-            return Optional.empty();
-        }
-
-        return Optional.empty();
-    }
-
-    private static Optional<PhpClass> resolveResourceClassFromIndex(Project project, String relPath) {
-        String className = classNameFromRelPath(relPath);
-        if (className == null) {
-            return Optional.empty();
-        }
-
-        String expectedFqnSuffix = "\\" + relPath
-            .replaceFirst("^src/", "")
-            .replaceFirst("\\.php$", "")
-            .replace('/', '\\');
-
-        try {
-            return PhpIndex.getInstance(project).getClassesByName(className).stream()
-                .filter(phpClass -> phpClass.getFQN().endsWith(expectedFqnSuffix))
-                .filter(phpClass -> !isInVendor(phpClass))
-                .findFirst();
-        } catch (IndexNotReadyException exception) {
-            return Optional.empty();
-        }
-    }
-
-    /**
-     * A dependency's own resources share the {@code \Resource\App\Foo} namespace tail with the
-     * project's, so an FQN suffix match alone would resolve a URI to an installed package.
-     */
-    private static boolean isInVendor(PhpClass phpClass) {
-        PsiFile containingFile = phpClass.getContainingFile();
-        if (containingFile == null) {
-            return false;
-        }
-
-        VirtualFile virtualFile = containingFile.getVirtualFile();
-        if (virtualFile == null) {
-            return false;
-        }
-
-        return virtualFile.getPath().replace('\\', '/').contains("/vendor/");
-    }
-
-    private static @Nullable String classNameFromRelPath(String relPath) {
-        int slash = relPath.lastIndexOf('/');
-        String fileName = slash >= 0 ? relPath.substring(slash + 1) : relPath;
-        if (!fileName.endsWith(".php")) {
-            return null;
-        }
-
-        return fileName.substring(0, fileName.length() - 4);
-    }
-
-    private static @Nullable VirtualFile projectBaseDir(Project project) {
-        VirtualFile baseDir = ProjectUtil.guessProjectDir(project);
-        if (baseDir != null) {
-            return baseDir;
-        }
-
-        String basePath = project.getBasePath();
-        return basePath == null ? null : LocalFileSystem.getInstance().findFileByNioFile(Path.of(basePath));
     }
 
     private static String sign(String kind, ResourceRequest request) {

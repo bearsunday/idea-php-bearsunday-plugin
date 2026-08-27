@@ -1,0 +1,97 @@
+{
+  "$schema": "https://raw.githubusercontent.com/koriym/spec/master/schemas/alps.json",
+  "alps": {
+    "descriptor": [
+      {"id": "Index",
+        "descriptor": [
+          {"id": "blog", "type": "safe", "rt": "#Blog"}
+        ],
+        "title": "Index"
+      },
+      {
+        "id": "About",
+        "type": "semantic"
+      },
+      {
+        "id": "Blog",
+        "type": "semantic",
+        "def": "https://schema.org/Blog",
+        "rel": "collection",
+        "doc": {
+          "value": "Blog entry list page"
+        },
+        "descriptor": [
+          {
+            "href": "#BlogPosting"
+          },
+          {
+            "id": "blogPosting",
+            "type": "safe",
+            "rt": "#BlogPosting",
+            "def": "https://schema.org/BlogPosting",
+            "rel": "item",
+            "doc": {
+              "value": "ブログ個別ページへ"
+            },
+            "descriptor": [
+              {"href": "#id"}
+            ]
+          },
+          {
+            "id": "post",
+            "type": "unsafe",
+            "def": "http://activitystrea.ms/specs/json/1.0/#post-verb",
+            "rt": "#Blog",
+            "descriptor": [
+              {"href": "#BlogPosting"}
+            ]
+          },
+          {"href": "Foo.json#baz"},
+          {"href": "#about"}
+        ]
+      },
+      {
+        "id": "BlogPosting",
+        "type": "semantic",
+        "def": "https://schema.org/BlogPosting",
+        "doc": {
+          "value": "Blog entry item page"
+        },
+        "descriptor": [
+          {
+            "id": "id",
+            "type": "semantic",
+            "doc": {
+              "value": "Blog entry id"
+            }
+          },
+          {
+            "id": "articleBody",
+            "type": "semantic",
+            "def": "https://schema.org/articleBody"
+          },
+          {
+            "id": "dateCreated",
+            "type": "semantic",
+            "def": "https://schema.org/BlogPosting#dateCreated"
+          },
+          {
+            "id": "blog",
+            "type": "safe",
+            "rt": "#Blog",
+            "rel": "colletion"
+          },
+          {
+            "href": "#about"
+          }
+        ]
+      },
+      {"href": "Foo.json#Foo"},
+      {
+        "id": "about",
+        "type": "safe",
+        "rt": "#About"
+      }
+    ]
+  }
+}

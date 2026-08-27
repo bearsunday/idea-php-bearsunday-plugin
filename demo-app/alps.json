@@ -1,0 +1,47 @@
+{
+    "$schema": "https://alps-io.github.io/schemas/alps.json",
+    "alps": {
+        "version": "1.0",
+        "title": "MyProject Demo API",
+        "doc": {"value": "ALPS profile for the plugin demo app. Descriptors mirror the resources under src/Resource."},
+        "link": [
+            {"rel": "describedby", "href": "README.md"},
+            {"rel": "profile", "href": "https://alps.io/spec/"}
+        ],
+        "descriptor": [
+            {"id": "id", "type": "semantic", "def": "https://schema.org/identifier"},
+            {"id": "name", "type": "semantic", "def": "https://schema.org/name"},
+            {"id": "bio", "type": "semantic", "doc": {"value": "Short profile text."}},
+            {"id": "title", "type": "semantic", "def": "https://schema.org/name"},
+            {"id": "x", "type": "semantic", "doc": {"value": "X coordinate."}},
+            {"id": "y", "type": "semantic", "doc": {"value": "Y coordinate."}},
+            {"id": "squaredDistance", "type": "semantic", "doc": {"value": "x^2 + y^2 of the point."}},
+
+            {"id": "User", "type": "semantic", "doc": {"value": "User detail state. app://self/user"}, "descriptor": [
+                {"href": "#id"},
+                {"href": "#name"}
+            ]},
+            {"id": "Profile", "type": "semantic", "doc": {"value": "Profile detail state. app://self/profile"}, "descriptor": [
+                {"href": "#id"},
+                {"href": "#bio"}
+            ]},
+            {"id": "Point", "type": "semantic", "tag": "demo", "doc": {"value": "Point calculation state. app://self/point"}, "link": [
+                {"rel": "describedby", "href": "var/json_schema/point.json"}
+            ], "descriptor": [
+                {"href": "#x"},
+                {"href": "#y"},
+                {"href": "#squaredDistance"}
+            ]},
+            {"id": "Dashboard", "type": "semantic", "doc": {"value": "Dashboard state embedding the user and linking to the profile. app://self/dashboard"}, "descriptor": [
+                {"href": "#id"},
+                {"href": "#title"},
+                {"href": "#goUser"},
+                {"href": "#goProfile"}
+            ]},
+
+            {"id": "goUser", "type": "safe", "rt": "#User", "doc": {"value": "Embedded from Dashboard, whose #[Embed(rel: 'goUser')] names this id."}},
+            {"id": "goProfile", "type": "safe", "rt": "#Profile", "doc": {"value": "Linked from Dashboard, whose #[Link(rel: 'goProfile')] names this id."}},
+            {"id": "goPoint", "type": "safe", "rt": "#Point"}
+        ]
+    }
+}

@@ -10,8 +10,8 @@ use BEAR\Resource\ResourceObject;
 
 final class Dashboard extends ResourceObject
 {
-    #[Embed(src: 'app://self/user{?id}', rel: 'user')]
-    #[Link(rel: 'profile', href: 'app://self/profile{?id}')]
+    #[Embed(src: 'app://self/user{?id}', rel: 'goUser')]
+    #[Link(rel: 'goProfile', href: 'app://self/profile{?id}')]
     public function onGet(int $id = 1): static
     {
         $this->body = [
