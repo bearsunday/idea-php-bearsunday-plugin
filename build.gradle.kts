@@ -101,6 +101,12 @@ kotlin {
 }
 
 tasks {
+    withType<JavaCompile>().configureEach {
+        options.release = properties("javaVersion").map(String::toInt)
+    }
+    withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+        compilerOptions.jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget(properties("javaVersion").get())
+    }
     test {
         useJUnitPlatform()
     }
