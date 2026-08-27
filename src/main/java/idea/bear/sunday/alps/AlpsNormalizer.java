@@ -82,11 +82,12 @@ public final class AlpsNormalizer {
     }
 
     private static List<AlpsDescriptor> readJsonDescriptors(JsonObject parent, Map<String, Integer> idOffsets, int depth) {
-        if (depth > MAX_DEPTH) {
+        List<JsonObject> objects = readObjects(parent, "descriptor");
+        if (depth > MAX_DEPTH && !objects.isEmpty()) {
             throw new AlpsParseException("Descriptors nested deeper than " + MAX_DEPTH + " levels");
         }
         List<AlpsDescriptor> descriptors = new ArrayList<>();
-        for (JsonObject object : readObjects(parent, "descriptor")) {
+        for (JsonObject object : objects) {
             descriptors.add(toJsonDescriptor(object, idOffsets, depth));
         }
 
@@ -204,11 +205,12 @@ public final class AlpsNormalizer {
     }
 
     private static List<AlpsDescriptor> readXmlDescriptors(Element parent, Map<String, Integer> idOffsets, int depth) {
-        if (depth > MAX_DEPTH) {
+        List<Element> elements = childElements(parent, "descriptor");
+        if (depth > MAX_DEPTH && !elements.isEmpty()) {
             throw new AlpsParseException("Descriptors nested deeper than " + MAX_DEPTH + " levels");
         }
         List<AlpsDescriptor> descriptors = new ArrayList<>();
-        for (Element element : childElements(parent, "descriptor")) {
+        for (Element element : elements) {
             descriptors.add(toXmlDescriptor(element, idOffsets, depth));
         }
 

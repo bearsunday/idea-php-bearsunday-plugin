@@ -32,6 +32,28 @@ class AlpsNormalizerTest {
     }
 
     @Test
+    void acceptsALeafDescriptorSittingExactlyAtTheDepthLimit() {
+        AlpsProfile profile = AlpsNormalizer.fromJson(nestedJson(64), "alps.json");
+
+        assertEquals("leaf", deepest(profile.descriptors().get(0)).id());
+    }
+
+    @Test
+    void rejectsADescriptorOneLevelPastTheDepthLimit() {
+        AlpsParseException exception =
+            assertThrows(AlpsParseException.class, () -> AlpsNormalizer.fromJson(nestedJson(65), "alps.json"));
+
+        assertTrue(exception.getMessage().contains("nested deeper"), exception.getMessage());
+    }
+
+    @Test
+    void acceptsALeafDescriptorAtTheDepthLimitOfAnXmlProfile() {
+        AlpsProfile profile = AlpsNormalizer.fromXml(nestedXml(64), "/project/alps.xml");
+
+        assertEquals("leaf", deepest(profile.descriptors().get(0)).id());
+    }
+
+    @Test
     void trimsJsonDocsLikeXmlDocs() {
         AlpsProfile profile = AlpsNormalizer.fromJson("""
             {"alps": {"doc": {"value": "  padded  "}, "descriptor": [{"id": "A", "doc": "   "}]}}
@@ -226,6 +248,39 @@ class AlpsNormalizerTest {
     @Test
     void rejectsJsonWithoutAlpsKey() {
         assertThrows(AlpsParseException.class, () -> AlpsNormalizer.fromJson("{\"descriptor\": []}", "/project/alps.json"));
+    }
+
+    /**
+     * A chain of {@code wrappers} nested descriptors closed by a leaf, which leaves the leaf
+     * itself sitting at depth {@code wrappers}.
+     */
+    private static String nestedJson(int wrappers) {
+        StringBuilder json = new StringBuilder();
+        for (int i = 0; i < wrappers; i++) {
+            json.append("{\"id\": \"d").append(i).append("\", \"descriptor\": [");
+        }
+        json.append("{\"id\": \"leaf\"}").append("]}".repeat(wrappers));
+
+        return "{\"alps\": {\"descriptor\": [" + json + "]}}";
+    }
+
+    private static String nestedXml(int wrappers) {
+        StringBuilder xml = new StringBuilder();
+        for (int i = 0; i < wrappers; i++) {
+            xml.append("<descriptor id=\"d").append(i).append("\">");
+        }
+        xml.append("<descriptor id=\"leaf\"/>").append("</descriptor>".repeat(wrappers));
+
+        return "<alps>" + xml + "</alps>";
+    }
+
+    private static AlpsDescriptor deepest(AlpsDescriptor descriptor) {
+        AlpsDescriptor current = descriptor;
+        while (!current.children().isEmpty()) {
+            current = current.children().get(0);
+        }
+
+        return current;
     }
 
     private static AlpsDescriptor descriptor(AlpsProfile profile, String id) {
