@@ -84,8 +84,9 @@ class BearSundayMcpToolset : McpToolset {
             "\"interceptors\" a module binds to it with annotatedWith() -- an empty list means no such binding " +
             "names it, not that no interceptor runs, because bindings made by another matcher are not indexed. " +
             "\"fqn\" is the class the attribute names under the file's use statements; whether that class " +
-            "exists is not checked. \"scan\" reports how many files and classes were read, so an empty result " +
-            "says how much was looked at."
+            "exists is not checked. \"scan\" reports how many files and classes were read, including " +
+            "\"filesSkipped\" when a root was too large to read whole, so an empty result says how much " +
+            "was looked at."
     )
     suspend fun bear_resource_attribute_index(
         attribute: String? = null,

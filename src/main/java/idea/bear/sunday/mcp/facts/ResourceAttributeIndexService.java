@@ -44,6 +44,9 @@ public final class ResourceAttributeIndexService {
     private static final String TARGET_CLASS = "class";
     private static final String TARGET_METHOD = "method";
 
+    /** Well past any project's src/Resource; reached only by a root such as "vendor", and then reported. */
+    private static final int MAX_FILES = 2000;
+
     private final Project project;
 
     public ResourceAttributeIndexService(Project project) {
@@ -74,12 +77,18 @@ public final class ResourceAttributeIndexService {
         AttributeFilter filter = AttributeFilter.of(attribute);
         String methodFilter = onMethodName(method);
         InterceptorLookup interceptors = new InterceptorLookup(project);
-        List<VirtualFile> files = phpFilesUnder(rootDir);
+        List<VirtualFile> found = phpFilesUnder(rootDir);
+        // resourceRoot is given by the caller. A root such as "vendor" holds tens of thousands of
+        // files, and every one of them would be parsed inside one read action. The files are walked
+        // in path order, so the cut is at least the same one every time -- and it is reported,
+        // because a silent one reads as "that is everything there is".
+        List<VirtualFile> files = found.size() <= MAX_FILES ? found : found.subList(0, MAX_FILES);
         JsonArray entries = new JsonArray();
         int classes = 0;
         boolean unsaved = false;
 
         for (VirtualFile file : files) {
+            ProgressManager.checkCanceled();
             // Every walked file counts towards freshness: the walk reads PSI, which shows unsaved
             // editor buffers, and an unsaved edit can just as well remove a class from the answer.
             unsaved |= FactsFiles.isUnsaved(file);
@@ -115,6 +124,9 @@ public final class ResourceAttributeIndexService {
         JsonObject scan = new JsonObject();
         scan.addProperty("resourceRoot", root);
         scan.addProperty("files", files.size());
+        if (found.size() > files.size()) {
+            scan.addProperty("filesSkipped", found.size() - files.size());
+        }
         scan.addProperty("classes", classes);
 
         JsonObject payload = new JsonObject();
