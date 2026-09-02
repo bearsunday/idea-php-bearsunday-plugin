@@ -383,6 +383,98 @@ class ResourceAttributeIndexServiceFixtureTest {
         assertTrue(envelope.get("error").getAsString().contains("src/Nowhere"), envelope::toString);
     }
 
+    /**
+     * The walk gathers every PHP file under the root into one read action, so it is cut at the
+     * service's scan limit (MAX_FILES). The cut is reported on the answer rather than silent,
+     * because a silent one reads as "that is everything there is". Files are named with
+     * zero-padded numbers so the path-ordered walk always keeps the same first MAX_FILES.
+     */
+    @Test
+    void reportsFilesSkippedBeyondTheScanLimit() {
+        int total = 2001; // MAX_FILES + 1; the service's limit is 2000.
+        for (int number = 1; number <= total; number++) {
+            String shortName = numberedResourceShortName(number);
+            addFile("src/Resource/App/" + shortName + ".php", numberedResourceClass(number));
+        }
+
+        JsonObject envelope = envelope(index(null, null, null));
+        JsonObject scan = envelope.getAsJsonObject("scan");
+
+        assertEquals("ok", envelope.get("status").getAsString(), envelope::toString);
+        assertEquals(2000, scan.get("files").getAsInt(), envelope::toString);
+        assertEquals(1, scan.get("filesSkipped").getAsInt(), envelope::toString);
+    }
+
+    /** A backslash-separated root is normalized to slashes before it is looked up. */
+    @Test
+    void acceptsABackslashSeparatedResourceRoot() {
+        addFile("src/Resource/App/User.php", USER);
+
+        JsonObject envelope = envelope(index(null, null, "src\\Resource"));
+        JsonObject scan = envelope.getAsJsonObject("scan");
+
+        assertEquals("ok", envelope.get("status").getAsString(), envelope::toString);
+        assertEquals("src/Resource", scan.get("resourceRoot").getAsString(), envelope::toString);
+        assertEquals(1, scan.get("files").getAsInt(), envelope::toString);
+    }
+
+    @Test
+    void rejectsADoubleDotWindowsPath() {
+        JsonObject envelope = envelope(index(null, null, "..\\..\\etc"));
+
+        assertEquals("not_found", envelope.get("status").getAsString(), envelope::toString);
+        assertTrue(envelope.get("error").getAsString().contains("..\\..\\etc"), envelope::toString);
+    }
+
+    @Test
+    void rejectsAVendorParentWindowsPath() {
+        JsonObject envelope = envelope(index(null, null, "vendor\\..\\src"));
+
+        assertEquals("not_found", envelope.get("status").getAsString(), envelope::toString);
+        assertTrue(envelope.get("error").getAsString().contains("vendor\\..\\src"), envelope::toString);
+    }
+
+    @Test
+    void rejectsAWindowsPathThatStartsWithASlash() {
+        JsonObject envelope = envelope(index(null, null, "\\vendor"));
+
+        assertEquals("not_found", envelope.get("status").getAsString(), envelope::toString);
+        assertTrue(envelope.get("error").getAsString().contains("\\vendor"), envelope::toString);
+    }
+
+    /**
+     * A Windows drive-letter root is refused because nothing named {@code C:} exists inside the
+     * project, and the answer must never reach outside the project to try: the lookup is
+     * project-relative and additionally checks the resolved file lies under the project, so a
+     * drive-letter path that happens to be readable on the host machine still cannot be read.
+     * A response other than {@code not_found} here is the bug this test exists to catch.
+     */
+    @Test
+    void doesNotReadOutsideTheProjectForADriveLetterPath() {
+        JsonObject envelope = envelope(index(null, null, "C:\\Users\\x"));
+
+        assertEquals("not_found", envelope.get("status").getAsString(), envelope::toString);
+    }
+
+    /** A valid resource class the scan-limit test can stamp out thousands of times. */
+    private static String numberedResourceClass(int number) {
+        String shortName = numberedResourceShortName(number);
+
+        return "<?php\n"
+            + "\n"
+            + "namespace MyVendor\\MyProject\\Resource\\App;\n"
+            + "\n"
+            + "use BEAR\\Resource\\ResourceObject;\n"
+            + "\n"
+            + "final class " + shortName + " extends ResourceObject\n"
+            + "{\n"
+            + "}\n";
+    }
+
+    private static String numberedResourceShortName(int number) {
+        return String.format("A%04d", number);
+    }
+
     private String index(String attribute, String method, String resourceRoot) {
         return ResourceAttributeIndexService.getInstance(fixture.getProject())
             .index(attribute, method, resourceRoot);
