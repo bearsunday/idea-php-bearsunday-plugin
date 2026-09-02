@@ -1,7 +1,7 @@
 <idea-plugin>
   <id>idea.bear.sunday</id>
   <name>BEAR.Sunday</name>
-  <version>0.10</version>
+  <version>0.11</version>
   <vendor email="shingo4092@gmail.com">Shingo Kumagai</vendor>
   <resource-bundle>messages.BearSundayBundle</resource-bundle>
 
@@ -23,7 +23,7 @@
     <li>Generate Psalm body type PHPDoc for BEAR.Resource body array shapes, including folder-level batch generation</li>
     <li>Generate JSON Schema files from BEAR.Resource body array shapes</li>
     <li>Infer concrete BEAR.Resource classes and method-specific body shapes from literal resource method calls</li>
-    <li>Read-only MCP tools that let an AI agent ask the IDE about resource classes, <code>$this-&gt;body</code> shapes, JSON Schema files, the generated OpenAPI document and ALPS profiles, and compare what each of those three layers names</li>
+    <li>Read-only MCP tools that let an AI agent ask the IDE about resource classes, the attributes they carry and the interceptors bound to them, <code>$this-&gt;body</code> shapes, JSON Schema files, the generated OpenAPI document and ALPS profiles, and compare what each of those three layers names</li>
   </ul>
   <h2>Links</h2>
   <ul>

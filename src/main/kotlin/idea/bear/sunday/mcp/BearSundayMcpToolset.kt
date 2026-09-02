@@ -9,6 +9,7 @@ import idea.bear.sunday.mcp.facts.ApiDocFactsService
 import idea.bear.sunday.mcp.facts.BodyShapeFactsService
 import idea.bear.sunday.mcp.facts.ContractCompareService
 import idea.bear.sunday.mcp.facts.LinkSuggestService
+import idea.bear.sunday.mcp.facts.ResourceAttributeIndexService
 import idea.bear.sunday.mcp.facts.ResourceFactsService
 import idea.bear.sunday.mcp.facts.SchemaFactsService
 import kotlin.coroutines.coroutineContext
@@ -69,6 +70,29 @@ class BearSundayMcpToolset : McpToolset {
     )
     suspend fun bear_resource_describe(uri: String): String =
         ResourceFactsService.getInstance(project()).describe(uri)
+
+    @McpTool
+    @McpDescription(
+        "Read-only. Lists the PHP attributes the resource classes under a resource root carry, as JSON, one " +
+            "entry per class or on* method that carries at least one. Every attribute is resolved through the " +
+            "file's use statements to the class it names, so this answers \"which resources does this attribute " +
+            "really apply to\" where a text search cannot: the same short name can alias different classes in " +
+            "different files. attribute filters by class name (\"\\\\BEAR\\\\Resource\\\\Annotation\\\\JsonSchema\") " +
+            "or by short name (\"JsonSchema\", matched against the last segment of the class name); method " +
+            "filters by \"onGet\" or \"get\" and then reports method attributes only; resourceRoot is " +
+            "project-relative and defaults to \"src/Resource\". Each attribute also carries the Ray.Aop " +
+            "\"interceptors\" a module binds to it with annotatedWith() -- an empty list means no such binding " +
+            "names it, not that no interceptor runs, because bindings made by another matcher are not indexed. " +
+            "\"fqn\" is the class the attribute names under the file's use statements; whether that class " +
+            "exists is not checked. \"scan\" reports how many files and classes were read, including " +
+            "\"filesSkipped\" when a root was too large to read whole, so an empty result says how much " +
+            "was looked at."
+    )
+    suspend fun bear_resource_attribute_index(
+        attribute: String? = null,
+        method: String? = null,
+        resourceRoot: String? = null
+    ): String = ResourceAttributeIndexService.getInstance(project()).index(attribute, method, resourceRoot)
 
     @McpTool
     @McpDescription(
