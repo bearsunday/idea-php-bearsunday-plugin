@@ -81,6 +81,47 @@ class ResourceClassResolverFixtureTest {
         assertNull(resolvedFqn("app://self/does-not-exist"));
     }
 
+    @Test
+    void refusesDotSegmentsInsteadOfEscapingTheResourceRoot() {
+        addPhysicalPhpFile("src/Secrets/Config.php", """
+            <?php
+            namespace MyVendor\\MyProject\\Secrets;
+
+            final class Config {}
+            """);
+
+        // "src/Resource/App/../../Secrets/Config.php" walks back to src/Secrets/Config.php.
+        assertNull(resolvedFqn("app://self/../../secrets/config"));
+    }
+
+    @Test
+    void refusesNonSelfAuthority() {
+        addPhysicalPhpFile("src/Resource/App/User.php", """
+            <?php
+            namespace MyVendor\\MyProject\\Resource\\App;
+
+            final class User extends \\BEAR\\Resource\\ResourceObject {}
+            """);
+
+        assertNull(resolvedFqn("app://payments/user"));
+    }
+
+    @Test
+    void skipsInterfaceAndTraitDeclaredBeforeTheResourceClass() {
+        addPhysicalPhpFile("src/Resource/App/User.php", """
+            <?php
+            namespace MyVendor\\MyProject\\Resource\\App;
+
+            interface UserInterface {}
+
+            trait UserTrait {}
+
+            final class User extends \\BEAR\\Resource\\ResourceObject {}
+            """);
+
+        assertEquals("\\MyVendor\\MyProject\\Resource\\App\\User", resolvedFqn("app://self/user"));
+    }
+
     private @Nullable String resolvedFqn(String normalizedUri) {
         return ApplicationManager.getApplication().runReadAction((Computable<@Nullable String>) () ->
             ResourceClassResolver.resolveCached(fixture.getProject(), normalizedUri)

@@ -130,6 +130,10 @@ class ContractCompareServiceFixtureTest {
         assertEquals("ok", envelope.get("status").getAsString());
         assertEquals("presence-only", envelope.get("kind").getAsString());
         assertEquals("app://self/point", envelope.get("uri").getAsString());
+        // A present side says so explicitly, so a caller keying on `available` reads all three
+        // sides the same way.
+        assertTrue(envelope.getAsJsonObject("schema").get("available").getAsBoolean());
+        assertTrue(envelope.getAsJsonObject("alps").get("available").getAsBoolean());
         assertEquals("var/json_schema/point.json", envelope.getAsJsonObject("schema").get("path").getAsString());
         assertEquals("[\"x\",\"y\",\"z\"]", envelope.getAsJsonObject("schema").getAsJsonArray("fields").toString());
         assertEquals("Point", envelope.getAsJsonObject("alps").get("descriptorId").getAsString());

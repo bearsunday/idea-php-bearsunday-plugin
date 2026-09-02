@@ -1,13 +1,16 @@
 package idea.bear.sunday.mcp;
 
 import kotlin.coroutines.CoroutineContext;
+import kotlin.coroutines.EmptyCoroutineContext;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -32,6 +35,24 @@ class McpProjectContextTest {
         assertEquals("com.intellij.openapi.project.Project", accessor.getReturnType().getName());
         assertEquals(CoroutineContext.class, accessor.getParameterTypes()[0]);
         assertTrue(Modifier.isStatic(accessor.getModifiers()));
+    }
+
+    /**
+     * Whatever the accessor itself throws must escape as itself: Method.invoke wraps it in an
+     * InvocationTargetException whose own message is null, which the MCP layer would report as
+     * an opaque internal error instead of the platform's typed "no project" message.
+     */
+    @Test
+    void doesNotLeakTheReflectionDetourWhenTheAccessorFails() {
+        try {
+            McpProjectContext.INSTANCE.of(EmptyCoroutineContext.INSTANCE);
+        } catch (Throwable thrown) {
+            // The accessor's own failure (or the local IllegalStateException) is the contract.
+            assertFalse(
+                thrown instanceof InvocationTargetException,
+                () -> "the reflection detour leaked: " + thrown
+            );
+        }
     }
 
     @Test

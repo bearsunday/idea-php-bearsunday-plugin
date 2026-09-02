@@ -55,6 +55,12 @@ public class UriUtil {
 
         try {
             URI parsed = new URI(value);
+            // No BEAR resource URI contains a "." or ".." segment, but the produced path is handed
+            // to findFileByRelativePath, which follows ".." out of the resource root -- and out of
+            // the project. A path that tries is a traversal, not a resource, and resolves to nothing.
+            if (hasDotSegment(parsed.getPath())) {
+                return null;
+            }
             String relPath = "src/Resource/";
             if (parsed.getScheme() == null) {
                 relPath += pageContext ? "Page" : "App";
@@ -147,6 +153,19 @@ public class UriUtil {
 
         String className = phpClass.getName().toLowerCase();
         return scheme + className;
+    }
+
+    private static boolean hasDotSegment(@Nullable String path) {
+        if (path == null) {
+            return false;
+        }
+        for (String segment : path.split("/")) {
+            if (".".equals(segment) || "..".equals(segment)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static String capitalizePath(String path) {
