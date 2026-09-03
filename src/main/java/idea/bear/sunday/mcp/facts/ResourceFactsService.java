@@ -166,7 +166,8 @@ public final class ResourceFactsService {
         return methods;
     }
 
-    private static boolean isResourceMethod(Method method) {
+    /** A resource method is a public {@code on*} method; shared with {@link ResourceAttributeIndexService}. */
+    static boolean isResourceMethod(Method method) {
         String name = method.getName();
 
         return name.length() > 2

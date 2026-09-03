@@ -5,10 +5,16 @@ import com.intellij.mcpserver.annotations.McpDescription
 import com.intellij.mcpserver.annotations.McpTool
 import com.intellij.openapi.project.Project
 import idea.bear.sunday.mcp.facts.AlpsFactsService
+import idea.bear.sunday.mcp.facts.AopPointcutLookupService
 import idea.bear.sunday.mcp.facts.ApiDocFactsService
+import idea.bear.sunday.mcp.facts.AppContextListService
 import idea.bear.sunday.mcp.facts.BodyShapeFactsService
 import idea.bear.sunday.mcp.facts.ContractCompareService
+import idea.bear.sunday.mcp.facts.DiBindingLookupService
+import idea.bear.sunday.mcp.facts.DiModuleTreeService
+import idea.bear.sunday.mcp.facts.DiObjectGraphService
 import idea.bear.sunday.mcp.facts.LinkSuggestService
+import idea.bear.sunday.mcp.facts.ResourceAttributeIndexService
 import idea.bear.sunday.mcp.facts.ResourceFactsService
 import idea.bear.sunday.mcp.facts.SchemaFactsService
 import kotlin.coroutines.coroutineContext
@@ -69,6 +75,288 @@ class BearSundayMcpToolset : McpToolset {
     )
     suspend fun bear_resource_describe(uri: String): String =
         ResourceFactsService.getInstance(project()).describe(uri)
+
+    @McpTool
+    @McpDescription(
+        "Read-only. Lists the PHP attributes the resource classes under a resource root carry, as JSON, one " +
+            "entry per class or on* method that carries at least one. Every attribute is resolved through the " +
+            "file's use statements to the class it names, so this answers \"which resources does this attribute " +
+            "really apply to\" where a text search cannot: the same short name can alias different classes in " +
+            "different files. attribute filters by class name (\"\\\\BEAR\\\\Resource\\\\Annotation\\\\JsonSchema\") " +
+            "or by short name (\"JsonSchema\", matched against the last segment of the class name); method " +
+            "filters by \"onGet\" or \"get\" and then reports method attributes only; resourceRoot is " +
+            "project-relative and defaults to \"src/Resource\". Each attribute also carries the Ray.Aop " +
+            "\"interceptors\" a module binds to it with annotatedWith() -- an empty list means no such binding " +
+            "names it, not that no interceptor runs, because bindings made by another matcher are not indexed. " +
+            "\"fqn\" is the class the attribute names under the file's use statements; whether that class " +
+            "exists is not checked. \"scan\" reports how many files and classes were read, including " +
+            "\"filesSkipped\" when a root was too large to read whole, so an empty result says how much " +
+            "was looked at."
+    )
+    suspend fun bear_resource_attribute_index(
+        attribute: String? = null,
+        method: String? = null,
+        resourceRoot: String? = null
+    ): String = ResourceAttributeIndexService.getInstance(project()).index(attribute, method, resourceRoot)
+
+    @McpTool
+    @McpDescription(
+        "Read-only. Finds the Ray.Di bindings a project's modules declare, as JSON: which implementation an " +
+            "interface is bound to, and the module file and line that binds it. This is what a text search " +
+            "cannot follow -- an injected \"#[Named('category')] SurrogateKeyInterface\" names neither the " +
+            "implementation class nor anything the implementation contains, so grepping for either misses the " +
+            "wiring. interfaceName filters by the class given to bind(), as a class name " +
+            "(\"\\\\My\\\\SurrogateKeyInterface\") or a short name (\"SurrogateKeyInterface\", matched against " +
+            "the last segment); qualifier filters by what annotatedWith() names, either a #[Named] string " +
+            "(matched exactly) or a qualifier attribute class (by class or short name); moduleRoot is " +
+            "project-relative and defaults to \"src\", so pass e.g. \"vendor/bear/package/src\" to read " +
+            "framework bindings. Each binding carries \"boundBy\" -- the Ray.Di method that gave it its target " +
+            "(\"to\", \"toProvider\", \"toConstructor\", \"toInstance\", \"toNull\", \"untargeted\" for a bind() " +
+            "with no target, \"unknown\" for a chain continued somewhere this could not follow) -- and a " +
+            "\"resolution\": \"static\" when the source names the implementation class -- bind()->to(), " +
+            "toConstructor() (its first argument is the class Ray.Di builds), and an untargeted bind, which " +
+            "binds a CONCRETE class to itself (an interface it binds to nothing, so this one form needs the " +
+            "project index and reads as unresolved while that index builds) -- otherwise " +
+            "\"dynamic-unresolved\" (toProvider, toInstance, toNull), which means only that THIS TOOL does not " +
+            "name the implementation, not that no implementation exists. Those are reported, never dropped, with " +
+            "the class their argument names under \"targetClass\", or \"targetUnreadable\": true when the " +
+            "argument names a class this could not read. A binding a filter could not be applied to, because the element being " +
+            "filtered is the one whose value the source does not state (annotatedWith(\$this->qualifier), " +
+            "annotatedWith(\"{\$this->prefix}_dsn\")), goes to \"unresolved\" rather than being silently " +
+            "excluded, as do rename() calls, which move a binding to another interface or qualifier and are " +
+            "reported rather than applied. Each \"unresolved\" entry says which of those it is under " +
+            "\"reason\": \"interface-unreadable\", \"qualifier-unreadable\", \"chain-unreadable\" or " +
+            "\"rename-not-applied\". \"scan\" reports how much was read, including \"filesSkipped\" when a " +
+            "root was too large to read whole, so an empty answer says how far it looked. " +
+            "Pass context (\"prod-hal-api-app\") INSTEAD of moduleRoot to read the modules that context " +
+            "installs rather than a directory: the scan is then the module tree bear_di_module_tree_read " +
+            "walks -- each module's own file and its base modules' -- and every binding carries the " +
+            "\"segment\" that reached it and that segment's \"priority\", so bindings of the same interface " +
+            "can be ordered by which one wins (priority 1 is the leftmost segment and beats the rest; a " +
+            "binding with no \"segment\" comes from a module the loader adds itself, priority 0 being its " +
+            "final AppMetaModule override and the priority past the last segment its innermost " +
+            "AssistedModule). \"scan\" then says what the tree could not deliver, each only when it happened: " +
+            "\"unresolvedSegments\" (segments no class answered to, whose modules are therefore in no part of " +
+            "this answer), \"classesUnresolved\", \"installsUnreadable\", \"installArgumentsUnreadable\", " +
+            "\"modulesSkipped\" and " +
+            "\"appNamespaceUnknown\". WITH context, a module that binds the entries of an array it was " +
+            "constructed with -- install(new NamedModule(['S3_BUCKET' => getenv('S3_BUCKET'), ...])) -- " +
+            "answers for every name in that array: the keys are literals even where the values are calls, so " +
+            "each entry is a binding here. Those carry \"installedBy\", the module whose install() states the " +
+            "array, because their \"moduleClass\" (where the bind is written) and their \"filePath\"/\"line\" " +
+            "(the entry itself) are in two different files. WITHOUT context there is no install to read them " +
+            "from, and the loop is reported as qualifier-unreadable as before. " +
+            "Passing both context and moduleRoot is refused rather than resolved by " +
+            "precedence. Limits: WITHOUT context, bindings are collected project-wide, so a binding an " +
+            "installed module overrides is still listed; WITH context, resolving the tree needs the project " +
+            "index, so this answers status=index_not_ready while the index builds, and whole files are read, " +
+            "so a file that also declares a class the context does not install contributes its bindings too " +
+            "-- each binding's \"moduleClass\" is what settles that. Which binding of several wins is still " +
+            "not decided here. MultiBinder bindings and bindInterceptor()/bindPriorityInterceptor() are not " +
+            "read at all."
+    )
+    suspend fun bear_di_binding_lookup(
+        interfaceName: String? = null,
+        qualifier: String? = null,
+        moduleRoot: String? = null,
+        context: String? = null
+    ): String = DiBindingLookupService.getInstance(project()).lookup(interfaceName, qualifier, moduleRoot, context)
+
+    @McpTool
+    @McpDescription(
+        "Read-only. Resolves a BEAR.Sunday context string (\"prod-hal-api-app\") to the module tree it installs, " +
+            "as JSON -- the wiring a context selects, which no single file states. Each hyphen-separated segment " +
+            "names {AppName}\\Module\\{Segment}Module when the app declares one (\"origin\": \"app\") and " +
+            "\\BEAR\\Package\\Context\\{Segment}Module otherwise (\"origin\": \"framework\"), exactly as " +
+            "BEAR\\Package\\Module's class_exists fallback tries them; a segment neither names is listed under " +
+            "\"unresolvedSegments\" with the candidate class names that were tried, so an absence says what was " +
+            "looked for. " +
+            "Under each segment come the modules it installs, walked recursively through \$this->install() and " +
+            "\$this->override() -- read from the module class's own body AND from the module classes it extends, " +
+            "because a module that leaves its wiring to a base module (\"final class ProdModule extends " +
+            "AbstractProdModule {}\") states its installs there and nowhere else. An edge read from a base class " +
+            "carries \"inheritedFrom\" naming it; that says the base installs it, not that this module certainly " +
+            "runs it, because whether the subclass's configure() chains to the inherited one is not checked. A " +
+            "node names the installed module class and \"filePath\", the file that class is " +
+            "DECLARED in, while \"installedAt\" carries the file and line the install is WRITTEN at, which need not " +
+            "be the same file. \"priority\" orders the segments by which one wins a conflict: the loader wraps them " +
+            "right to left and Ray.Di's Container::merge keeps the receiving container's bindings, so priority 1 " +
+            "-- the LEFTMOST segment -- beats the rest, and \"frameworkOverride\" (priority 0, the AppMetaModule " +
+            "the loader overrides everything with) beats them all. \"assistedModule\" is the other end of the same " +
+            "chain: Ray\\Di\\AssistedModule, the module the loader starts from and every segment wraps, so its " +
+            "priority is one past the last segment's and its bindings are the weakest in the tree. Both are in " +
+            "the answer whatever the context says, and marked \"classUnresolved\" when the package is not " +
+            "installed rather than left out. No install()/override() call the walk reads is " +
+            "ever dropped, however little of it could be read: an " +
+            "install whose module the source does not name (\$this->install(\$module), a conditional install) " +
+            "keeps its \"kind\" and is marked \"moduleUnreadable\": true with its source text; a call the module " +
+            "makes to an install()/override() that it OR ONE OF ITS BASE CLASSES declares is marked " +
+            "\"ownMethod\": true, meaning PHP dispatches the call to that method rather than to Ray.Di's; a module named by a class the index cannot resolve is " +
+            "marked \"classUnresolved\": true and not walked into; a module whose own base class the index " +
+            "cannot resolve is marked \"baseClassUnresolved\" with the name its extends clause states, so an " +
+            "empty node is never mistaken for a module that installs nothing; a module reached twice is expanded once and " +
+            "then marked \"visited\": true, which means its subtree is elsewhere in this answer; a walk that hits " +
+            "the node cap marks the nodes it cut with \"skipped\": true and counts them in \"modulesSkipped\". " +
+            "Every edge carries the \"text\" of the call it was read from. " +
+            "\"appNamespaceUnknown\": true means src/Module/AppModule.php could not be read, so the app-side " +
+            "candidate could not even be named and a segment reported as \"framework\" may really be shadowed by " +
+            "an app module. Limits: this names the tree, it does not decide which binding wins -- ask " +
+            "bear_di_binding_lookup for the bindings themselves. A class resolved by the naming convention is NOT " +
+            "checked to be a Ray\\Di\\AbstractModule, which the loader additionally requires, so a segment " +
+            "reported here can still be one BEAR rejects at boot with InvalidContextException. Wiring a module " +
+            "picks up from a trait is not read. " +
+            "Unlike bear_di_binding_lookup, this tool resolves class names through the project index, so it " +
+            "answers status=index_not_ready while the index is building. Pass diagram=true to also get " +
+            "\"diagram\": a Mermaid flowchart of the same tree, one box per module class and one arrow per " +
+            "install (thick for override), carrying every mark the JSON carries, for showing the wiring to a " +
+            "human. It is a rendering of this answer, never a second opinion about the project."
+    )
+    suspend fun bear_di_module_tree_read(context: String, diagram: Boolean = false): String =
+        DiModuleTreeService.getInstance(project()).read(context, diagram)
+
+    @McpTool
+    @McpDescription(
+        "Read-only. Resolves the OBJECT GRAPH a class is built from in one context, as JSON: what Ray.Di " +
+            "would actually construct, answered from the source instead of from a running application. This " +
+            "is print_o's question without booting anything -- and it sees a different thing: print_o walks " +
+            "the properties of a live object, so a property assigned inside onGet() is in its picture, while " +
+            "this walks INJECTION POINTS, so only what Ray.Di puts there is in this one. " +
+            "Start from className or uri; with neither it starts from the application class itself, " +
+            "{AppNamespace}\\Module\\App -- the class AppMetaModule names at runtime, which reaches the " +
+            "router, the transfer, the resource client and the error handler in one answer (NOT AppInterface: " +
+            "that binding is ->to() of a class name built while the app runs, so a graph started there is one " +
+            "node long). " +
+            "context is REQUIRED (\"prod-hal-app\") -- nearly every binding an application relies " +
+            "on is declared in a framework package, so a graph read without one would call plainly-bound " +
+            "dependencies unbound; call bear_app_context_list first for the contexts the app really boots " +
+            "under. " +
+            "A node is a container key spelled the way Ray.Di spells it, \"{type}-{name}\" -- the string " +
+            "Container::getDependency() is given -- so a scalar or union-typed parameter has an EMPTY type " +
+            "half (#[Named('dsn')] string \$dsn is keyed \"-dsn\"), and a qualifier is either a #[Named] " +
+            "value or the class of an attribute marked #[Qualifier]. Each node carries \"resolution\": " +
+            "\"static\" (a binding names the class, and \"implementation\" is it), \"provider\" (a " +
+            "ProviderInterface builds it -- the provider's OWN dependencies are walked, what its get() " +
+            "returns is not), \"instance\", \"null-object\", \"dynamic-unresolved\", \"builtin\" (the " +
+            "two keys the container answers for with no module binding them -- InjectorInterface, which " +
+            "Injector::__construct binds after the modules have run, and InjectionPointInterface), " +
+            "\"class-unresolved\", \"entry-untargeted\" (nothing binds " +
+            "the entry, which Ray.Di alone binds on the spot -- Injector::getInstance catches Untargeted) and " +
+            "\"unbound\", which is NOT a gap in this answer: below the entry Ray.Di has no such fallback, so " +
+            "an unbound key is what the application would throw, unless the edge carries " +
+            "\"defaultAvailable\" or \"optional\" -- or the node carries \"keysUnreadable\", which says how many " +
+            "bindings in this context still state their qualifier in a variable, any of which may be this " +
+            "very key. A module that binds the entries of an array it was constructed with -- " +
+            "install(new NamedModule(['S3_BUCKET' => getenv('S3_BUCKET'), ...])), the form every BEAR app " +
+            "installs -- is no longer one of them: the array's KEYS are literals in the installing module's " +
+            "file even when its VALUES are calls nothing static can evaluate, so each entry is answered for " +
+            "as the name it binds. Such a node names both files it takes to read it: \"moduleClass\" is where " +
+            "the bind is written, \"filePath\"/\"line\" are the array entry, and \"installedBy\" is the module " +
+            "whose install() brought the two together. What the entry is bound TO stays unread -- this says " +
+            "who sets a name, never what the value is. " +
+            "A node also carries the binding's \"scope\", the module " +
+            "and file/line it was bound at, and \"shadowedBy\": the bindings of that key that LOST, so the " +
+            "module that nearly supplied another implementation is named rather than dropped. The winner is " +
+            "decided by Ray.Di's own merge -- a later bind() in one module replaces an earlier one, a " +
+            "module's own bind beats one from a module it installs, and of two installed modules the one " +
+            "installed first wins, with override() reversing the last of those. Two installs of ONE " +
+            "array-binding module are two of that third case, not the first: the earlier install keeps the key. " +
+            "Edges carry \"kind\" (constructor-param or setter-param), the parameter and method they are " +
+            "written at, and \"cycle\" when they lead back into the path they came from. " +
+            "\"scan\" says what the answer could not deliver, each only when it happened: " +
+            "\"renamesNotApplied\", \"bindingsWithNoReadableKey\", \"qualifiersUnreadable\", " +
+            "\"nodesCapped\", \"depthCapped\", " +
+            "\"unresolvedSegments\", \"classesUnresolved\", \"installsUnreadable\", " +
+            "\"installArgumentsUnreadable\" (a module that binds an array, installed with an array this " +
+            "could not read -- it binds names not listed here), \"modulesSkipped\", " +
+            "\"appNamespaceUnknown\". Limits: MultiBinder, #[Set] and #[Assisted] are not followed; a " +
+            "rename() is reported rather than applied; interception does not appear, because it wraps a node " +
+            "without changing what is injected into it -- ask bear_aop_pointcut_lookup for that. Resolving " +
+            "the classes and the context both need the project index, so this answers " +
+            "status=index_not_ready while the index builds. " +
+            "diagram=true adds \"diagram\": a Mermaid flowchart of the same graph, one box per key and one " +
+            "arrow per injection point (dotted for a cycle). It is a rendering of this answer, never a " +
+            "second opinion about the project."
+    )
+    suspend fun bear_di_object_graph(
+        className: String? = null,
+        uri: String? = null,
+        context: String,
+        diagram: Boolean = false
+    ): String = DiObjectGraphService.getInstance(project()).graph(className, uri, context, diagram)
+
+    @McpTool
+    @McpDescription(
+        "Read-only. Lists the contexts this application actually runs under, as JSON, with the file " +
+            "and line each one is written at. Call this FIRST whenever another bear_* tool wants a " +
+            "context (bear_di_module_tree_read, bear_di_binding_lookup, bear_aop_pointcut_lookup): a " +
+            "context is a string no file declares in one place, so guessing it from the naming " +
+            "convention answers for an app that may never boot that way. It reads the two shapes an app " +
+            "names one in -- (new Bootstrap())('prod-hal-app', \$GLOBALS, \$_SERVER), which is how an " +
+            "entry point boots, and Injector::getInstance('app'), which is how a test reaches in -- " +
+            "matched by the name the class is written under, because every app declares its own " +
+            "Bootstrap and Injector in its own namespace. Scans public, bin, tests and src; NOT vendor, " +
+            "whose fixtures name contexts that are no app's. A ternary states two contexts and both are " +
+            "listed, but the condition is not read as one: PHP_SAPI === 'cli-server' ? 'hal-app' : " +
+            "'prod-hal-app' names two contexts, not three. What it cannot read it counts rather than " +
+            "guesses: a context named by a variable -- Injector::getInstance(\$context), which Bootstrap " +
+            "itself writes -- raises \"argumentsUnreadable\", so a list with that count is not the whole " +
+            "list. Order is the order found, entry points first. This says where a context is WRITTEN, " +
+            "not whether its modules resolve -- bear_di_module_tree_read answers that."
+    )
+    suspend fun bear_app_context_list(): String =
+        AppContextListService.getInstance(project()).list()
+
+    @McpTool
+    @McpDescription(
+        "Read-only. Answers which Ray.Aop interceptors wrap a class's methods, and which pointcut puts each " +
+            "one there, as JSON. This is what neither a text search nor the #[Attribute] gutter can follow: " +
+            "bindInterceptor(annotatedWith(Cacheable::class), startsWith('onPut'), [CommandInterceptor::class]) " +
+            "names the method it wraps by the SPELLING of its name, so nothing written at onPut() says an " +
+            "interceptor runs around it. Name the class with className (a class name, or a short name when only " +
+            "one class answers to it -- several give status=ambiguous) or uri (a resource, \"page://self/user\"), " +
+            "and optionally method (\"onPut\", matched case-insensitively as PHP matches method names); without " +
+            "method, every public method that anything wraps is listed, with method the named one is listed even " +
+            "when nothing wraps it. Pointcuts are read from EITHER context (\"prod-hal-app\": the modules that " +
+            "context installs, which is how to ask about a running app) OR moduleRoot (a project-relative " +
+            "directory); passing both is refused, and passing neither is too, because most pointcuts live in " +
+            "vendor and a default scan of src would answer \"nothing wraps this\" for a method three " +
+            "interceptors wrap. Each interceptor carries the pointcut that bound it: \"classMatcher\" and " +
+            "\"methodMatcher\" as Ray.Aop spells them, the module class, file and line, \"priority\": true when " +
+            "bindPriorityInterceptor bound it -- Ray.Aop binds those first, so they are listed first -- and, " +
+            "under context, the \"segment\" that reached the module. " +
+            "UNLIKE the other bear_* tools this one EVALUATES rather than reports: it decides whether a matcher " +
+            "matches. It evaluates only the seven matchers Ray\\Aop\\Matcher declares (any, annotatedWith, " +
+            "subclassesOf, startsWith, logicalOr, logicalAnd, logicalNot) exactly as Ray.Aop's own matcher " +
+            "classes do -- annotatedWith matches an attribute that EXTENDS the named class, as " +
+            "ReflectionAttribute::IS_INSTANCEOF does; any() excludes magic methods and ArrayObject's; " +
+            "startsWith compares the name as reflection spells it (no leading backslash) against the prefix " +
+            "exactly as written, case-sensitively; logicalAnd/logicalOr fold every argument, which is how a " +
+            "three-argument logicalAnd is read. The methods examined are the public ones the class has, " +
+            "inherited and trait-imported alike, as get_class_methods() lists them. Everything it cannot decide " +
+            "goes to \"unevaluated\" with a \"reason\" rather than being settled by a guess: " +
+            "\"matcher-unreadable\" (an expression outside that vocabulary, such as annotatedWith(\$attribute) " +
+            "or a matcher class of one's own), \"hierarchy-unresolved\" (a class or attribute whose ancestry the " +
+            "index could not resolve, or one deeper than the walk goes, so \"no\" could not be proved), " +
+            "\"matcher-invalid\" (subclassesOf on the METHOD side, which Ray.Aop throws " +
+            "InvalidAnnotationException on -- a fault in that module), \"binding-unreadable\" (a bindInterceptor " +
+            "call whose own three arguments could not be read, such as one written with a spread). One entry " +
+            "stands for one pointcut: it carries \"method\" when only one method was left undecided by it and " +
+            "\"methodsAffected\" when more were. An interceptor array holding an element that names no class is " +
+            "reported as \"interceptorsUnreadable\": <count> beside the ones that were read, because the method " +
+            "is wrapped by more than the list shows. Limits: this does NOT check that " +
+            "Ray.Di ever instantiates the class, which is what makes weaving happen at all, so a match here is " +
+            "\"this pointcut selects this method\", not \"this object is woven\"; attributes are read as " +
+            "declared, because PHP reflection does not inherit a class attribute from a parent; and the order " +
+            "WITHIN the priority and non-priority groups is not simulated. Resolving the class needs the project " +
+            "index, so this answers status=index_not_ready while the index is building."
+    )
+    suspend fun bear_aop_pointcut_lookup(
+        className: String? = null,
+        uri: String? = null,
+        method: String? = null,
+        context: String? = null,
+        moduleRoot: String? = null
+    ): String = AopPointcutLookupService.getInstance(project()).lookup(className, uri, method, context, moduleRoot)
 
     @McpTool
     @McpDescription(
