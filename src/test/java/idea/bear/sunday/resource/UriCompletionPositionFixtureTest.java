@@ -1,0 +1,235 @@
+package idea.bear.sunday.resource;
+
+import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.util.Computable;
+import com.intellij.psi.PsiElement;
+import com.intellij.testFramework.fixtures.CodeInsightTestFixture;
+import com.intellij.testFramework.fixtures.IdeaProjectTestFixture;
+import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory;
+import com.intellij.testFramework.fixtures.TestFixtureBuilder;
+import com.intellij.openapi.vfs.LocalFileSystem;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Covers where URI completion is offered, and where it must stay silent because a resource URI is
+ * not what the string names.
+ */
+class UriCompletionPositionFixtureTest {
+
+    private CodeInsightTestFixture fixture;
+
+    @BeforeEach
+    void setUp() throws Exception {
+        IdeaTestFixtureFactory factory = IdeaTestFixtureFactory.getFixtureFactory();
+        TestFixtureBuilder<IdeaProjectTestFixture> builder =
+            factory.createFixtureBuilder(getClass().getSimpleName());
+        fixture = factory.createCodeInsightFixture(builder.getFixture(), factory.createTempDirTestFixture());
+        fixture.setUp();
+    }
+
+    @AfterEach
+    void tearDown() throws Exception {
+        fixture.tearDown();
+    }
+
+    @Test
+    void acceptsUriCall() {
+        assertTrue(acceptsAtCaret("""
+            <?php
+            $resource->uri('<caret>');
+            """));
+    }
+
+    @Test
+    void acceptsRequestVerbOnResourceField() {
+        assertTrue(acceptsAtCaret("""
+            <?php
+            $this->resource->get('<caret>');
+            """));
+    }
+
+    @Test
+    void acceptsRequestVerbOnResourceVariable() {
+        assertTrue(acceptsAtCaret("""
+            <?php
+            $resource->post('<caret>');
+            """));
+    }
+
+    @Test
+    void rejectsRequestVerbOnUnrelatedReceiver() {
+        assertFalse(acceptsAtCaret("""
+            <?php
+            $container->get('<caret>');
+            """));
+    }
+
+    @Test
+    void rejectsQueryArgumentOfRequestCall() {
+        assertFalse(acceptsAtCaret("""
+            <?php
+            $resource->get('app://self/user', ['<caret>']);
+            """));
+    }
+
+    @Test
+    void acceptsEmbedSource() {
+        assertTrue(acceptsAtCaret("""
+            <?php
+            class Dashboard
+            {
+                #[Embed('<caret>', 'user')]
+                public function onGet(): void
+                {
+                }
+            }
+            """));
+    }
+
+    @Test
+    void acceptsEmbedNamedSource() {
+        assertTrue(acceptsAtCaret("""
+            <?php
+            class Dashboard
+            {
+                #[Embed(src: '<caret>', rel: 'user')]
+                public function onGet(): void
+                {
+                }
+            }
+            """));
+    }
+
+    @Test
+    void acceptsLinkHref() {
+        assertTrue(acceptsAtCaret("""
+            <?php
+            class Dashboard
+            {
+                #[Link('next', '<caret>')]
+                public function onGet(): void
+                {
+                }
+            }
+            """));
+    }
+
+    @Test
+    void rejectsLinkRel() {
+        assertFalse(acceptsAtCaret("""
+            <?php
+            class Dashboard
+            {
+                #[Link('<caret>', 'app://self/next')]
+                public function onGet(): void
+                {
+                }
+            }
+            """));
+    }
+
+    @Test
+    void rejectsUnrelatedAttributeArgument() {
+        assertFalse(acceptsAtCaret("""
+            <?php
+            class PointQuery
+            {
+                #[DbQuery('<caret>')]
+                public function distance(): array
+                {
+                }
+            }
+            """));
+    }
+
+    /**
+     * The cases above drive the narrowing directly; these two drive the registered contributor,
+     * so they answer the other half: that the pattern reaches the provider at all in a position
+     * only goto used to serve.
+     */
+    @Test
+    void offersResourceUriInsideRequestCall() {
+        addUserResource();
+        fixture.configureByText("Caller.php", """
+            <?php
+            $this->resource->get('<caret>');
+            """);
+
+        fixture.completeBasic();
+
+        assertNotNull(fixture.getLookupElementStrings());
+        assertTrue(
+            fixture.getLookupElementStrings().contains("app://self/user"),
+            () -> String.valueOf(fixture.getLookupElementStrings())
+        );
+    }
+
+    @Test
+    void offersResourceUriInsideEmbedRelation() {
+        addUserResource();
+        fixture.configureByText("Caller.php", """
+            <?php
+            class Dashboard
+            {
+                #[Embed('<caret>', 'user')]
+                public function onGet(): void
+                {
+                }
+            }
+            """);
+
+        fixture.completeBasic();
+
+        assertNotNull(fixture.getLookupElementStrings());
+        assertTrue(fixture.getLookupElementStrings().contains("app://self/user"));
+    }
+
+    /**
+     * Written through the filesystem, not {@code addFileToProject}: the completion provider walks
+     * {@code src/Resource} on disk, so a file that exists only in the in-memory VFS is not found.
+     */
+    private void addUserResource() {
+        try {
+            String basePath = fixture.getProject().getBasePath();
+            assertNotNull(basePath);
+            Path path = Path.of(basePath, "src/Resource/App/User.php");
+            Files.createDirectories(path.getParent());
+            Files.writeString(path, """
+                <?php
+                namespace MyVendor\\MyProject\\Resource\\App;
+
+                class User
+                {
+                    public function onGet(): void
+                    {
+                    }
+                }
+                """, StandardCharsets.UTF_8);
+            assertNotNull(LocalFileSystem.getInstance().refreshAndFindFileByNioFile(path));
+        } catch (IOException exception) {
+            throw new IllegalStateException(exception);
+        }
+    }
+
+    private boolean acceptsAtCaret(String source) {
+        fixture.configureByText("Caller.php", source);
+
+        return ApplicationManager.getApplication().runReadAction((Computable<Boolean>) () -> {
+            PsiElement element = fixture.getFile().findElementAt(fixture.getCaretOffset());
+            assertNotNull(element);
+
+            return UriElementPatternHelper.accepts(element);
+        });
+    }
+}
