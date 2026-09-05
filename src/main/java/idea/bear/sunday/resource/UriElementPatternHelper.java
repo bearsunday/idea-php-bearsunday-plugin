@@ -91,10 +91,16 @@ class UriElementPatternHelper {
         return false;
     }
 
+    /**
+     * Only the argument itself, never a string inside it: a fragment of a concatenation or an
+     * element of an array is not the URI the relation names. Descending would be right for
+     * reading a relation's target out of the attribute, which is what the relation index does,
+     * and wrong here, where the question is whether this string is that argument.
+     */
     private static boolean isArgument(PhpAttribute attribute, StringLiteralExpression literal, String name, int index) {
         PsiElement argument = attribute.getParameter(name, index);
 
-        return argument != null && (argument == literal || PsiTreeUtil.isAncestor(argument, literal, false));
+        return argument == literal;
     }
 
     @Nullable

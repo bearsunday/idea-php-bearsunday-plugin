@@ -139,6 +139,35 @@ class UriCompletionPositionFixtureTest {
             """));
     }
 
+    /** A fragment of a concatenation is not the URI the relation names. */
+    @Test
+    void rejectsConcatenatedAttributeArgument() {
+        assertFalse(acceptsAtCaret("""
+            <?php
+            class Dashboard
+            {
+                #[Link('next', 'app://self/' . '<caret>')]
+                public function onGet(): void
+                {
+                }
+            }
+            """));
+    }
+
+    @Test
+    void rejectsAttributeArgumentNestedInArray() {
+        assertFalse(acceptsAtCaret("""
+            <?php
+            class Dashboard
+            {
+                #[Embed(src: ['<caret>'])]
+                public function onGet(): void
+                {
+                }
+            }
+            """));
+    }
+
     @Test
     void rejectsUnrelatedAttributeArgument() {
         assertFalse(acceptsAtCaret("""
