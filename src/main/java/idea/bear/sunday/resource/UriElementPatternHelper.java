@@ -16,6 +16,8 @@ import com.jetbrains.php.lang.psi.elements.StringLiteralExpression;
 import idea.bear.sunday.util.ResourceHttpMethods;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Locale;
+
 /**
  * Decides where BEAR.Resource URI completion is offered: the positions goto already navigates
  * from -- a request call, {@code uri()}, and the {@code #[Embed]} / {@code #[Link]} relations that
@@ -30,7 +32,7 @@ class UriElementPatternHelper {
 
     private static final String EMBED = "Embed";
     private static final String LINK = "Link";
-    private static final String RESOURCE_TYPE_MARKER = "BEAR\\Resource";
+    private static final String RESOURCE_FIELD_SUFFIX = "->resource";
     private static final String RESOURCE_RECEIVER = "resource";
 
     static ElementPattern<PsiElement> getUriDefinition() {
@@ -132,10 +134,10 @@ class UriElementPatternHelper {
             return isFirstArgument(parameterList, literal);
         }
         if (name.equals("toInstance")) {
-            return true;
+            return isFirstArgument(parameterList, literal);
         }
 
-        return ResourceHttpMethods.isVerb(name)
+        return ResourceHttpMethods.isVerb(name.toLowerCase(Locale.ROOT))
             && isFirstArgument(parameterList, literal)
             && isResourceReceiver(methodReference);
     }
@@ -147,21 +149,27 @@ class UriElementPatternHelper {
     }
 
     /**
-     * A receiver named {@code resource} covers the idiomatic {@code $this->resource->get(...)} and
-     * {@code $resource->get(...)} without needing the BEAR classes on the path; a declared type
-     * naming {@code BEAR\Resource} covers the rest.
+     * Answers the same three ways {@link ResourceMethodTypeProvider} does -- a field named
+     * {@code resource}, a receiver chain ending in {@code ->resource}, or a declared
+     * {@code ResourceInterface} -- and additionally accepts a plain {@code $resource} variable.
+     *
+     * <p>That last tolerance is deliberate and belongs to completion only: an extra lookup item
+     * costs a reader nothing, while the same guess in the type provider would infer a resource
+     * type, and with it a body shape and navigation, for an untyped variable that merely shares
+     * the name.
      */
     private static boolean isResourceReceiver(MethodReference methodReference) {
         PsiElement receiver = methodReference.getClassReference();
         if (receiver == null) {
             return false;
         }
-        if (RESOURCE_RECEIVER.equals(receiverName(receiver))) {
+        if (RESOURCE_RECEIVER.equals(receiverName(receiver))
+            || receiver.getText().endsWith(RESOURCE_FIELD_SUFFIX)) {
             return true;
         }
 
         return receiver instanceof PhpTypedElement typed
-            && typed.getType().toString().contains(RESOURCE_TYPE_MARKER);
+            && typed.getType().getTypes().contains(ResourceMethodTypeProvider.RESOURCE_INTERFACE_FQN);
     }
 
     /**

@@ -67,6 +67,30 @@ class UriCompletionPositionFixtureTest {
             """));
     }
 
+    /** The receiver a project names something other than {@code resource} answers by its type. */
+    @Test
+    void acceptsRequestVerbOnTypedResourceParameter() {
+        fixture.addFileToProject("stub.php", """
+            <?php
+            namespace BEAR\\Resource;
+
+            interface ResourceInterface
+            {
+                public function get(string $uri);
+            }
+            """);
+
+        assertTrue(acceptsAtCaret("""
+            <?php
+            use BEAR\\Resource\\ResourceInterface;
+
+            function request(ResourceInterface $api): void
+            {
+                $api->get('<caret>');
+            }
+            """));
+    }
+
     @Test
     void rejectsRequestVerbOnUnrelatedReceiver() {
         assertFalse(acceptsAtCaret("""
@@ -182,14 +206,33 @@ class UriCompletionPositionFixtureTest {
             """));
     }
 
+    @Test
+    void acceptsToInstance() {
+        assertTrue(acceptsAtCaret("""
+            <?php
+            $binder->toInstance('<caret>');
+            """));
+    }
+
+    @Test
+    void rejectsSecondArgumentOfUriCall() {
+        assertFalse(acceptsAtCaret("""
+            <?php
+            $resource->uri('app://self/user', '<caret>');
+            """));
+    }
+
     /**
      * The cases above drive the narrowing directly; these two drive the registered contributor,
      * so they answer the other half: that the pattern reaches the provider at all in a position
      * only goto used to serve.
+     *
+     * <p>Two resources, not one: with a single lookup item {@code completeBasic()} inserts it and
+     * leaves nothing to assert on.
      */
     @Test
     void offersResourceUriInsideRequestCall() {
-        addUserResource();
+        addResources();
         fixture.configureByText("Caller.php", """
             <?php
             $this->resource->get('<caret>');
@@ -206,12 +249,12 @@ class UriCompletionPositionFixtureTest {
 
     @Test
     void offersResourceUriInsideEmbedRelation() {
-        addUserResource();
+        addResources();
         fixture.configureByText("Caller.php", """
             <?php
             class Dashboard
             {
-                #[Embed('<caret>', 'user')]
+                #[Embed(src: '<caret>', rel: 'user')]
                 public function onGet(): void
                 {
                 }
@@ -221,30 +264,38 @@ class UriCompletionPositionFixtureTest {
         fixture.completeBasic();
 
         assertNotNull(fixture.getLookupElementStrings());
-        assertTrue(fixture.getLookupElementStrings().contains("app://self/user"));
+        assertTrue(
+            fixture.getLookupElementStrings().contains("app://self/user"),
+            () -> String.valueOf(fixture.getLookupElementStrings())
+        );
     }
 
     /**
      * Written through the filesystem, not {@code addFileToProject}: the completion provider walks
      * {@code src/Resource} on disk, so a file that exists only in the in-memory VFS is not found.
      */
-    private void addUserResource() {
+    private void addResources() {
+        addResource("User");
+        addResource("Profile");
+    }
+
+    private void addResource(String className) {
         try {
             String basePath = fixture.getProject().getBasePath();
             assertNotNull(basePath);
-            Path path = Path.of(basePath, "src/Resource/App/User.php");
+            Path path = Path.of(basePath, "src/Resource/App/" + className + ".php");
             Files.createDirectories(path.getParent());
             Files.writeString(path, """
                 <?php
                 namespace MyVendor\\MyProject\\Resource\\App;
 
-                class User
+                class %s
                 {
                     public function onGet(): void
                     {
                     }
                 }
-                """, StandardCharsets.UTF_8);
+                """.formatted(className), StandardCharsets.UTF_8);
             assertNotNull(LocalFileSystem.getInstance().refreshAndFindFileByNioFile(path));
         } catch (IOException exception) {
             throw new IllegalStateException(exception);
