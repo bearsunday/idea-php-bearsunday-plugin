@@ -954,7 +954,7 @@ class AopPointcutLookupServiceFixtureTest {
      * out here rather than by hand because the point of it is the count.
      */
     private static String wideHierarchy() {
-        StringBuilder php = new StringBuilder("<?php\n\nnamespace MyVendor\\\\MyProject\\\\Type;\n\n");
+        StringBuilder php = new StringBuilder("<?php\n\nnamespace MyVendor\\MyProject\\Type;\n\n");
         StringBuilder implemented = new StringBuilder();
         for (int i = 0; i <= 40; i++) {
             php.append("interface Iface").append(i).append("\n{\n}\n\n");
