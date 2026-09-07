@@ -136,6 +136,24 @@ class SchemaFactsServiceFixtureTest {
         assertEquals("[\"x\",\"y\"]", match.getAsJsonArray("properties").toString());
     }
 
+    /**
+     * A blank name is a field the schema states, so it is reported. The completion reader leaves
+     * it out instead, because a popup item that inserts nothing is no offer; see
+     * {@code JsonSchemaProperties}.
+     */
+    @Test
+    void reportsABlankPropertyNameTheSchemaStates() {
+        addPhysicalFile("src/Resource/App/Point.php", POINT);
+        addPhysicalFile("var/json_schema/point.json", """
+            {"type": "object", "properties": {"": {"type": "integer"}, "x": {"type": "integer"}}}
+            """);
+
+        JsonObject match = envelope(facts().lookup("app://self/point", null, null, null))
+            .getAsJsonArray("matches").get(0).getAsJsonObject();
+
+        assertEquals("[\"\",\"x\"]", match.getAsJsonArray("properties").toString());
+    }
+
     /** Several matches are a combined answer: one file's provenance cannot speak for the rest. */
     @Test
     void reportsACombinedProvenanceForSeveralMatches() {

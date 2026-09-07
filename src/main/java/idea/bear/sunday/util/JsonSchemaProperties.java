@@ -27,6 +27,10 @@ import java.util.Set;
  * same rule {@code BodyShapeFactsService.fieldNames} applies to a union body, so the two sides of
  * a schema-to-body comparison count fields the same way. {@code $ref} is not followed; the
  * generator does not emit it.
+ *
+ * <p>A blank key is left out, and only here: JSON allows {@code ""} as a property name, but a
+ * completion popup cannot offer it -- the item would insert nothing. The fact tools keep it,
+ * because a field a schema states is one they must report.
  */
 public final class JsonSchemaProperties {
 

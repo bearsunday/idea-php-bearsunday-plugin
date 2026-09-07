@@ -296,7 +296,8 @@ public final class SchemaFactsService {
      * The field names a schema describes, by the rule {@link idea.bear.sunday.util.JsonSchemaProperties}
      * documents: a union carries its names in its branches, not in a {@code properties} of its own.
      * Kept as a second reader because that one parses text while the tools here already hold the
-     * document parsed.
+     * document parsed, and it drops a blank key a completion popup could not offer. A field the
+     * schema states is one these tools report, so this one keeps it.
      */
     static List<String> propertyNames(JsonObject raw) {
         Set<String> names = new LinkedHashSet<>();

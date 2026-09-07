@@ -109,6 +109,20 @@ class JsonSchemaPropertiesTest {
         );
     }
 
+    /**
+     * {@code ""} is a property name JSON allows and a completion popup cannot offer. The fact
+     * tools keep it; see {@code SchemaFactsService.propertyNames}.
+     */
+    @Test
+    void leavesOutABlankKeyABranchDeclares() {
+        assertEquals(
+            List.of("kept"),
+            JsonSchemaProperties.propertyNames("""
+                {"anyOf": [{"properties": {"": {}, " ": {}, "kept": {}}}]}
+                """)
+        );
+    }
+
     @Test
     void returnsEmptyWhenPropertiesIsNotObject() {
         assertTrue(JsonSchemaProperties.propertyNames("""
