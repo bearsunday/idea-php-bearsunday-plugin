@@ -13,7 +13,6 @@ import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
-import com.jetbrains.php.lang.psi.elements.ClassReference;
 import com.jetbrains.php.lang.psi.elements.Method;
 import com.jetbrains.php.lang.psi.elements.PhpAttribute;
 import com.jetbrains.php.lang.psi.elements.PhpClass;
@@ -189,7 +188,7 @@ public final class SchemaFactsService {
         int argumentIndex = request ? 2 : 0;
         List<String> fileNames = new ArrayList<>();
         for (PhpAttribute attribute : method.getAttributes()) {
-            if (!JSON_SCHEMA.equals(attributeShortName(attribute))) {
+            if (!JSON_SCHEMA.equals(Attributes.shortName(attribute))) {
                 continue;
             }
             PsiElement parameter = attribute.getParameter(argumentName, argumentIndex);
@@ -199,19 +198,6 @@ public final class SchemaFactsService {
         }
 
         return fileNames;
-    }
-
-    @Nullable
-    private static String attributeShortName(PhpAttribute attribute) {
-        String fqn = attribute.getFQN();
-        if (fqn != null && !fqn.isBlank()) {
-            int index = fqn.lastIndexOf('\\');
-
-            return index >= 0 ? fqn.substring(index + 1) : fqn;
-        }
-        ClassReference classReference = attribute.getClassReference();
-
-        return classReference == null ? null : classReference.getName();
     }
 
     /** Every configured schema directory that holds a file of this name. */

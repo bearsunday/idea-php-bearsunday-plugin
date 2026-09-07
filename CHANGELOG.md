@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- MCP tool `bear_resource_attribute_index` lists the PHP attributes the resource classes under `src/Resource` carry, one entry per class or `on*` method, with each attribute resolved through the file's `use` statements to the class it names rather than matched as text, and with the Ray.Aop interceptors a module binds to it with `annotatedWith()`.
+
 ## [0.10]
 
 ### Added
