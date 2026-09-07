@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -94,14 +95,17 @@ class BodyShapeFactsServiceFixtureTest {
         assertEquals("src/Resource/App/Article.php", provenance.get("path").getAsString());
     }
 
+    /** PHP compares method names case-insensitively, so every spelling of onGet names onGet. */
     @Test
-    void readsTheOnGetSpellingOfAMethodToo() {
+    void readsEverySpellingOfAMethodName() {
         addPhysicalFile("src/Resource/App/Article.php", ARTICLE);
 
-        JsonObject bodyShape = envelope(facts().shape("app://self/article", "onGet")).getAsJsonObject("bodyShape");
+        for (String method : List.of("get", "GET", "onGet", "onget", "ONGET")) {
+            JsonObject bodyShape = envelope(facts().shape("app://self/article", method)).getAsJsonObject("bodyShape");
 
-        assertEquals("get", bodyShape.get("method").getAsString());
-        assertEquals("array{id: int, title: string}", bodyShape.get("rendered").getAsString());
+            assertEquals("get", bodyShape.get("method").getAsString(), method);
+            assertEquals("array{id: int, title: string}", bodyShape.get("rendered").getAsString(), method);
+        }
     }
 
     @Test

@@ -40,6 +40,12 @@ public final class ResourceClassResolver {
      * tell an agent.
      */
     public static Optional<PhpClass> resolveCached(Project project, String normalizedUri) {
+        // The authority names which app answers the URI, and this resolver only knows this
+        // project's classes: a non-self authority must answer empty, not the local class that
+        // happens to share the path.
+        if (!isSelfUri(normalizedUri)) {
+            return Optional.empty();
+        }
         String relPath = UriUtil.toResourceRelativePath(normalizedUri, false);
         if (relPath == null) {
             return Optional.empty();
@@ -77,12 +83,7 @@ public final class ResourceClassResolver {
             return Optional.empty();
         }
 
-        PsiFile psiFile = PsiManager.getInstance(project).findFile(targetFile);
-        if (psiFile == null) {
-            return Optional.empty();
-        }
-
-        return Optional.ofNullable(PsiTreeUtil.findChildOfType(psiFile, PhpClass.class));
+        return concreteClassIn(PsiManager.getInstance(project).findFile(targetFile));
     }
 
     private static Optional<PhpClass> resolveFromFilenameIndex(Project project, String relPath) {
@@ -103,14 +104,9 @@ public final class ResourceClassResolver {
                 continue;
             }
 
-            PsiFile psiFile = psiManager.findFile(virtualFile);
-            if (psiFile == null) {
-                continue;
-            }
-
-            PhpClass phpClass = PsiTreeUtil.findChildOfType(psiFile, PhpClass.class);
-            if (phpClass != null) {
-                return Optional.of(phpClass);
+            Optional<PhpClass> phpClass = concreteClassIn(psiManager.findFile(virtualFile));
+            if (phpClass.isPresent()) {
+                return phpClass;
             }
         }
 
@@ -131,6 +127,7 @@ public final class ResourceClassResolver {
         return PhpIndex.getInstance(project).getClassesByName(className).stream()
             .filter(phpClass -> phpClass.getFQN().endsWith(expectedFqnSuffix))
             .filter(phpClass -> !isInVendor(project, phpClass))
+            .filter(ResourceClassResolver::isConcrete)
             .findFirst();
     }
 
@@ -166,6 +163,32 @@ public final class ResourceClassResolver {
         String relativePath = VfsUtil.getRelativePath(file, baseDir, '/');
 
         return relativePath != null && ("/" + relativePath).contains("/vendor/");
+    }
+
+    /**
+     * The concrete class a resource file declares. A file may put an interface, a trait or an
+     * enum before it, and none of those answers to a resource URI, so the first class-like node
+     * is not necessarily the one.
+     */
+    private static Optional<PhpClass> concreteClassIn(@Nullable PsiFile psiFile) {
+        if (psiFile == null) {
+            return Optional.empty();
+        }
+        for (PhpClass phpClass : PsiTreeUtil.findChildrenOfType(psiFile, PhpClass.class)) {
+            if (isConcrete(phpClass)) {
+                return Optional.of(phpClass);
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    private static boolean isConcrete(PhpClass phpClass) {
+        return !phpClass.isInterface() && !phpClass.isTrait() && !phpClass.isEnum();
+    }
+
+    private static boolean isSelfUri(String normalizedUri) {
+        return normalizedUri.startsWith("app://self/") || normalizedUri.startsWith("page://self/");
     }
 
     private static @Nullable String classNameFromRelPath(String relPath) {

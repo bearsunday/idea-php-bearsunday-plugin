@@ -109,13 +109,17 @@ public final class BodyShapeFactsService {
         return List.copyOf(names);
     }
 
-    /** Both {@code get} and {@code onGet} name the same resource method. */
+    /**
+     * Both {@code get} and {@code onGet} name the same resource method. The prefix is stripped
+     * case-insensitively, as PHP compares method names, so {@code onget} is a spelling of
+     * {@code onGet} and not a method named {@code onget} that no resource declares.
+     */
     static String resourceMethodName(@Nullable String method) {
         if (method == null || method.isBlank()) {
             return DEFAULT_METHOD;
         }
         String trimmed = method.trim();
-        if (trimmed.length() > 2 && trimmed.startsWith("on") && Character.isUpperCase(trimmed.charAt(2))) {
+        if (trimmed.length() > 2 && trimmed.regionMatches(true, 0, "on", 0, 2)) {
             return trimmed.substring(2).toLowerCase(Locale.ROOT);
         }
 

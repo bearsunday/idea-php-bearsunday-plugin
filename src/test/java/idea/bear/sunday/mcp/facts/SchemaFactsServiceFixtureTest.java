@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -135,6 +136,25 @@ class SchemaFactsServiceFixtureTest {
         assertEquals("var/json_validate/point-params.json", match.get("path").getAsString());
         assertEquals("request", match.get("kind").getAsString());
         assertEquals("[\"x\"]", match.getAsJsonArray("properties").toString());
+    }
+
+    /** PHP compares method names case-insensitively, so every spelling of onGet names onGet. */
+    @Test
+    void acceptsEverySpellingOfAMethodName() {
+        addPhysicalFile("src/Resource/App/SchemaDemo.php", SCHEMA_DEMO);
+        addPhysicalFile("var/json_schema/point.json", POINT_SCHEMA);
+
+        for (String method : List.of("get", "GET", "onGet", "onget", "ONGET")) {
+            JsonArray matches = envelope(facts().lookup("app://self/schema-demo", method, null, "response"))
+                .getAsJsonArray("matches");
+
+            assertEquals(1, matches.size(), method);
+            assertEquals(
+                "var/json_schema/point.json",
+                matches.get(0).getAsJsonObject().get("path").getAsString(),
+                method
+            );
+        }
     }
 
     @Test

@@ -208,6 +208,9 @@ public final class ContractCompareService {
 
             return json;
         }
+        // Present on both branches: a caller keying on schema.available would otherwise read a
+        // present schema as an absent one.
+        json.addProperty("available", true);
         json.addProperty("path", match.path());
         json.add("fields", stringArray(fields));
 
@@ -235,6 +238,7 @@ public final class ContractCompareService {
 
             return json;
         }
+        json.addProperty("available", true);
         json.addProperty("descriptorId", alpsFields.descriptorId());
         json.addProperty("profilePath", alpsFields.profilePath());
         json.add("fields", stringArray(alpsFields.fields()));
