@@ -8,7 +8,7 @@
   <description><![CDATA[
   <h2>Features</h2>
   <ul>
-    <li>BEAR.Resource URI completion</li>
+    <li>BEAR.Resource URI completion in request calls such as <code>-&gt;get()</code>, in <code>uri()</code>, and in <code>#[Embed]</code> / <code>#[Link]</code> relations</li>
     <li>BEAR.Resource goto from URIs such as <code>app://self/user</code> to <code>src/Resource/App/User.php</code></li>
     <li>BEAR.Resource JSON Schema goto</li>
     <li>BEAR.Resource JSON Schema body key completion from <code>->body['<caret>']</code></li>

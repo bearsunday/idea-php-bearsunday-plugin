@@ -33,6 +33,10 @@ public class ResourceCompletionProvider extends CompletionProvider<CompletionPar
                                @NotNull ProcessingContext context,
                                @NotNull CompletionResultSet resultSet) {
 
+        if (!UriElementPatternHelper.accepts(parameters.getPosition())) {
+            return;
+        }
+
         PsiElement element = parameters.getOriginalPosition();
 
         if(element == null) {

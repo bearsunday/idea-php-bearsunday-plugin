@@ -10,7 +10,7 @@
 <!-- Plugin description -->
 ## Features
 
-* BEAR.Resource URI completion
+* BEAR.Resource URI completion in request calls such as `->get()`, in `uri()`, and in `#[Embed]` / `#[Link]` relations
 * BEAR.Resource goto from URIs such as `app://self/user` to `src/Resource/App/User.php`
 * BEAR.Resource JSON Schema goto
 * BEAR.Resource JSON Schema body key completion from `->body['<caret>']`
@@ -36,7 +36,7 @@ completion, line markers, or the editor intention on the files below.
 
 | Feature | Demo entry point | What to try |
 | --- | --- | --- |
-| BEAR.Resource URI completion | `demo-app/src/Resource/App/UriDemo.php` | Invoke completion inside `uri('...')` arguments. |
+| BEAR.Resource URI completion | `demo-app/src/Resource/App/UriDemo.php`, `demo-app/src/Resource/App/Dashboard.php` | Invoke completion inside `uri('...')`, inside `$this->resource->get('...')`, and inside `#[Embed]` / `#[Link]` relation arguments. |
 | BEAR.Resource goto | `demo-app/src/Resource/App/UriDemo.php`, `demo-app/src/Resource/App/Dashboard.php` | Cmd/Ctrl-click `app://self/user` or `/profile` to jump to the resource class. |
 | BEAR.Resource typed resource result | `demo-app/src/Resource/App/UriDemo.php`, `demo-app/src/Resource/App/User.php` | `get('app://self/user')` is inferred as the concrete `User` resource; `$user->body` is narrowed to the GET body shape, while `put()`/`post()` use their method-specific body shapes. |
 | BEAR.Resource JSON Schema goto | `demo-app/src/Resource/App/BodyTypeDemo.php` | Cmd/Ctrl-click `body-type-demo.json` to open `demo-app/var/json_schema/body-type-demo.json`. |

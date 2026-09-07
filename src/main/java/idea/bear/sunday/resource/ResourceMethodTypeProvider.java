@@ -38,7 +38,7 @@ import java.util.Set;
 public final class ResourceMethodTypeProvider implements PhpTypeProvider4 {
 
     private static final char KEY = '\uE142';
-    private static final String RESOURCE_INTERFACE_FQN = "\\BEAR\\Resource\\ResourceInterface";
+    static final String RESOURCE_INTERFACE_FQN = "\\BEAR\\Resource\\ResourceInterface";
     private static final String SIGNATURE_RESOURCE = "resource";
     private static final String SIGNATURE_BODY = "body";
     private static final Set<String> RESOURCE_METHODS = Set.of("get", "post", "put", "patch", "delete", "head", "options");
