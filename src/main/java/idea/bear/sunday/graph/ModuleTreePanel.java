@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
@@ -19,6 +20,7 @@ import com.intellij.ui.jcef.JBCefBrowser;
 import com.intellij.ui.jcef.JBCefBrowserBase;
 import com.intellij.ui.jcef.JBCefJSQuery;
 import com.intellij.util.PsiNavigateUtil;
+import com.intellij.util.concurrency.AppExecutorUtil;
 import com.intellij.util.ui.JBUI;
 import com.jetbrains.php.PhpIndex;
 import com.jetbrains.php.lang.psi.elements.PhpClass;
@@ -86,23 +88,25 @@ final class ModuleTreePanel extends JPanel implements Disposable {
     }
 
     /**
-     * Opens the module class a box was drawn for. The handler is called off the EDT by JCEF, and
-     * resolving a class needs a read action, so both are asked for rather than assumed.
+     * Opens the module class a box was drawn for. JCEF calls the handler off the EDT; resolving
+     * the class needs a read action and opening it needs the EDT, so each is asked for in turn.
      */
     private JBCefJSQuery.Response openModule(String fqn) {
-        ApplicationManager.getApplication().invokeLater(() -> {
-            PhpClass phpClass = ReadAction.nonBlocking(() -> {
+        ReadAction.nonBlocking(() -> {
                 // The drawing names the class the tree named, so the first the index answers with
                 // is the one the tree was walked over; a name two classes answer to is a project
                 // with two, and either is the module the box stands for.
                 Iterator<PhpClass> classes = PhpIndex.getInstance(project).getClassesByFQN(fqn).iterator();
 
                 return classes.hasNext() ? classes.next() : null;
-            }).executeSynchronously();
-            if (phpClass != null) {
-                PsiNavigateUtil.navigate(phpClass);
-            }
-        }, project.getDisposed());
+            })
+            .expireWith(this)
+            .finishOnUiThread(ModalityState.nonModal(), phpClass -> {
+                if (phpClass != null) {
+                    PsiNavigateUtil.navigate(phpClass);
+                }
+            })
+            .submit(AppExecutorUtil.getAppExecutorService());
 
         return null;
     }
@@ -117,8 +121,6 @@ final class ModuleTreePanel extends JPanel implements Disposable {
         JButton draw = new JButton("Draw");
         draw.addActionListener(event -> draw());
         controls.add(draw);
-        // A combo box fires on every selection, including the one that fills it, so only what the
-        // reader did -- pressing enter, picking an item -- draws.
         contextField.addActionListener(event -> draw());
 
         return controls;
@@ -162,26 +164,22 @@ final class ModuleTreePanel extends JPanel implements Disposable {
 
     private void draw() {
         String context = context();
-        DumbService dumb = DumbService.getInstance(project);
         // Module classes are resolved through the index, so asking while it builds can only answer
         // index_not_ready. Saying so and then drawing by itself beats leaving that as the last
         // word -- a panel opened with the IDE would otherwise sit on it until someone pressed Draw.
-        if (dumb.isDumb()) {
+        if (DumbService.getInstance(project).isDumb()) {
             showText("Waiting for the project index to finish building…");
         }
-        dumb.runWhenSmart(() -> read(context));
-    }
-
-    private void read(String context) {
-        // The walk can run long on a big graph, so it is not run on the UI thread;
-        // DiModuleTreeService takes its own read action.
-        new Task.Backgroundable(project, "Reading the BEAR.Sunday module tree", true) {
-            @Override
-            public void run(ProgressIndicator indicator) {
-                DiModuleTreeService.Drawn drawn = DiModuleTreeService.getInstance(project).readDrawn(context, true);
-                ApplicationManager.getApplication().invokeLater(() -> show(drawn));
-            }
-        }.queue();
+        // The walk can run long on a big graph, so it is off the UI thread; the read action
+        // DiModuleTreeService takes nests in this one. Of the draws asked for before one shows,
+        // only the last is shown: a combo box fires for every selection, the ones offer() makes
+        // included, and a reader who picked twice wants the second, not whichever finishes last.
+        ReadAction.nonBlocking(() -> DiModuleTreeService.getInstance(project).readDrawn(context, true))
+            .inSmartMode(project)
+            .coalesceBy(this)
+            .expireWith(this)
+            .finishOnUiThread(ModalityState.any(), this::show)
+            .submit(AppExecutorUtil.getAppExecutorService());
     }
 
     private void show(DiModuleTreeService.Drawn drawn) {
