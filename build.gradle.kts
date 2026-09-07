@@ -34,6 +34,7 @@ dependencies {
         bundledPlugin("com.jetbrains.php")
         bundledPlugin("com.jetbrains.twig")
         bundledPlugin("com.intellij.mcpServer")
+        bundledModule("intellij.platform.ui.jcef")
         testFramework(TestFrameworkType.Platform)
         pluginVerifier()
     }
@@ -109,6 +110,14 @@ tasks {
     }
     test {
         useJUnitPlatform()
+    }
+
+    // The bundled mermaid is MIT, which asks for its notice to travel with the copy. The file at
+    // the repository root is not in the distribution, so the jar carries it too.
+    jar {
+        from(layout.projectDirectory.file("NOTICE")) {
+            into("META-INF")
+        }
     }
 
     wrapper {

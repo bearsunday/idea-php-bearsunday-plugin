@@ -51,7 +51,11 @@ class DiBindingLookupServiceFixtureTest {
         }
         """;
 
-    /** Every binding form whose implementation only a running container knows. */
+    /**
+     * The binding forms whose target is not a plain {@code to()}. Only {@code toProvider()} and
+     * {@code toInstance()} leave the implementation to a running container; the other two name a
+     * class the source states outright.
+     */
     private static final String CACHE_MODULE = """
         <?php
 
@@ -78,6 +82,48 @@ class DiBindingLookupServiceFixtureTest {
                 $this->bind(OptionsMethods::class);
                 $this->bind()->annotatedWith(AppName::class)->toInstance($this->appName);
             }
+        }
+        """;
+
+    /**
+     * The class {@code CACHE_MODULE} binds without a target. Ray.Di only binds a CONCRETE class to
+     * itself, so whether this file is in the project is what decides the answer.
+     */
+    private static final String OPTIONS_METHODS = """
+        <?php
+
+        namespace MyVendor\\MyProject;
+
+        final class OptionsMethods
+        {
+        }
+        """;
+
+    /** An untargeted bind on an interface, which Ray.Di validates and then registers nothing for. */
+    private static final String AUDIT_MODULE = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Module;
+
+        use MyVendor\\MyProject\\AuditInterface;
+        use Ray\\Di\\AbstractModule;
+
+        final class AuditModule extends AbstractModule
+        {
+            protected function configure(): void
+            {
+                $this->bind(AuditInterface::class);
+            }
+        }
+        """;
+
+    private static final String AUDIT_INTERFACE = """
+        <?php
+
+        namespace MyVendor\\MyProject;
+
+        interface AuditInterface
+        {
         }
         """;
 
@@ -396,6 +442,111 @@ class DiBindingLookupServiceFixtureTest {
         }
         """;
 
+    /** The app module a context reaches, and the one it installs. */
+    private static final String CONTEXT_APP_MODULE = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Module;
+
+        use MyVendor\\MyProject\\ClockInterface;
+        use MyVendor\\MyProject\\SystemClock;
+        use Ray\\Di\\AbstractModule;
+
+        class AppModule extends AbstractModule
+        {
+            protected function configure(): void
+            {
+                $this->install(new MailModule());
+                $this->bind(ClockInterface::class)->to(SystemClock::class);
+            }
+        }
+        """;
+
+    private static final String CONTEXT_MAIL_MODULE = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Module;
+
+        use MyVendor\\MyProject\\MailerInterface;
+        use MyVendor\\MyProject\\SmtpMailer;
+        use Ray\\Di\\AbstractModule;
+
+        class MailModule extends AbstractModule
+        {
+            protected function configure(): void
+            {
+                $this->bind(MailerInterface::class)->to(SmtpMailer::class);
+            }
+        }
+        """;
+
+    /** A module under src that no context installs: the one a context-scoped answer leaves out. */
+    private static final String CONTEXT_STRAY_MODULE = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Module;
+
+        use MyVendor\\MyProject\\MailerInterface;
+        use MyVendor\\MyProject\\NullMailer;
+        use Ray\\Di\\AbstractModule;
+
+        class StrayModule extends AbstractModule
+        {
+            protected function configure(): void
+            {
+                $this->bind(MailerInterface::class)->to(NullMailer::class);
+            }
+        }
+        """;
+
+    /** A module that states its bindings in a base module and nothing in its own body. */
+    private static final String CONTEXT_ABSTRACT_PROD_MODULE = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Module;
+
+        use MyVendor\\MyProject\\ClockInterface;
+        use MyVendor\\MyProject\\UtcClock;
+        use Ray\\Di\\AbstractModule;
+
+        abstract class AbstractProdModule extends AbstractModule
+        {
+            protected function configure(): void
+            {
+                $this->bind(ClockInterface::class)->to(UtcClock::class);
+            }
+        }
+        """;
+
+    private static final String CONTEXT_PROD_MODULE = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Module;
+
+        final class ProdModule extends AbstractProdModule
+        {
+        }
+        """;
+
+    /** The module the loader overrides everything with, which no context segment names. */
+    private static final String CONTEXT_APP_META_MODULE = """
+        <?php
+
+        namespace BEAR\\Package\\Module;
+
+        use BEAR\\AppMeta\\AbstractAppMeta;
+        use MyVendor\\MyProject\\ProjectMeta;
+        use Ray\\Di\\AbstractModule;
+
+        class AppMetaModule extends AbstractModule
+        {
+            protected function configure(): void
+            {
+                $this->bind(AbstractAppMeta::class)->to(ProjectMeta::class);
+            }
+        }
+        """;
+
     private CodeInsightTestFixture fixture;
 
     /** The light fixture recipe the attribute index test uses; see its setUp for why. */
@@ -511,7 +662,7 @@ class DiBindingLookupServiceFixtureTest {
     }
 
     /**
-     * Every form whose implementation a running container decides is reported rather than dropped,
+     * A form whose implementation a running container decides is reported rather than dropped,
      * with the class its argument names kept: an agent must be able to tell "not bound" from
      * "bound in a way I cannot follow".
      */
@@ -520,20 +671,80 @@ class DiBindingLookupServiceFixtureTest {
         addFile("src/Module/CacheModule.php", CACHE_MODULE);
 
         JsonObject provider = binding(envelope(lookup("Memcached", null, null)), 0);
-        JsonObject constructor = binding(envelope(lookup("CacheItemPoolInterface", null, null)), 0);
-        JsonObject untargeted = binding(envelope(lookup("OptionsMethods", null, null)), 0);
 
         assertEquals("toProvider", provider.get("boundBy").getAsString());
         assertEquals("dynamic-unresolved", provider.get("resolution").getAsString());
         assertFalse(provider.has("implementation"), provider::toString);
         assertEquals("\\MyVendor\\MyProject\\MemcachedProvider", provider.get("targetClass").getAsString());
+    }
 
-        assertEquals("toConstructor", constructor.get("boundBy").getAsString());
-        assertEquals("dynamic-unresolved", constructor.get("resolution").getAsString());
-        assertEquals("\\MyVendor\\MyProject\\ApcuAdapter", constructor.get("targetClass").getAsString());
+    /**
+     * {@code toConstructor()} names the class Ray.Di builds, exactly as {@code to()} does:
+     * {@code DependencyFactory::newToConstructor()} reflects on this very argument. Only the
+     * arguments handed to that constructor are decided elsewhere, and calling the whole binding
+     * unresolved hid an implementation the source states outright.
+     */
+    @Test
+    void namesTheClassToConstructorBuilds() {
+        addFile("src/Module/CacheModule.php", CACHE_MODULE);
 
-        assertEquals("untargeted", untargeted.get("boundBy").getAsString());
-        assertEquals("dynamic-unresolved", untargeted.get("resolution").getAsString());
+        JsonObject binding = binding(envelope(lookup("CacheItemPoolInterface", null, null)), 0);
+
+        assertEquals("toConstructor", binding.get("boundBy").getAsString());
+        assertEquals("static", binding.get("resolution").getAsString());
+        assertEquals("\\MyVendor\\MyProject\\ApcuAdapter", binding.get("implementation").getAsString());
+        // Kept as well: which of the two roles the class plays is what the caller reads it for.
+        assertEquals("\\MyVendor\\MyProject\\ApcuAdapter", binding.get("targetClass").getAsString());
+    }
+
+    /**
+     * A bind that names no target is Ray.Di's untargeted binding: {@code Bind::__destruct} hands it
+     * to {@code Untarget}, which binds the class to ITSELF. The implementation is the class in the
+     * bind call.
+     */
+    @Test
+    void namesTheClassAnUntargetedBindBindsToItself() {
+        addFile("src/Module/CacheModule.php", CACHE_MODULE);
+        addFile("src/OptionsMethods.php", OPTIONS_METHODS);
+
+        JsonObject binding = binding(envelope(lookup("OptionsMethods", null, null)), 0);
+
+        assertEquals("untargeted", binding.get("boundBy").getAsString());
+        assertEquals("static", binding.get("resolution").getAsString());
+        assertEquals("\\MyVendor\\MyProject\\OptionsMethods", binding.get("implementation").getAsString());
+    }
+
+    /**
+     * {@code Bind::__construct} untargets a concrete class only; given an interface it validates
+     * the name and registers nothing at all. Naming the interface as its own implementation would
+     * invent a binding Ray.Di never makes.
+     */
+    @Test
+    void doesNotBindAnInterfaceToItself() {
+        addFile("src/Module/AuditModule.php", AUDIT_MODULE);
+        addFile("src/AuditInterface.php", AUDIT_INTERFACE);
+
+        JsonObject binding = binding(envelope(lookup("AuditInterface", null, null)), 0);
+
+        assertEquals("untargeted", binding.get("boundBy").getAsString());
+        assertEquals("dynamic-unresolved", binding.get("resolution").getAsString());
+        assertFalse(binding.has("implementation"), binding::toString);
+    }
+
+    /**
+     * A name the project holds no class for cannot be told from an interface, so the answer stays
+     * the one this gave before it could resolve anything: "I cannot name the implementation" is
+     * still true of a class it cannot find.
+     */
+    @Test
+    void leavesAnUntargetedBindUnresolvedWhenTheClassIsNotInTheProject() {
+        addFile("src/Module/CacheModule.php", CACHE_MODULE);
+
+        JsonObject binding = binding(envelope(lookup("OptionsMethods", null, null)), 0);
+
+        assertEquals("untargeted", binding.get("boundBy").getAsString());
+        assertEquals("dynamic-unresolved", binding.get("resolution").getAsString());
+        assertFalse(binding.has("implementation"), binding::toString);
     }
 
     /** {@code bind()} with no argument binds a name alone; that is a binding, not an unreadable one. */
@@ -907,9 +1118,172 @@ class DiBindingLookupServiceFixtureTest {
         assertTrue(envelope.get("error").getAsString().contains("src/Nowhere"), envelope::toString);
     }
 
+    /**
+     * The question a directory cannot answer: of two modules binding the same interface, which one
+     * the context actually installs. The unscoped answer still holds both, which is what makes the
+     * scoped one worth asking for.
+     */
+    @Test
+    void readsOnlyTheModulesAContextInstalls() {
+        addContextApp();
+
+        JsonObject scoped = envelope(lookupInContext("MailerInterface", null, "app"));
+        JsonObject binding = binding(scoped, 0);
+
+        assertEquals("ok", scoped.get("status").getAsString(), scoped::toString);
+        assertEquals(1, scoped.getAsJsonArray("bindings").size(), scoped::toString);
+        assertEquals("\\MyVendor\\MyProject\\SmtpMailer", binding.get("implementation").getAsString());
+        assertEquals("\\MyVendor\\MyProject\\Module\\MailModule", binding.get("moduleClass").getAsString());
+        assertEquals("app", binding.get("segment").getAsString());
+        assertEquals(1, binding.get("priority").getAsInt());
+
+        JsonObject unscoped = envelope(lookup("MailerInterface", null, null));
+        assertEquals(2, unscoped.getAsJsonArray("bindings").size(), unscoped::toString);
+        // A directory is not a tree, so nothing in that answer is ordered by a segment.
+        assertFalse(binding(unscoped, 0).has("priority"), unscoped::toString);
+    }
+
+    /**
+     * A module that leaves its wiring to a base module states its bindings there and nowhere else.
+     * Reading only the module's own file would answer "nothing binds this" for a context whose
+     * module binds it one class up -- the silence the tree tool already ended for install().
+     */
+    @Test
+    void readsTheBindingsAModuleInheritsFromItsBaseModule() {
+        addContextApp();
+        addFile("src/Module/AbstractProdModule.php", CONTEXT_ABSTRACT_PROD_MODULE);
+        addFile("src/Module/ProdModule.php", CONTEXT_PROD_MODULE);
+
+        JsonObject binding = binding(envelope(lookupInContext("ClockInterface", null, "prod")), 0);
+
+        assertEquals("\\MyVendor\\MyProject\\UtcClock", binding.get("implementation").getAsString());
+        assertEquals("\\MyVendor\\MyProject\\Module\\AbstractProdModule", binding.get("moduleClass").getAsString());
+        assertEquals("prod", binding.get("segment").getAsString());
+    }
+
+    /**
+     * The two modules the loader adds itself are reached by no segment, and naming one for them
+     * would invent a segment the caller did not write; their priority places them all the same.
+     */
+    @Test
+    void namesNoSegmentForTheModuleTheLoaderOverridesEverythingWith() {
+        addContextApp();
+        addFile("vendor/bear/package/src/Module/AppMetaModule.php", CONTEXT_APP_META_MODULE);
+
+        JsonObject binding = binding(envelope(lookupInContext("AbstractAppMeta", null, "app")), 0);
+
+        assertEquals("\\MyVendor\\MyProject\\ProjectMeta", binding.get("implementation").getAsString());
+        assertFalse(binding.has("segment"), binding::toString);
+        assertEquals(0, binding.get("priority").getAsInt(), binding::toString);
+    }
+
+    /**
+     * A segment nothing answers to takes its whole subtree out of the scan, and an answer that did
+     * not say so would report the bindings of part of a context as the bindings of all of it.
+     */
+    @Test
+    void saysWhichSegmentsNothingAnsweredTo() {
+        addContextApp();
+
+        JsonObject scan = envelope(lookupInContext(null, null, "app-nowhere")).getAsJsonObject("scan");
+
+        assertEquals("app-nowhere", scan.get("context").getAsString());
+        assertEquals(1, scan.getAsJsonArray("unresolvedSegments").size(), scan::toString);
+        assertEquals("nowhere", scan.getAsJsonArray("unresolvedSegments").get(0).getAsString());
+        // The loader's own two modules, neither installed in this fixture: the tree has holes in
+        // it wherever bear/package and ray/di are not there to be read.
+        assertEquals(2, scan.get("classesUnresolved").getAsInt(), scan::toString);
+        assertFalse(scan.has("moduleRoot"), scan::toString);
+    }
+
+    /** The two name the scan in different terms, and answering one of them would answer neither. */
+    @Test
+    void refusesAContextAndAModuleRootTogether() {
+        addContextApp();
+
+        JsonObject envelope = envelope(
+            DiBindingLookupService.getInstance(fixture.getProject()).lookup(null, null, "src", "app")
+        );
+
+        assertEquals("not_found", envelope.get("status").getAsString());
+        assertTrue(envelope.get("error").getAsString().contains("either context or moduleRoot"), envelope::toString);
+    }
+
+    /**
+     * The reading this tool gained from the graph tool's side: a module installed with an array it
+     * binds the entries of answers for every name in that array. Asked for one of them, the answer
+     * names the entry's own line -- in the INSTALLING module's file, which is where a reader goes
+     * to change it -- while the module class is the one the bind is written in, and
+     * {@code installedBy} names the third module that brought the two together.
+     */
+    @Test
+    void answersForANameBoundByAnEntryOfAnArrayAModuleWasInstalledWith() {
+        addFile("src/Module/AppModule.php", """
+            <?php
+
+            namespace MyVendor\\MyProject\\Module;
+
+            use Ray\\Di\\AbstractModule;
+
+            class AppModule extends AbstractModule
+            {
+                protected function configure(): void
+                {
+                    $this->install(new ConstantsModule(['dsn' => getenv('DSN')]));
+                }
+            }
+            """);
+        addFile("src/Module/ConstantsModule.php", """
+            <?php
+
+            namespace MyVendor\\MyProject\\Module;
+
+            use Ray\\Di\\AbstractModule;
+
+            final class ConstantsModule extends AbstractModule
+            {
+                public function __construct(private readonly array $names)
+                {
+                    parent::__construct();
+                }
+
+                protected function configure(): void
+                {
+                    foreach ($this->names as $annotatedWith => $instance) {
+                        $this->bind()->annotatedWith($annotatedWith)->toInstance($instance);
+                    }
+                }
+            }
+            """);
+
+        JsonObject envelope = envelope(lookupInContext(null, "dsn", "app"));
+        JsonObject binding = binding(envelope, 0);
+
+        assertEquals("toInstance", binding.get("boundBy").getAsString(), binding::toString);
+        assertEquals("dsn", binding.getAsJsonObject("qualifier").get("value").getAsString());
+        assertEquals("\\MyVendor\\MyProject\\Module\\ConstantsModule", binding.get("moduleClass").getAsString());
+        assertEquals("\\MyVendor\\MyProject\\Module\\AppModule", binding.get("installedBy").getAsString());
+        assertEquals("src/Module/AppModule.php", binding.get("filePath").getAsString(), binding::toString);
+        // Read once, as the names it binds -- not a second time as the unreadable binding the loop
+        // is when the array it walks is out of sight.
+        assertEquals(1, envelope.getAsJsonArray("bindings").size(), envelope::toString);
+        assertEquals(0, envelope.getAsJsonArray("unresolved").size(), envelope::toString);
+    }
+
+    private void addContextApp() {
+        addFile("src/Module/AppModule.php", CONTEXT_APP_MODULE);
+        addFile("src/Module/MailModule.php", CONTEXT_MAIL_MODULE);
+        addFile("src/Module/StrayModule.php", CONTEXT_STRAY_MODULE);
+    }
+
     private String lookup(String interfaceName, String qualifier, String moduleRoot) {
         return DiBindingLookupService.getInstance(fixture.getProject())
-            .lookup(interfaceName, qualifier, moduleRoot);
+            .lookup(interfaceName, qualifier, moduleRoot, null);
+    }
+
+    private String lookupInContext(String interfaceName, String qualifier, String context) {
+        return DiBindingLookupService.getInstance(fixture.getProject())
+            .lookup(interfaceName, qualifier, null, context);
     }
 
     private static JsonObject binding(JsonObject envelope, int position) {

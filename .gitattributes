@@ -1,2 +1,3 @@
 /demo-app export-ignore
 /demo-app/** export-ignore
+src/main/resources/webview/mermaid.min.js linguist-vendored -diff
