@@ -290,6 +290,7 @@ class.
 
 * URI-Template Library (`com.damnhandy:handy-uri-templates:2.1.8`)
 * Apache Commons Text (`org.apache.commons:commons-text:1.12.0`)
+* Mermaid (`mermaid@11.4.1`, bundled as `src/main/resources/webview/mermaid.min.js`; license and update steps in `NOTICE`)
 
 ## Demo app
 
