@@ -27,10 +27,12 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Finds the JSON Schema files of a resource, either declared by a {@code #[JsonSchema]} attribute
@@ -46,6 +48,7 @@ public final class SchemaFactsService {
     private static final String SOURCE_ATTRIBUTE = "attribute";
     private static final String SOURCE_CONVENTION = "convention";
     private static final String SOURCE_FILE = "file";
+    private static final List<String> BRANCH_KEYWORDS = List.of("anyOf", "oneOf", "allOf");
 
     private final Project project;
 
@@ -289,13 +292,38 @@ public final class SchemaFactsService {
         return json;
     }
 
+    /**
+     * The field names a schema describes, by the rule {@link idea.bear.sunday.util.JsonSchemaProperties}
+     * documents: a union carries its names in its branches, not in a {@code properties} of its own.
+     * Kept as a second reader because that one parses text while the tools here already hold the
+     * document parsed, and it drops a blank key a completion popup could not offer. A field the
+     * schema states is one these tools report, so this one keeps it.
+     */
     static List<String> propertyNames(JsonObject raw) {
-        JsonElement properties = raw.get("properties");
-        if (properties == null || !properties.isJsonObject()) {
-            return List.of();
-        }
+        Set<String> names = new LinkedHashSet<>();
+        collectPropertyNames(raw, names);
 
-        return List.copyOf(properties.getAsJsonObject().keySet());
+        return List.copyOf(names);
+    }
+
+    private static void collectPropertyNames(@Nullable JsonElement element, Set<String> names) {
+        if (element == null || !element.isJsonObject()) {
+            return;
+        }
+        JsonObject object = element.getAsJsonObject();
+        JsonElement properties = object.get("properties");
+        if (properties != null && properties.isJsonObject()) {
+            names.addAll(properties.getAsJsonObject().keySet());
+        }
+        for (String keyword : BRANCH_KEYWORDS) {
+            JsonElement branches = object.get(keyword);
+            if (branches == null || !branches.isJsonArray()) {
+                continue;
+            }
+            for (JsonElement branch : branches.getAsJsonArray()) {
+                collectPropertyNames(branch, names);
+            }
+        }
     }
 
     private static List<String> requiredNames(JsonObject raw) {
