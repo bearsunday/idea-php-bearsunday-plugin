@@ -112,6 +112,14 @@ tasks {
         useJUnitPlatform()
     }
 
+    // The bundled mermaid is MIT, which asks for its notice to travel with the copy. The file at
+    // the repository root is not in the distribution, so the jar carries it too.
+    jar {
+        from(layout.projectDirectory.file("NOTICE")) {
+            into("META-INF")
+        }
+    }
+
     wrapper {
         gradleVersion = properties("gradleVersion").get()
     }

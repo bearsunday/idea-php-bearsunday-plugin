@@ -4,11 +4,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.intellij.openapi.Disposable;
-import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.application.ReadAction;
-import com.intellij.openapi.progress.ProgressIndicator;
-import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Disposer;
@@ -132,13 +129,10 @@ final class ModuleTreePanel extends JPanel implements Disposable {
      * context the app actually boots under.
      */
     private void offerContexts() {
-        new Task.Backgroundable(project, "Reading the BEAR.Sunday contexts", true) {
-            @Override
-            public void run(ProgressIndicator indicator) {
-                List<String> contexts = AppContextListService.getInstance(project).names();
-                ApplicationManager.getApplication().invokeLater(() -> offer(contexts), project.getDisposed());
-            }
-        }.queue();
+        ReadAction.nonBlocking(() -> AppContextListService.getInstance(project).names())
+            .expireWith(this)
+            .finishOnUiThread(ModalityState.any(), this::offer)
+            .submit(AppExecutorUtil.getAppExecutorService());
     }
 
     private void offer(List<String> contexts) {
