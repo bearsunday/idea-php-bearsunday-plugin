@@ -5,11 +5,13 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
- * Extracts the top-level {@code properties} keys from a JSON Schema document.
+ * Extracts the field names a JSON Schema document describes.
  *
  * <p>BEAR.Resource response schemas are JSON objects of the shape
  * {@code {"type": "object", "properties": {"name": {...}, "age": {...}}}}; the names of the
@@ -17,16 +19,26 @@ import java.util.Map;
  * completion. A self-contained parser is used (rather than the IntelliJ JSON PSI) so the plugin
  * keeps no dependency on the optional JSON support plugin and the extraction can be unit-tested in
  * isolation.
+ *
+ * <p>A schema may describe alternatives instead of one object, and the generated schema of a
+ * resource method that assigns {@code $this->body} more than once does exactly that: the body
+ * type generator renders a union as {@code anyOf}, which carries no {@code properties} of its own.
+ * The names of such a document are the union of its branches' names, in first-seen order -- the
+ * same rule {@code BodyShapeFactsService.fieldNames} applies to a union body, so the two sides of
+ * a schema-to-body comparison count fields the same way. {@code $ref} is not followed; the
+ * generator does not emit it.
  */
 public final class JsonSchemaProperties {
+
+    /** The keywords whose array members are themselves schemas describing the same value. */
+    private static final List<String> BRANCH_KEYWORDS = List.of("anyOf", "oneOf", "allOf");
 
     private JsonSchemaProperties() {
     }
 
     /**
-     * Returns the names of the top-level {@code properties} entries in {@code json}, in document
-     * order, or an empty list when the document is not a JSON object or has no {@code properties}
-     * object.
+     * Returns the field names {@code json} describes, in first-seen order, or an empty list when
+     * the document is not a JSON object or describes no fields.
      */
     @NotNull
     public static List<String> propertyNames(@Nullable String json) {
@@ -39,21 +51,31 @@ public final class JsonSchemaProperties {
         } catch (JsonParseException e) {
             return List.of();
         }
-        if (!(value instanceof JsonObject root)) {
-            return List.of();
-        }
-        JsonValue properties = root.get("properties");
-        if (!(properties instanceof JsonObject propsObject)) {
-            return List.of();
-        }
 
-        List<String> names = new ArrayList<>();
-        for (String name : propsObject.keys()) {
-            if (name != null && !name.isBlank()) {
-                names.add(name);
+        Set<String> names = new LinkedHashSet<>();
+        collect(value, names);
+
+        return List.copyOf(names);
+    }
+
+    private static void collect(JsonValue value, Set<String> names) {
+        if (!(value instanceof JsonObject object)) {
+            return;
+        }
+        if (object.get("properties") instanceof JsonObject properties) {
+            for (String name : properties.keys()) {
+                if (name != null && !name.isBlank()) {
+                    names.add(name);
+                }
             }
         }
-        return names;
+        for (String keyword : BRANCH_KEYWORDS) {
+            if (object.get(keyword) instanceof JsonArray branches) {
+                for (JsonValue branch : branches.items()) {
+                    collect(branch, names);
+                }
+            }
+        }
     }
 
     private sealed interface JsonValue {

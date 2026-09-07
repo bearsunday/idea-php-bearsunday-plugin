@@ -49,6 +49,66 @@ class JsonSchemaPropertiesTest {
             """).isEmpty());
     }
 
+    /**
+     * The shape the body type generator writes for a resource method that assigns
+     * {@code $this->body} more than once. Read as a top-level {@code properties} lookup it names
+     * nothing, which is issue #54.
+     */
+    @Test
+    void unionsTheBranchesOfAnyOf() {
+        List<String> names = JsonSchemaProperties.propertyNames("""
+            {
+              "anyOf": [
+                {"type": "object", "properties": {"id": {"type": "integer"}, "title": {"type": "string"}}},
+                {"type": "object", "properties": {"status": {"type": "string"}, "id": {"type": "integer"}}}
+              ]
+            }
+            """);
+
+        assertEquals(List.of("id", "title", "status"), names);
+    }
+
+    @Test
+    void unionsTheBranchesOfOneOfAndAllOf() {
+        assertEquals(
+            List.of("a", "b"),
+            JsonSchemaProperties.propertyNames("""
+                {"oneOf": [{"properties": {"a": {}}}, {"properties": {"b": {}}}]}
+                """)
+        );
+        assertEquals(
+            List.of("c", "d"),
+            JsonSchemaProperties.propertyNames("""
+                {"allOf": [{"properties": {"c": {}}}, {"properties": {"d": {}}}]}
+                """)
+        );
+    }
+
+    @Test
+    void unionsBranchesNestedInBranches() {
+        assertEquals(
+            List.of("outer", "inner"),
+            JsonSchemaProperties.propertyNames("""
+                {
+                  "anyOf": [
+                    {"properties": {"outer": {}}},
+                    {"anyOf": [{"properties": {"inner": {}}}]}
+                  ]
+                }
+                """)
+        );
+    }
+
+    @Test
+    void keepsTopLevelPropertiesAlongsideBranches() {
+        assertEquals(
+            List.of("own", "branch"),
+            JsonSchemaProperties.propertyNames("""
+                {"properties": {"own": {}}, "anyOf": [{"properties": {"branch": {}}}]}
+                """)
+        );
+    }
+
     @Test
     void returnsEmptyWhenPropertiesIsNotObject() {
         assertTrue(JsonSchemaProperties.propertyNames("""
