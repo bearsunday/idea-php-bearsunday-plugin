@@ -113,6 +113,29 @@ class SchemaFactsServiceFixtureTest {
         assertEquals("var/json_schema/point.json", envelope.getAsJsonObject("provenance").get("path").getAsString());
     }
 
+    /**
+     * The shape the body type generator writes for a resource method that assigns
+     * {@code $this->body} more than once. Read as a top-level {@code properties} lookup the
+     * generated schema named nothing back to the tools that read it (issue #54).
+     */
+    @Test
+    void namesTheFieldsOfEveryBranchOfAUnionSchema() {
+        addPhysicalFile("src/Resource/App/Point.php", POINT);
+        addPhysicalFile("var/json_schema/point.json", """
+            {
+              "anyOf": [
+                {"type": "object", "properties": {"x": {"type": "integer"}}},
+                {"type": "object", "properties": {"y": {"type": "integer"}, "x": {"type": "integer"}}}
+              ]
+            }
+            """);
+
+        JsonObject match = envelope(facts().lookup("app://self/point", null, null, null))
+            .getAsJsonArray("matches").get(0).getAsJsonObject();
+
+        assertEquals("[\"x\",\"y\"]", match.getAsJsonArray("properties").toString());
+    }
+
     /** Several matches are a combined answer: one file's provenance cannot speak for the rest. */
     @Test
     void reportsACombinedProvenanceForSeveralMatches() {
