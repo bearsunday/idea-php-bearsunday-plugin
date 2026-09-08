@@ -49,6 +49,7 @@ completion, line markers, or the editor intention on the files below.
 | Aura.Router goto BEAR.Resource | `demo-app/aura.route.php` | Cmd/Ctrl-click `/index` or `/dashboard` to jump to the matching Page resource. |
 | Generate Psalm body type PHPDoc | `demo-app/src/Resource/App/BodyTypeDemo.php` or `demo-app/src/Resource/App/` | Run **Generate BEAR body type** on one resource class, or from the Project View folder popup to process every ResourceObject under the selected folder. |
 | Generate body JSON Schema | `demo-app/src/Resource/App/BodyTypeDemo.php` | Run **Generate BEAR body JSON Schema**; it writes `var/json_schema/body-type-demo.json` without a method name in the file. |
+| Body key completion from a union schema | `demo-app/src/Resource/App/UnionDemo.php` | `onGet` assigns `$this->body` in two branches, so its generated schema is an `anyOf`. Complete after `->body['` on `app://self/union-demo`, and re-run **Generate BEAR body JSON Schema** to see the file it writes. |
 
 ### Body type generator output
 
