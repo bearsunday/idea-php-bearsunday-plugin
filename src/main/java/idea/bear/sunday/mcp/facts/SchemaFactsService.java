@@ -10,7 +10,6 @@ import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Computable;
-import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.jetbrains.php.lang.psi.elements.Method;
@@ -23,7 +22,6 @@ import idea.bear.sunday.resource.ResourceClassResolver;
 import idea.bear.sunday.util.UriUtil;
 import org.jetbrains.annotations.Nullable;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -36,7 +34,8 @@ import java.util.Set;
 
 /**
  * Finds the JSON Schema files of a resource, either declared by a {@code #[JsonSchema]} attribute
- * or following the {@code var/json_schema} naming convention, and reports what they describe.
+ * or named by the resource-class convention, resolved under the configured schema directories,
+ * and reports what they describe.
  */
 @Service(Service.Level.PROJECT)
 public final class SchemaFactsService {
@@ -65,8 +64,8 @@ public final class SchemaFactsService {
     }
 
     /**
-     * Schemas of one resource, in declaration order: the attribute-declared ones, or the
-     * conventional {@code var/json_schema} file when the resource declares none.
+     * Schemas of one resource, in declaration order: the attribute-declared ones, or the file the
+     * naming convention names when the resource declares none.
      */
     List<SchemaMatch> matchesForResource(String resourceUri, @Nullable String method, String kind) {
         String normalizedUri = UriUtil.normalizeSupportedResourceUri(resourceUri.trim(), false);
@@ -100,9 +99,8 @@ public final class SchemaFactsService {
         if (!matches.isEmpty() || declared || !KIND_RESPONSE.equals(kind)) {
             return List.copyOf(matches.values());
         }
-        SchemaMatch conventional = conventionMatch(phpClass);
 
-        return conventional == null ? List.of() : List.of(conventional);
+        return conventionMatches(phpClass);
     }
 
     private String lookupSchema(@Nullable String resourceUri, @Nullable String method, @Nullable String schemaFile, @Nullable String kind) {
@@ -240,15 +238,16 @@ public final class SchemaFactsService {
         return KIND_REQUEST.equals(kind) ? settings.jsonValidatePath : settings.jsonSchemaPath;
     }
 
-    @Nullable
-    private SchemaMatch conventionMatch(PhpClass phpClass) {
-        Path path = BodyJsonSchemaPath.fromClass(project, phpClass);
-        if (path == null) {
-            return null;
-        }
-        VirtualFile file = LocalFileSystem.getInstance().findFileByNioFile(path);
+    /**
+     * The file the convention names, resolved under the configured schema directories the same way
+     * a declared name is. Not through {@link BodyJsonSchemaPath#fromClass}, whose
+     * {@code var/json_schema} is where the generator writes: reading only there would answer
+     * differently from body key completion for a project that configures {@code jsonSchemaPath}.
+     */
+    private List<SchemaMatch> conventionMatches(PhpClass phpClass) {
+        String fileName = BodyJsonSchemaPath.conventionalFileName(phpClass);
 
-        return file == null ? null : parse(file, SOURCE_CONVENTION, KIND_RESPONSE);
+        return fileName == null ? List.of() : byFileName(fileName, KIND_RESPONSE, SOURCE_CONVENTION);
     }
 
     private SchemaMatch parse(VirtualFile file, String source, String kind) {

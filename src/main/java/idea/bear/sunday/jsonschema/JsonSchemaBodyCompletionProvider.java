@@ -23,6 +23,7 @@ import com.jetbrains.php.lang.psi.elements.PhpAttribute;
 import com.jetbrains.php.lang.psi.elements.PhpClass;
 import com.jetbrains.php.lang.psi.elements.StringLiteralExpression;
 import idea.bear.sunday.Settings;
+import idea.bear.sunday.body.BodyJsonSchemaPath;
 import idea.bear.sunday.util.JsonSchemaProperties;
 import idea.bear.sunday.util.UriUtil;
 import org.jetbrains.annotations.NotNull;
@@ -43,7 +44,8 @@ import java.util.Set;
  * resolved the same way goto does, the matching {@code on{Verb}} method's {@code #[JsonSchema]}
  * attribute is read for the <em>response</em> schema file (the {@code schema:} argument or the
  * first positional argument), and the top-level {@code properties} of that schema are offered as
- * completion keys.
+ * completion keys. A method that declares no schema falls back to the file name the resource-class
+ * convention gives, which is the one the body schema generator writes.
  *
  * <p>Supported call forms (the caret is inside the body subscript):
  * <ul>
@@ -108,6 +110,12 @@ public class JsonSchemaBodyCompletionProvider extends CompletionProvider<Complet
         }
 
         String schemaFile = responseSchemaFile(method);
+        if (schemaFile == null) {
+            // The generator writes the conventional file and adds no attribute, so without this
+            // the schema the plugin just generated names no keys here. Guarded to "declares none":
+            // a resource naming a file that is not on disk has said which file it means.
+            schemaFile = BodyJsonSchemaPath.conventionalFileName(resourceClass);
+        }
         if (schemaFile == null) {
             return List.of();
         }

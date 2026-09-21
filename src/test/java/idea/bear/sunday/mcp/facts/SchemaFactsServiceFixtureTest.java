@@ -210,6 +210,23 @@ class SchemaFactsServiceFixtureTest {
         assertEquals("convention", match.get("source").getAsString());
     }
 
+    /**
+     * The convention names a file and {@code jsonSchemaPath} says where the project keeps them.
+     * Reading only {@code var/json_schema} answered nothing for a project that keeps them in the
+     * other configured directory, while body key completion answered from it.
+     */
+    @Test
+    void fallsBackToTheConventionInEveryConfiguredSchemaDirectory() {
+        addPhysicalFile("src/Resource/App/Point.php", POINT);
+        addPhysicalFile("var/schema/response/point.json", POINT_SCHEMA);
+
+        JsonObject match = envelope(facts().lookup("app://self/point", null, null, null))
+            .getAsJsonArray("matches").get(0).getAsJsonObject();
+
+        assertEquals("var/schema/response/point.json", match.get("path").getAsString());
+        assertEquals("convention", match.get("source").getAsString());
+    }
+
     @Test
     void looksASchemaUpByFileName() {
         addPhysicalFile("var/json_schema/point.json", POINT_SCHEMA);

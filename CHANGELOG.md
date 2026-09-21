@@ -12,6 +12,8 @@
 
 ### Fixed
 - `ResourceClassResolver`, which every MCP resource tool reads through, could answer with a class the URI does not name: a `.`/`..` path segment could disclose a PHP file outside the project, a non-self authority (`app://payments/user`) silently answered with this project's class, and an interface, trait or enum declared before the resource class in a file could answer in its place.
+- Body key completion after `->body['` reads the conventional `var/json_schema/<resource>.json` file when the resource method declares no `#[JsonSchema]` attribute. **Generate BEAR body JSON Schema** writes that file and adds no attribute, so the schema the plugin had just generated named no keys, while the MCP fact tools already answered for it (#58).
+- `bear_schema_lookup` and `bear_contract_compare` looked for the conventional schema file only under `var/json_schema`, so a project that configures `jsonSchemaPath` got a different answer from them than from body key completion. Both now resolve the conventional name under every configured schema directory (#58).
 
 ## [0.10]
 

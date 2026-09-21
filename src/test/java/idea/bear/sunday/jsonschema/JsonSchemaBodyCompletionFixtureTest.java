@@ -82,9 +82,113 @@ class JsonSchemaBodyCompletionFixtureTest {
         assertTrue(Set.copyOf(keys).containsAll(Set.of("name", "age")));
     }
 
+    /**
+     * "Generate BEAR body JSON Schema" writes var/json_schema/<kebab>.json and adds no attribute,
+     * so a schema the plugin had just generated named no keys here until issue #58. The fact tools
+     * already answered for it through SchemaFactsService.conventionMatch.
+     */
     @Test
-    void returnsNothingWhenResourceHasNoJsonSchema() {
+    void completesBodyKeysFromTheConventionalSchemaWhenNoAttributeNamesIt() {
         addUserResource("");
+        List<String> keys = keysAtCaret("""
+            <?php
+            $resource->get('app://self/user', ['id' => 1])->body['<caret>'];
+            """);
+
+        assertEquals(List.of("name", "age"), keys);
+    }
+
+    /** A nested resource namespace names a subdirectory of the schema directory. */
+    @Test
+    void completesBodyKeysFromAConventionalSchemaInASubdirectory() {
+        fixture.addFileToProject("src/Resource/App/Admin/User.php", """
+            <?php
+            namespace MyVendor\\Todo\\Resource\\App\\Admin;
+
+            class User
+            {
+                public function onGet(int $id): array
+                {
+                    return [];
+                }
+            }
+            """);
+        fixture.addFileToProject("var/json_schema/admin/user.json", """
+            {
+              "type": "object",
+              "properties": {"role": {"type": "string"}}
+            }
+            """);
+
+        List<String> keys = keysAtCaret("""
+            <?php
+            $resource->get('app://self/admin/user', ['id' => 1])->body['<caret>'];
+            """);
+
+        assertEquals(List.of("role"), keys);
+    }
+
+    /** jsonSchemaPath names more than one directory, and the convention is looked for in each. */
+    @Test
+    void completesBodyKeysFromAConventionalSchemaInAnotherConfiguredDirectory() {
+        fixture.addFileToProject("src/Resource/App/User.php", """
+            <?php
+            namespace MyVendor\\Todo\\Resource\\App;
+
+            class User
+            {
+                public function onGet(int $id): array
+                {
+                    return [];
+                }
+            }
+            """);
+        fixture.addFileToProject("var/schema/response/user.json", """
+            {
+              "type": "object",
+              "properties": {"nickname": {"type": "string"}}
+            }
+            """);
+
+        List<String> keys = keysAtCaret("""
+            <?php
+            $resource->get('app://self/user', ['id' => 1])->body['<caret>'];
+            """);
+
+        assertEquals(List.of("nickname"), keys);
+    }
+
+    /** The convention names a file, not any file: nothing on disk still completes nothing. */
+    @Test
+    void returnsNothingWhenNeitherAnAttributeNorTheConventionalFileExists() {
+        fixture.addFileToProject("src/Resource/App/User.php", """
+            <?php
+            namespace MyVendor\\Todo\\Resource\\App;
+
+            class User
+            {
+                public function onGet(int $id): array
+                {
+                    return [];
+                }
+            }
+            """);
+
+        List<String> keys = keysAtCaret("""
+            <?php
+            $resource->get('app://self/user', ['id' => 1])->body['<caret>'];
+            """);
+
+        assertTrue(keys.isEmpty());
+    }
+
+    /**
+     * A resource naming a file that is not on disk has said which file it means, and the
+     * conventional one is not it -- the same rule SchemaFactsService.matchesForResource applies.
+     */
+    @Test
+    void doesNotFallBackToTheConventionWhenAnAttributeNamesAMissingFile() {
+        addUserResource("#[JsonSchema('does-not-exist.json')]");
         List<String> keys = keysAtCaret("""
             <?php
             $resource->get('app://self/user', ['id' => 1])->body['<caret>'];
