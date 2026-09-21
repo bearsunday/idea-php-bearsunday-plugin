@@ -94,7 +94,7 @@ public final class DiBindingLookupService {
     private static final String REASON_RENAME = "rename-not-applied";
     private static final String REASON_MULTIBINDER = "multibinder-not-read";
 
-    private static final String MULTI_BINDER = "MultiBinder";
+    private static final String MULTI_BINDER = "\\Ray\\Di\\MultiBinder";
     private static final String NEW_INSTANCE = "newInstance";
 
     /** Well past any project's src; reached only by a root such as "vendor", and then reported. */
@@ -390,19 +390,27 @@ public final class DiBindingLookupService {
 
     /**
      * A {@code MultiBinder::newInstance($this, Foo::class)}, which binds a map this does not read:
-     * the entries are added through the binder it returns, not through {@code $this->bind()}. The
-     * enclosing class has to be a module, as it does for a rename: a class of this name outside
-     * one is not Ray.Di wiring, and reporting it would put an unresolved entry in the answer for
-     * something nobody bound.
+     * the entries are added through the binder it returns, not through {@code $this->bind()}.
+     *
+     * <p>Matched by the class the receiver resolves to rather than by the name it is written
+     * under, because {@code use Ray\Di\MultiBinder as MapBinder} spells it something else while a
+     * class of the project's own named {@code MultiBinder} is not this one at all.
+     *
+     * <p>The enclosing class has to be a module, as it does for a rename: a MultiBinder written
+     * outside one is not Ray.Di wiring, and reporting it would put an unresolved entry in the
+     * answer for something nobody bound.
      */
     private static boolean isMultiBinderCall(MethodReference call) {
         if (!NEW_INSTANCE.equalsIgnoreCase(call.getName()) || call.getParameters().length < 2) {
             return false;
         }
-        PsiElement receiver = call.getClassReference();
+        if (!(call.getClassReference() instanceof ClassReference reference)) {
+            return false;
+        }
+        String fqn = reference.getFQN();
 
-        return receiver instanceof ClassReference reference
-            && MULTI_BINDER.equals(reference.getName())
+        return fqn != null
+            && MULTI_BINDER.equals(InterceptorBindingIndexUtil.normalizeFqn(fqn))
             && isModule(call);
     }
 

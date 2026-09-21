@@ -10,7 +10,6 @@ import java.lang.reflect.Modifier;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -41,20 +40,35 @@ class McpProjectContextTest {
      * Whatever the accessor itself throws must escape as itself: Method.invoke wraps it in an
      * InvocationTargetException whose own message is null, which the MCP layer would report as
      * an opaque internal error instead of the platform's typed "no project" message.
+     *
+     * <p>Compared against what the accessor produces rather than against a literal, because the
+     * platform's own message is not this plugin's to pin: asserting only that the wrapper did not
+     * escape would also pass for a detour that swallowed the typed failure and raised one of its
+     * own.
      */
     @Test
     void doesNotLeakTheReflectionDetourWhenTheAccessorFails() {
-        Throwable thrown = assertThrows(
+        Throwable fromAccessor = accessorFailure();
+
+        Throwable fromOf = assertThrows(
             Throwable.class,
             () -> McpProjectContext.INSTANCE.of(EmptyCoroutineContext.INSTANCE),
             "an empty context names no project, so the accessor is expected to fail"
         );
 
-        // The accessor's own failure (or the local IllegalStateException) is the contract.
-        assertFalse(
-            thrown instanceof InvocationTargetException,
-            () -> "the reflection detour leaked: " + thrown
+        assertEquals(fromAccessor.getClass(), fromOf.getClass(), () -> "escaped as " + fromOf);
+        assertEquals(fromAccessor.getMessage(), fromOf.getMessage());
+    }
+
+    /** What the accessor throws for a context that names no project, reached without the detour. */
+    private static Throwable accessorFailure() {
+        Method accessor = McpProjectContext.INSTANCE.findAccessor(FACADES);
+        InvocationTargetException wrapped = assertThrows(
+            InvocationTargetException.class,
+            () -> accessor.invoke(null, EmptyCoroutineContext.INSTANCE)
         );
+
+        return wrapped.getTargetException();
     }
 
     @Test
