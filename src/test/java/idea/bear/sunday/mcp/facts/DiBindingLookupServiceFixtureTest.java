@@ -400,6 +400,25 @@ class DiBindingLookupServiceFixtureTest {
         }
         """;
 
+    private static final String MULTI_BINDER_HELPER = """
+        <?php
+
+        namespace MyVendor\\MyProject;
+
+        use MyVendor\\MyProject\\ClockInterface;
+        use Ray\\Di\\MultiBinder;
+
+        final class ClockRegistry
+        {
+            public function register(object $module): void
+            {
+                MultiBinder::newInstance($module, ClockInterface::class)
+                    ->addBinding('system')
+                    ->to(SystemClock::class);
+            }
+        }
+        """;
+
     /**
      * Two renames of something that is not a binding: one whose receiver is not a module, and one
      * called on {@code $this} by a class that declares no {@code configure()}, so it is no module
@@ -1048,6 +1067,16 @@ class DiBindingLookupServiceFixtureTest {
             onBound.getAsJsonArray("unresolved").get(0).getAsJsonObject().get("reason").getAsString()
         );
         assertTrue(onOther.getAsJsonArray("unresolved").isEmpty(), onOther::toString);
+    }
+
+    /** A MultiBinder written outside a module is not the wiring this reads, the way a rename is not. */
+    @Test
+    void doesNotReadAMultiBinderOutsideAModule() {
+        addFile("src/ClockRegistry.php", MULTI_BINDER_HELPER);
+
+        JsonObject envelope = envelope(lookup("ClockInterface", null, null));
+
+        assertTrue(envelope.getAsJsonArray("unresolved").isEmpty(), envelope::toString);
     }
 
     /**

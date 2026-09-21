@@ -390,7 +390,10 @@ public final class DiBindingLookupService {
 
     /**
      * A {@code MultiBinder::newInstance($this, Foo::class)}, which binds a map this does not read:
-     * the entries are added through the binder it returns, not through {@code $this->bind()}.
+     * the entries are added through the binder it returns, not through {@code $this->bind()}. The
+     * enclosing class has to be a module, as it does for a rename: a class of this name outside
+     * one is not Ray.Di wiring, and reporting it would put an unresolved entry in the answer for
+     * something nobody bound.
      */
     private static boolean isMultiBinderCall(MethodReference call) {
         if (!NEW_INSTANCE.equalsIgnoreCase(call.getName()) || call.getParameters().length < 2) {
@@ -398,7 +401,9 @@ public final class DiBindingLookupService {
         }
         PsiElement receiver = call.getClassReference();
 
-        return receiver instanceof ClassReference reference && MULTI_BINDER.equals(reference.getName());
+        return receiver instanceof ClassReference reference
+            && MULTI_BINDER.equals(reference.getName())
+            && isModule(call);
     }
 
     /**
@@ -613,7 +618,7 @@ public final class DiBindingLookupService {
             boundBy = BOUND_BY_UNKNOWN;
         }
 
-        // An untargeted binding is Ray.Di building the bound class itself: Bind::__destruct hands
+        // An untargeted binding is Ray.Di building the bound class itself: Bind::__construct hands
         // it to Untarget, which registers a dependency on that very class. It does so only for a
         // concrete class, though -- given an interface, Bind::__construct validates the name and
         // registers nothing -- so a name this cannot resolve to a concrete class is left as it
