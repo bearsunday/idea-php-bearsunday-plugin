@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.intellij.testFramework.DumbModeTestUtils;
 import com.intellij.testFramework.LightProjectDescriptor;
 import com.intellij.testFramework.fixtures.CodeInsightTestFixture;
 import com.intellij.testFramework.fixtures.IdeaProjectTestFixture;
@@ -344,6 +345,26 @@ class ResourceAttributeIndexServiceFixtureTest {
         JsonObject schema = attribute(entry(envelope, "app://self/user", "method", "onGet"), "JsonSchema");
 
         assertTrue(schema.getAsJsonArray("interceptors").isEmpty(), envelope::toString);
+    }
+
+    /**
+     * The attributes are walked rather than looked up, so they answer while the index builds. The
+     * interceptors bound to them are the part that needs the index, and the answer says so rather
+     * than reporting an attribute nothing wraps.
+     */
+    @Test
+    void answersWithoutTheInterceptorsWhileTheIndexesBuild() {
+        addFile("src/Resource/App/User.php", USER);
+        addFile("src/Module/AopModule.php", AOP_MODULE);
+
+        DumbModeTestUtils.runInDumbModeSynchronously(fixture.getProject(), () -> {
+            JsonObject envelope = envelope(index("Audited", null, null));
+            JsonObject audited = attribute(entry(envelope, "app://self/user", "method", "onGet"), "Audited");
+
+            assertEquals("ok", envelope.get("status").getAsString(), envelope::toString);
+            assertEquals("index_not_ready", envelope.get("interceptorsUnavailable").getAsString(), envelope::toString);
+            assertFalse(audited.has("interceptors"), envelope::toString);
+        });
     }
 
     @Test

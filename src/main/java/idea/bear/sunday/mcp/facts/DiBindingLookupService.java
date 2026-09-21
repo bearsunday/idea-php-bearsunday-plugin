@@ -92,6 +92,10 @@ public final class DiBindingLookupService {
     private static final String REASON_QUALIFIER = "qualifier-unreadable";
     private static final String REASON_CHAIN = "chain-unreadable";
     private static final String REASON_RENAME = "rename-not-applied";
+    private static final String REASON_MULTIBINDER = "multibinder-not-read";
+
+    private static final String MULTI_BINDER = "MultiBinder";
+    private static final String NEW_INSTANCE = "newInstance";
 
     /** Well past any project's src; reached only by a root such as "vendor", and then reported. */
     private static final int MAX_FILES = 2000;
@@ -357,7 +361,8 @@ public final class DiBindingLookupService {
         for (MethodReference call : PsiTreeUtil.findChildrenOfType(psiFile, MethodReference.class)) {
             ProgressManager.checkCanceled();
             boolean bind = isBindCall(call);
-            if (!bind && !isRenameCall(call)) {
+            boolean multiBinder = !bind && isMultiBinderCall(call);
+            if (!bind && !multiBinder && !isRenameCall(call)) {
                 continue;
             }
             // Already read, once per entry of the array it binds, at the install that states them.
@@ -375,10 +380,25 @@ public final class DiBindingLookupService {
             }
             if (bind) {
                 answer.addBinding(call, site, reach);
+            } else if (multiBinder) {
+                answer.addMultiBinder(call, site, reach);
             } else {
                 answer.addRename(call, site, reach);
             }
         }
+    }
+
+    /**
+     * A {@code MultiBinder::newInstance($this, Foo::class)}, which binds a map this does not read:
+     * the entries are added through the binder it returns, not through {@code $this->bind()}.
+     */
+    private static boolean isMultiBinderCall(MethodReference call) {
+        if (!NEW_INSTANCE.equalsIgnoreCase(call.getName()) || call.getParameters().length < 2) {
+            return false;
+        }
+        PsiElement receiver = call.getClassReference();
+
+        return receiver instanceof ClassReference reference && MULTI_BINDER.equals(reference.getName());
     }
 
     /**
@@ -462,8 +482,15 @@ public final class DiBindingLookupService {
     }
 
     /**
-     * Whether an FQN names a class Ray.Di would bind to itself, which {@code Bind::__construct}
-     * decides with {@code class_exists($i) && ! (new ReflectionClass($i))->isAbstract()}.
+     * Whether an FQN names a class Ray.Di would bind to itself. {@code Bind::__construct} decides
+     * it with {@code class_exists($i) && (new ReflectionClass($i))->isInstantiable() &&
+     * ! $this->isRegistered($i)}.
+     *
+     * <p>This answers a weaker question than that, in two known ways. A class whose constructor is
+     * not public is not instantiable, and one already bound elsewhere is registered; either is
+     * reported here as bound to itself. Both need something this does not have -- the visibility
+     * question is answerable but was not asked, and the registration one depends on every other
+     * binding in the container, which is the ordering this tool says it does not decide.
      *
      * <p>This is the one question here that needs the index, and it is asked only of a bind that
      * named no target. While the index is building the answer is no, which leaves such a binding
@@ -935,6 +962,25 @@ public final class DiBindingLookupService {
                 return;
             }
             unresolved.add(entry(REASON_RENAME, call, site, source, text(call), reach));
+        }
+
+        /**
+         * A {@code MultiBinder} binds its entries through the binder it returns, so none of them
+         * reaches the {@code $this->bind()} this reads. The tool says as much in its description,
+         * but a description is not the answer: asked for an interface bound only that way, an
+         * empty {@code bindings} with an empty {@code unresolved} reads as "nothing binds this".
+         * Reported here so the answer says it too.
+         *
+         * <p>The qualifier filter is not applied, as it is not for a rename: a MultiBinder keys
+         * its entries by map key rather than by qualifier, so whether one would have matched is
+         * not something this can say.
+         */
+        void addMultiBinder(MethodReference call, Site site, @Nullable Reach reach) {
+            String bound = readInterface(call.getParameters()[1]);
+            if (bound != null && !interfaceFilter.matches(bound)) {
+                return;
+            }
+            unresolved.add(entry(REASON_MULTIBINDER, call, site, bound, text(call), reach));
         }
 
         private static boolean isUnresolved(@Nullable Qualifier qualifier) {

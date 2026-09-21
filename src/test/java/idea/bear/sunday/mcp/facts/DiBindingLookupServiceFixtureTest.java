@@ -379,6 +379,27 @@ class DiBindingLookupServiceFixtureTest {
         }
         """;
 
+    private static final String MULTI_BINDER_MODULE = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Module;
+
+        use MyVendor\\MyProject\\ClockInterface;
+        use MyVendor\\MyProject\\SystemClock;
+        use Ray\\Di\\AbstractModule;
+        use Ray\\Di\\MultiBinder;
+
+        final class MultiBinderModule extends AbstractModule
+        {
+            protected function configure(): void
+            {
+                MultiBinder::newInstance($this, ClockInterface::class)
+                    ->addBinding('system')
+                    ->to(SystemClock::class);
+            }
+        }
+        """;
+
     /**
      * Two renames of something that is not a binding: one whose receiver is not a module, and one
      * called on {@code $this} by a class that declares no {@code configure()}, so it is no module
@@ -1006,6 +1027,26 @@ class DiBindingLookupServiceFixtureTest {
 
         assertEquals(1, onTarget.getAsJsonArray("unresolved").size(), onTarget::toString);
         assertEquals(1, onSource.getAsJsonArray("unresolved").size(), onSource::toString);
+        assertTrue(onOther.getAsJsonArray("unresolved").isEmpty(), onOther::toString);
+    }
+
+    /**
+     * A MultiBinder binds through the binder it returns, so this reads none of its entries. What
+     * it must not do is answer as though nothing binds the interface at all.
+     */
+    @Test
+    void reportsAMultiBinderItDoesNotRead() {
+        addFile("src/Module/MultiBinderModule.php", MULTI_BINDER_MODULE);
+
+        JsonObject onBound = envelope(lookup("ClockInterface", null, null));
+        JsonObject onOther = envelope(lookup("OtherInterface", null, null));
+
+        assertTrue(onBound.getAsJsonArray("bindings").isEmpty(), onBound::toString);
+        assertEquals(1, onBound.getAsJsonArray("unresolved").size(), onBound::toString);
+        assertEquals(
+            "multibinder-not-read",
+            onBound.getAsJsonArray("unresolved").get(0).getAsJsonObject().get("reason").getAsString()
+        );
         assertTrue(onOther.getAsJsonArray("unresolved").isEmpty(), onOther::toString);
     }
 

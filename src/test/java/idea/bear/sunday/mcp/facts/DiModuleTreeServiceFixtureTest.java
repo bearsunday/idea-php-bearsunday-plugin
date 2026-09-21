@@ -48,6 +48,66 @@ class DiModuleTreeServiceFixtureTest {
         }
         """;
 
+    private static final String CONSTANTS_MODULE = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Module;
+
+        use Ray\\Di\\AbstractModule;
+
+        final class ConstantsModule extends AbstractModule
+        {
+            public function __construct(private readonly array $names)
+            {
+                parent::__construct();
+            }
+
+            protected function configure(): void
+            {
+                foreach ($this->names as $annotatedWith => $instance) {
+                    $this->bind()->annotatedWith($annotatedWith)->toInstance($instance);
+                }
+            }
+        }
+        """;
+
+    private static final String STATED_ARRAY_MODULE = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Module;
+
+        use Ray\\Di\\AbstractModule;
+
+        class AppModule extends AbstractModule
+        {
+            protected function configure(): void
+            {
+                $this->install(new ConstantsModule(['retries' => '3', 'timeout' => '30']));
+            }
+        }
+        """;
+
+    private static final String UNSTATED_ARRAY_MODULE = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Module;
+
+        use Ray\\Di\\AbstractModule;
+
+        class AppModule extends AbstractModule
+        {
+            protected function configure(): void
+            {
+                $this->install(new ConstantsModule($this->names()));
+            }
+
+            private function names(): array
+            {
+                return ['retries' => '3'];
+            }
+        }
+        """;
+
     private static final String AURA_SQL_MODULE = """
         <?php
 
@@ -835,6 +895,37 @@ class DiModuleTreeServiceFixtureTest {
                 .orElseThrow();
             assertFalse(box.contains("module not named"), box);
         }
+    }
+
+    /**
+     * A module installed with an array binds one name per entry, and the entries are written at
+     * the install rather than in the module that loops over them. The count says how many the
+     * install put there, so a reader is not left to guess that the loop bound anything at all.
+     */
+    @Test
+    void countsTheNamesAnInstalledArrayBinds() {
+        addFile("src/Module/AppModule.php", STATED_ARRAY_MODULE);
+        addFile("src/Module/ConstantsModule.php", CONSTANTS_MODULE);
+
+        JsonObject install = install(segment(envelope(read("app")), 0), 0);
+
+        assertEquals(2, install.get("boundFromInstall").getAsInt(), install::toString);
+        assertFalse(install.has("argumentUnreadable"), install::toString);
+    }
+
+    /**
+     * The same install whose array the source does not state. The module still binds names this
+     * cannot list, and saying so is the difference between "these names are bound here" and a
+     * silence that reads as nobody binding them.
+     */
+    @Test
+    void marksAnInstalledArrayItCouldNotRead() {
+        addFile("src/Module/AppModule.php", UNSTATED_ARRAY_MODULE);
+        addFile("src/Module/ConstantsModule.php", CONSTANTS_MODULE);
+
+        JsonObject install = install(segment(envelope(read("app")), 0), 0);
+
+        assertTrue(install.get("argumentUnreadable").getAsBoolean(), install::toString);
     }
 
     private void addApp() {
