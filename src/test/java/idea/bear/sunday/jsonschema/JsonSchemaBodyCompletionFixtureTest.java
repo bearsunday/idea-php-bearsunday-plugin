@@ -83,9 +83,9 @@ class JsonSchemaBodyCompletionFixtureTest {
     }
 
     /**
-     * "Generate BEAR body JSON Schema" writes var/json_schema/<kebab>.json and adds no attribute,
-     * so a schema the plugin had just generated named no keys here until issue #58. The fact tools
-     * already answered for it through SchemaFactsService.conventionMatch.
+     * "Generate BEAR body JSON Schema" writes the conventional file and adds no attribute, so a
+     * schema the plugin had just generated named no keys here until issue #58, while the MCP fact
+     * tools already answered for it.
      */
     @Test
     void completesBodyKeysFromTheConventionalSchemaWhenNoAttributeNamesIt() {
@@ -156,6 +156,72 @@ class JsonSchemaBodyCompletionFixtureTest {
             """);
 
         assertEquals(List.of("nickname"), keys);
+    }
+
+    /**
+     * {@code #[JsonSchema(key: 'user')]} names no schema file, so the convention still answers.
+     * This is the one attribute shape where "declares no file" and "declares no attribute" differ.
+     */
+    @Test
+    void completesBodyKeysFromTheConventionWhenTheAttributeNamesOnlyAKey() {
+        addUserResource("#[JsonSchema(key: 'user')]");
+        List<String> keys = keysAtCaret("""
+            <?php
+            $resource->get('app://self/user', ['id' => 1])->body['<caret>'];
+            """);
+
+        assertEquals(List.of("name", "age"), keys);
+    }
+
+    /**
+     * The authority names which application answers, and only this project's resources are here:
+     * completing this project's keys for another application's URI answers a question nobody
+     * asked. The MCP tools apply the same rule through ResourceClassResolver.
+     */
+    @Test
+    void returnsNothingForAUriNamingAnotherApplication() {
+        addUserResource("");
+        List<String> keys = keysAtCaret("""
+            <?php
+            $resource->get('app://payments/user', ['id' => 1])->body['<caret>'];
+            """);
+
+        assertTrue(keys.isEmpty());
+    }
+
+    /** A file may declare an interface before the resource class; the interface is not the resource. */
+    @Test
+    void completesBodyKeysFromTheClassRatherThanAnInterfaceDeclaredFirst() {
+        fixture.addFileToProject("src/Resource/App/User.php", """
+            <?php
+            namespace MyVendor\\Todo\\Resource\\App;
+
+            interface UserInterface
+            {
+                public function onGet(int $id): array;
+            }
+
+            class User
+            {
+                public function onGet(int $id): array
+                {
+                    return [];
+                }
+            }
+            """);
+        fixture.addFileToProject("var/json_schema/user.json", """
+            {
+              "type": "object",
+              "properties": {"name": {"type": "string"}}
+            }
+            """);
+
+        List<String> keys = keysAtCaret("""
+            <?php
+            $resource->get('app://self/user', ['id' => 1])->body['<caret>'];
+            """);
+
+        assertEquals(List.of("name"), keys);
     }
 
     /** The convention names a file, not any file: nothing on disk still completes nothing. */

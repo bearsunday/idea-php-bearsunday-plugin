@@ -36,8 +36,11 @@ public final class BodyJsonSchemaPath {
 
     /**
      * The file the convention names for a resource class, relative to the schema directory:
-     * {@code ...\Resource\App\Admin\User} is {@code admin/user.json}. {@code null} when the class
-     * sits under no resource namespace and the convention therefore names nothing.
+     * {@code ...\Resource\App\Admin\User} is {@code admin/user.json}, and a class whose namespace
+     * names no {@code Resource\App} or {@code Resource\Page} is the class name alone. Both readers
+     * reach the class through its path under {@code src/Resource}, so that last form is what a
+     * namespace which does not match the directory resolves to, not a refusal. {@code null} only
+     * when the class has no name to give.
      *
      * <p>Separate from {@link #fromClass} because the readers resolve the name under the
      * {@code jsonSchemaPath} directories, while {@code fromClass} answers where this generator

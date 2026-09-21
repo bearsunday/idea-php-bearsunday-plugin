@@ -58,6 +58,25 @@ class SchemaFactsServiceFixtureTest {
         }
         """;
 
+    /** {@code key} names the body slot the schema describes, not a file. */
+    private static final String POINT_WITH_KEY_ONLY = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Resource\\App;
+
+        use BEAR\\Resource\\Annotation\\JsonSchema;
+        use BEAR\\Resource\\ResourceObject;
+
+        final class Point extends ResourceObject
+        {
+            #[JsonSchema(key: 'point')]
+            public function onGet(int $x = 0): static
+            {
+                return $this;
+            }
+        }
+        """;
+
     private static final String POINT_SCHEMA = """
         {
           "type": "object",
@@ -216,7 +235,7 @@ class SchemaFactsServiceFixtureTest {
      * other configured directory, while body key completion answered from it.
      */
     @Test
-    void fallsBackToTheConventionInEveryConfiguredSchemaDirectory() {
+    void fallsBackToTheConventionInADirectoryOtherThanTheGeneratorsOwn() {
         addPhysicalFile("src/Resource/App/Point.php", POINT);
         addPhysicalFile("var/schema/response/point.json", POINT_SCHEMA);
 
@@ -224,6 +243,41 @@ class SchemaFactsServiceFixtureTest {
             .getAsJsonArray("matches").get(0).getAsJsonObject();
 
         assertEquals("var/schema/response/point.json", match.get("path").getAsString());
+        assertEquals("convention", match.get("source").getAsString());
+    }
+
+    /**
+     * A project keeping the conventional file in both configured directories has two schemas, and
+     * the settings order decides which one a reader that takes the first gets.
+     */
+    @Test
+    void answersWithEveryConfiguredDirectoryHoldingTheConventionalFile() {
+        addPhysicalFile("src/Resource/App/Point.php", POINT);
+        addPhysicalFile("var/json_schema/point.json", POINT_SCHEMA);
+        addPhysicalFile("var/schema/response/point.json", POINT_SCHEMA);
+
+        JsonArray matches = envelope(facts().lookup("app://self/point", null, null, null))
+            .getAsJsonArray("matches");
+
+        assertEquals(2, matches.size(), matches::toString);
+        assertEquals("var/json_schema/point.json", matches.get(0).getAsJsonObject().get("path").getAsString());
+        assertEquals("var/schema/response/point.json", matches.get(1).getAsJsonObject().get("path").getAsString());
+    }
+
+    /**
+     * A {@code key}-only attribute names no schema file, so the convention answers. It had named
+     * the file instead: {@code PhpAttribute#getParameter} answers with the argument at the index
+     * whatever parameter wrote it, so {@code key: 'point'} was read as the file {@code point}.
+     */
+    @Test
+    void readsNoSchemaFileFromAnAttributeThatNamesOnlyAKey() {
+        addPhysicalFile("src/Resource/App/Point.php", POINT_WITH_KEY_ONLY);
+        addPhysicalFile("var/json_schema/point.json", POINT_SCHEMA);
+
+        JsonObject match = envelope(facts().lookup("app://self/point", null, null, null))
+            .getAsJsonArray("matches").get(0).getAsJsonObject();
+
+        assertEquals("var/json_schema/point.json", match.get("path").getAsString());
         assertEquals("convention", match.get("source").getAsString());
     }
 

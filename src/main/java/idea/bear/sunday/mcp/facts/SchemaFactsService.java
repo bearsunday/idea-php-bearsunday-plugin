@@ -19,6 +19,7 @@ import com.jetbrains.php.lang.psi.elements.StringLiteralExpression;
 import idea.bear.sunday.Settings;
 import idea.bear.sunday.body.BodyJsonSchemaPath;
 import idea.bear.sunday.resource.ResourceClassResolver;
+import idea.bear.sunday.util.AttributeArguments;
 import idea.bear.sunday.util.UriUtil;
 import org.jetbrains.annotations.Nullable;
 
@@ -203,7 +204,7 @@ public final class SchemaFactsService {
             if (!JSON_SCHEMA.equals(Attributes.shortName(attribute))) {
                 continue;
             }
-            PsiElement parameter = attribute.getParameter(argumentName, argumentIndex);
+            PsiElement parameter = AttributeArguments.of(attribute, argumentName, argumentIndex);
             if (parameter instanceof StringLiteralExpression literal && !literal.getContents().isBlank()) {
                 fileNames.add(literal.getContents());
             }
@@ -212,24 +213,27 @@ public final class SchemaFactsService {
         return fileNames;
     }
 
-    /** Every configured schema directory that holds a file of this name. */
+    /**
+     * Every configured schema directory that holds a file of this name, once each: two settings
+     * entries that name one directory are one directory, not two answers.
+     */
     List<SchemaMatch> byFileName(String fileName, String kind, String source) {
         // The answer carries the file contents, so a name may never leave the schema directory
         // it is resolved under. Subpaths like "admin/user.json" are legitimate #[JsonSchema]
         // values, so "/" stays allowed and the boundary is checked against the file the name
         // reached: a ".." segment and a symbolic link are then the same question, and neither
         // is answered by reading the spelling of the path.
-        List<SchemaMatch> matches = new ArrayList<>();
+        Map<VirtualFile, SchemaMatch> matches = new LinkedHashMap<>();
         for (String directory : schemaDirectories(kind)) {
             String directoryPath = directory.endsWith("/") ? directory.substring(0, directory.length() - 1) : directory;
             VirtualFile directoryFile = FactsFiles.find(project, directoryPath);
             VirtualFile file = FactsFiles.find(project, directoryPath + "/" + fileName);
             if (directoryFile != null && file != null && !file.isDirectory() && FactsFiles.isInside(directoryFile, file)) {
-                matches.add(parse(file, source, kind));
+                matches.computeIfAbsent(file, found -> parse(found, source, kind));
             }
         }
 
-        return matches;
+        return List.copyOf(matches.values());
     }
 
     private Collection<String> schemaDirectories(String kind) {
@@ -238,12 +242,7 @@ public final class SchemaFactsService {
         return KIND_REQUEST.equals(kind) ? settings.jsonValidatePath : settings.jsonSchemaPath;
     }
 
-    /**
-     * The file the convention names, resolved under the configured schema directories the same way
-     * a declared name is. Not through {@link BodyJsonSchemaPath#fromClass}, whose
-     * {@code var/json_schema} is where the generator writes: reading only there would answer
-     * differently from body key completion for a project that configures {@code jsonSchemaPath}.
-     */
+    /** The file {@link BodyJsonSchemaPath#conventionalFileName} names, resolved like a declared one. */
     private List<SchemaMatch> conventionMatches(PhpClass phpClass) {
         String fileName = BodyJsonSchemaPath.conventionalFileName(phpClass);
 

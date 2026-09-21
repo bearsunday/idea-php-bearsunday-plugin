@@ -8,6 +8,7 @@ import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;
+import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
@@ -24,6 +25,8 @@ import com.jetbrains.php.lang.psi.elements.PhpClass;
 import com.jetbrains.php.lang.psi.elements.StringLiteralExpression;
 import idea.bear.sunday.Settings;
 import idea.bear.sunday.body.BodyJsonSchemaPath;
+import idea.bear.sunday.resource.ResourceClassResolver;
+import idea.bear.sunday.util.AttributeArguments;
 import idea.bear.sunday.util.JsonSchemaProperties;
 import idea.bear.sunday.util.UriUtil;
 import org.jetbrains.annotations.NotNull;
@@ -111,9 +114,8 @@ public class JsonSchemaBodyCompletionProvider extends CompletionProvider<Complet
 
         String schemaFile = responseSchemaFile(method);
         if (schemaFile == null) {
-            // The generator writes the conventional file and adds no attribute, so without this
-            // the schema the plugin just generated names no keys here. Guarded to "declares none":
-            // a resource naming a file that is not on disk has said which file it means.
+            // Only when the method declares none: a resource naming a file that is not on disk
+            // has said which file it means, and the convention is not it.
             schemaFile = BodyJsonSchemaPath.conventionalFileName(resourceClass);
         }
         if (schemaFile == null) {
@@ -242,7 +244,7 @@ public class JsonSchemaBodyCompletionProvider extends CompletionProvider<Complet
             if (!"JsonSchema".equals(attributeShortName(attribute))) {
                 continue;
             }
-            String file = stringContents(attribute.getParameter("schema", 0));
+            String file = stringContents(AttributeArguments.of(attribute, "schema", 0));
             if (file != null && !file.isBlank()) {
                 return file;
             }
@@ -277,6 +279,14 @@ public class JsonSchemaBodyCompletionProvider extends CompletionProvider<Complet
         return literal == null ? null : literal.getContents();
     }
 
+    /**
+     * The contents of the schema file, from the first configured directory that holds it.
+     *
+     * <p>The settings path is the user's to edit and {@code findFileByRelativePath} follows a
+     * {@code ..} segment out of the tree, so the file has to be inside the project: the MCP fact
+     * tools apply the same check, and a completion popup listing the keys of a file the project
+     * does not contain would be an answer about somebody else's schema.
+     */
     @Nullable
     private static String loadSchemaFile(@NotNull Project project, @NotNull String schemaFile,
                                          @Nullable PsiElement position) {
@@ -289,7 +299,7 @@ public class JsonSchemaBodyCompletionProvider extends CompletionProvider<Complet
         for (String path : settings.jsonSchemaPath) {
             String basePath = path.endsWith("/") ? path : path + "/";
             VirtualFile targetFile = projectDir.findFileByRelativePath(basePath + schemaFile);
-            if (targetFile == null) {
+            if (targetFile == null || targetFile.isDirectory() || !VfsUtilCore.isAncestor(projectDir, targetFile, true)) {
                 continue;
             }
             try {
@@ -323,7 +333,12 @@ public class JsonSchemaBodyCompletionProvider extends CompletionProvider<Complet
                 && editorFile.getPath().startsWith(projectDir.getPath() + "/src/Resource/Page");
         }
 
-        String relPath = UriUtil.toResourceRelativePath(uri, pageContext);
+        String normalizedUri = UriUtil.normalizeSupportedResourceUri(uri, pageContext);
+        if (normalizedUri == null || !ResourceClassResolver.isSelfUri(normalizedUri)) {
+            return null;
+        }
+
+        String relPath = UriUtil.toResourceRelativePath(normalizedUri, pageContext);
         if (relPath == null) {
             return null;
         }
@@ -332,12 +347,9 @@ public class JsonSchemaBodyCompletionProvider extends CompletionProvider<Complet
         if (targetFile == null) {
             return null;
         }
-        PsiFile psiFile = PsiManager.getInstance(project).findFile(targetFile);
-        if (psiFile == null) {
-            return null;
-        }
 
-        return PsiTreeUtil.findChildOfType(psiFile, PhpClass.class);
+        return ResourceClassResolver.concreteClassIn(PsiManager.getInstance(project).findFile(targetFile))
+            .orElse(null);
     }
 
     /**
