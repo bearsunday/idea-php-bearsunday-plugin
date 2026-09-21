@@ -609,11 +609,9 @@ public final class DiModuleTreeService {
         // would stop noticing. Counted here instead, where the body was actually read.
         VirtualFile file = fileOf(installed);
         state.unsaved |= file != null && FactsFiles.isUnsaved(file);
-        if (!(call.getParameters()[0] instanceof NewExpression newExpression)) {
-            state.installArgumentsUnreadable++;
-
-            return new Constants(shape.bindCall(), List.of(), installSite(call), 0, true);
-        }
+        // installJson only gets here for an install whose module it named, and naming it required
+        // this argument to be a `new`, so the cast states what the caller already established.
+        NewExpression newExpression = (NewExpression) call.getParameters()[0];
         ArrayBindings.Expansion expansion = ArrayBindings.expand(shape, newExpression);
         if (expansion == null) {
             state.installArgumentsUnreadable++;
@@ -726,9 +724,9 @@ public final class DiModuleTreeService {
         return psiFile == null ? null : psiFile.getVirtualFile();
     }
 
-    /** Source text on one line, matching the binding lookup's own call texts. */
+    /** Source text on one line, cut the same way the binding lookup cuts its own call texts. */
     private static String callText(MethodReference call) {
-        return PhpSource.oneLine(call);
+        return PhpSource.oneLine(call, PhpSource.MAX_TEXT);
     }
 
     /** What the walk accumulates outside the tree it builds. */

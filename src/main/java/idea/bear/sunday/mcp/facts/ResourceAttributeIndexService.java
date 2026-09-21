@@ -7,9 +7,8 @@ import com.intellij.openapi.components.Service;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.vfs.VfsUtilCore;
+import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.openapi.vfs.VirtualFileVisitor;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
 import com.intellij.psi.util.PsiTreeUtil;
@@ -24,7 +23,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +38,6 @@ public final class ResourceAttributeIndexService {
 
     static final String DEFAULT_RESOURCE_ROOT = "src/Resource";
 
-    private static final String PHP_EXTENSION = "php";
     private static final String TARGET_CLASS = "class";
     private static final String TARGET_METHOD = "method";
 
@@ -57,11 +54,24 @@ public final class ResourceAttributeIndexService {
         return project.getService(ResourceAttributeIndexService.class);
     }
 
-    // Non-blocking so a pending write action is not made to wait out the read; the read is
-    // cancelled and retried instead. Every other MCP facts service reads the same way.
     public String index(@Nullable String attribute, @Nullable String method, @Nullable String resourceRoot) {
-        return ReadAction.nonBlocking(() -> indexAttributes(attribute, method, resourceRoot))
-            .executeSynchronously();
+        return answer(() -> indexAttributes(attribute, method, resourceRoot));
+    }
+
+    /**
+     * Non-blocking so a pending write action is not made to wait out the read; the read is
+     * cancelled and retried instead. The sibling services answer the same way, including the one
+     * failure a caller must not read as an answer: while the indexes build, this cannot say what a
+     * class carries, and reporting that as an empty index would have an agent conclude it carries
+     * nothing. Nothing here reads an index today; the interceptor lookup does, and it is one edit
+     * away from being reached through this entry point.
+     */
+    private static String answer(Computable<String> read) {
+        try {
+            return ReadAction.nonBlocking(read::compute).executeSynchronously();
+        } catch (IndexNotReadyException exception) {
+            return Envelope.indexNotReady("The project indexes are still building; ask again once indexing finishes.").toJson();
+        }
     }
 
     private String indexAttributes(@Nullable String attribute, @Nullable String method, @Nullable String resourceRoot) {
@@ -77,7 +87,7 @@ public final class ResourceAttributeIndexService {
         AttributeFilter filter = AttributeFilter.of(attribute);
         String methodFilter = onMethodName(method);
         InterceptorLookup interceptors = new InterceptorLookup(project);
-        List<VirtualFile> found = phpFilesUnder(rootDir);
+        List<VirtualFile> found = FactsFiles.phpFilesUnder(rootDir);
         // resourceRoot is given by the caller. A root such as "vendor" holds tens of thousands of
         // files, and every one of them would be parsed inside one read action. The files are walked
         // in path order, so the cut is at least the same one every time -- and it is reported,
@@ -233,29 +243,6 @@ public final class ResourceAttributeIndexService {
         }
 
         return methods;
-    }
-
-    /**
-     * The PHP files under the root, walked rather than looked up so a building index cannot empty
-     * the answer. Symbolic links are not followed: a link out of the project would put another
-     * project's classes in this project's index.
-     */
-    private static List<VirtualFile> phpFilesUnder(VirtualFile rootDir) {
-        List<VirtualFile> files = new ArrayList<>();
-        VfsUtilCore.visitChildrenRecursively(rootDir, new VirtualFileVisitor<Void>(VirtualFileVisitor.NO_FOLLOW_SYMLINKS) {
-            @Override
-            public boolean visitFile(@NotNull VirtualFile file) {
-                ProgressManager.checkCanceled();
-                if (!file.isDirectory() && PHP_EXTENSION.equalsIgnoreCase(file.getExtension())) {
-                    files.add(file);
-                }
-
-                return true;
-            }
-        });
-        files.sort(Comparator.comparing(VirtualFile::getPath));
-
-        return files;
     }
 
     /**

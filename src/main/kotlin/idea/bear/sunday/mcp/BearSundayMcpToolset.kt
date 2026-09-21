@@ -124,9 +124,11 @@ class BearSundayMcpToolset : McpToolset {
             "filtered is the one whose value the source does not state (annotatedWith(\$this->qualifier), " +
             "annotatedWith(\"{\$this->prefix}_dsn\")), goes to \"unresolved\" rather than being silently " +
             "excluded, as do rename() calls, which move a binding to another interface or qualifier and are " +
-            "reported rather than applied. Each \"unresolved\" entry says which of those it is under " +
-            "\"reason\": \"interface-unreadable\", \"qualifier-unreadable\", \"chain-unreadable\" or " +
-            "\"rename-not-applied\". \"scan\" reports how much was read, including \"filesSkipped\" when a " +
+            "reported rather than applied, and MultiBinder::newInstance() calls, whose entries are added " +
+            "through the binder it returns rather than through bind() and so are not read. Each " +
+            "\"unresolved\" entry says which of those it is under " +
+            "\"reason\": \"interface-unreadable\", \"qualifier-unreadable\", \"chain-unreadable\", " +
+            "\"rename-not-applied\" or \"multibinder-not-read\". \"scan\" reports how much was read, including \"filesSkipped\" when a " +
             "root was too large to read whole, so an empty answer says how far it looked. " +
             "Pass context (\"prod-hal-api-app\") INSTEAD of moduleRoot to read the modules that context " +
             "installs rather than a directory: the scan is then the module tree bear_di_module_tree_read " +
@@ -152,8 +154,9 @@ class BearSundayMcpToolset : McpToolset {
             "index, so this answers status=index_not_ready while the index builds, and whole files are read, " +
             "so a file that also declares a class the context does not install contributes its bindings too " +
             "-- each binding's \"moduleClass\" is what settles that. Which binding of several wins is still " +
-            "not decided here. MultiBinder bindings and bindInterceptor()/bindPriorityInterceptor() are not " +
-            "read at all."
+            "not decided here. MultiBinder entries are not read, but the newInstance() that binds them is " +
+            "reported under \"unresolved\"; bindInterceptor()/bindPriorityInterceptor() are not read at all " +
+            "(bear_aop_pointcut_lookup reads those)."
     )
     suspend fun bear_di_binding_lookup(
         interfaceName: String? = null,

@@ -10,7 +10,6 @@ import com.intellij.openapi.util.Computable;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
-import com.jetbrains.php.lang.psi.elements.ClassReference;
 import com.jetbrains.php.lang.psi.elements.Method;
 import com.jetbrains.php.lang.psi.elements.Parameter;
 import com.jetbrains.php.lang.psi.elements.PhpAttribute;
@@ -205,11 +204,20 @@ public final class ResourceFactsService {
         return declared.isBlank() ? null : declared;
     }
 
+    /**
+     * Named the way {@link Attributes} names an attribute, so {@code fqn} means one thing across
+     * the tools. The short name is reported as {@code name}: it used to stand in for {@code fqn}
+     * when the reference could not be read, which told a caller a class name it could not resolve.
+     */
     private static JsonArray attributesJson(Iterable<PhpAttribute> attributes) {
         JsonArray json = new JsonArray();
         for (PhpAttribute attribute : attributes) {
             JsonObject attributeJson = new JsonObject();
-            String fqn = attributeFqn(attribute);
+            String name = Attributes.shortName(attribute);
+            if (name != null) {
+                attributeJson.addProperty("name", name);
+            }
+            String fqn = Attributes.fqn(attribute);
             if (fqn != null) {
                 attributeJson.addProperty("fqn", fqn);
             }
@@ -218,17 +226,6 @@ public final class ResourceFactsService {
         }
 
         return json;
-    }
-
-    @Nullable
-    private static String attributeFqn(PhpAttribute attribute) {
-        String fqn = attribute.getFQN();
-        if (fqn != null && !fqn.isBlank()) {
-            return fqn;
-        }
-        ClassReference classReference = attribute.getClassReference();
-
-        return classReference == null ? null : classReference.getName();
     }
 
     /**

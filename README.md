@@ -25,7 +25,8 @@
 * Generate Psalm body type PHPDoc for BEAR.Resource body array shapes, including folder-level batch generation
 * Generate JSON Schema files from BEAR.Resource body array shapes
 * Infer concrete BEAR.Resource classes and method-specific body shapes from literal resource method calls
-* Read-only MCP tools that let an AI agent ask the IDE about resource classes, the attributes they carry and the interceptors bound to them, the Ray.Di bindings the modules declare, `$this->body` shapes, JSON Schema files, the generated OpenAPI document and ALPS profiles, and compare what each of those three layers names
+* BEAR Module Tree tool window: draws the Ray.Di module graph a context string such as `prod-hal-api-app` installs, with install and override edges and the priority that decides which binding wins; the context is picked from the ones the application boots under, hovering a module shows the class and the file it is written in, and clicking one opens it
+* Read-only MCP tools that let an AI agent ask the IDE about resource classes, the attributes they carry and the interceptors bound to them, the Ray.Di bindings the modules declare, the module tree a context string installs, what a class is actually built out of in one context, which Ray.Aop interceptors wrap a method and the pointcut that binds each one, the contexts the application actually boots under, `$this->body` shapes, JSON Schema files, the generated OpenAPI document and ALPS profiles, and compare what each of those three layers names
 
 <!-- Plugin description end -->
 ## Feature demos

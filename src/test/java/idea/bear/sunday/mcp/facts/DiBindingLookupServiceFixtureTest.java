@@ -379,6 +379,85 @@ class DiBindingLookupServiceFixtureTest {
         }
         """;
 
+    private static final String MULTI_BINDER_MODULE = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Module;
+
+        use MyVendor\\MyProject\\ClockInterface;
+        use MyVendor\\MyProject\\SystemClock;
+        use Ray\\Di\\AbstractModule;
+        use Ray\\Di\\MultiBinder;
+
+        final class MultiBinderModule extends AbstractModule
+        {
+            protected function configure(): void
+            {
+                MultiBinder::newInstance($this, ClockInterface::class)
+                    ->addBinding('system')
+                    ->to(SystemClock::class);
+            }
+        }
+        """;
+
+    private static final String MULTI_BINDER_HELPER = """
+        <?php
+
+        namespace MyVendor\\MyProject;
+
+        use MyVendor\\MyProject\\ClockInterface;
+        use Ray\\Di\\MultiBinder;
+
+        final class ClockRegistry
+        {
+            public function register(object $module): void
+            {
+                MultiBinder::newInstance($module, ClockInterface::class)
+                    ->addBinding('system')
+                    ->to(SystemClock::class);
+            }
+        }
+        """;
+
+    private static final String ALIASED_MULTI_BINDER_MODULE = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Module;
+
+        use MyVendor\\MyProject\\ClockInterface;
+        use MyVendor\\MyProject\\SystemClock;
+        use Ray\\Di\\AbstractModule;
+        use Ray\\Di\\MultiBinder as MapBinder;
+
+        final class AliasedMultiBinderModule extends AbstractModule
+        {
+            protected function configure(): void
+            {
+                MapBinder::newInstance($this, ClockInterface::class)
+                    ->addBinding('system')
+                    ->to(SystemClock::class);
+            }
+        }
+        """;
+
+    private static final String OWN_MULTI_BINDER_MODULE = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Module;
+
+        use MyVendor\\MyProject\\ClockInterface;
+        use MyVendor\\MyProject\\MultiBinder;
+        use Ray\\Di\\AbstractModule;
+
+        final class OwnMultiBinderModule extends AbstractModule
+        {
+            protected function configure(): void
+            {
+                MultiBinder::newInstance($this, ClockInterface::class);
+            }
+        }
+        """;
+
     /**
      * Two renames of something that is not a binding: one whose receiver is not a module, and one
      * called on {@code $this} by a class that declares no {@code configure()}, so it is no module
@@ -1007,6 +1086,60 @@ class DiBindingLookupServiceFixtureTest {
         assertEquals(1, onTarget.getAsJsonArray("unresolved").size(), onTarget::toString);
         assertEquals(1, onSource.getAsJsonArray("unresolved").size(), onSource::toString);
         assertTrue(onOther.getAsJsonArray("unresolved").isEmpty(), onOther::toString);
+    }
+
+    /**
+     * A MultiBinder binds through the binder it returns, so this reads none of its entries. What
+     * it must not do is answer as though nothing binds the interface at all.
+     */
+    @Test
+    void reportsAMultiBinderItDoesNotRead() {
+        addFile("src/Module/MultiBinderModule.php", MULTI_BINDER_MODULE);
+
+        JsonObject onBound = envelope(lookup("ClockInterface", null, null));
+        JsonObject onOther = envelope(lookup("OtherInterface", null, null));
+
+        assertTrue(onBound.getAsJsonArray("bindings").isEmpty(), onBound::toString);
+        assertEquals(1, onBound.getAsJsonArray("unresolved").size(), onBound::toString);
+        assertEquals(
+            "multibinder-not-read",
+            onBound.getAsJsonArray("unresolved").get(0).getAsJsonObject().get("reason").getAsString()
+        );
+        assertTrue(onOther.getAsJsonArray("unresolved").isEmpty(), onOther::toString);
+    }
+
+    /** A MultiBinder written outside a module is not the wiring this reads, the way a rename is not. */
+    @Test
+    void doesNotReadAMultiBinderOutsideAModule() {
+        addFile("src/ClockRegistry.php", MULTI_BINDER_HELPER);
+
+        JsonObject envelope = envelope(lookup("ClockInterface", null, null));
+
+        assertTrue(envelope.getAsJsonArray("unresolved").isEmpty(), envelope::toString);
+    }
+
+    /** {@code use Ray\Di\MultiBinder as MapBinder} is the same class under another name. */
+    @Test
+    void readsAMultiBinderImportedUnderAnAlias() {
+        addFile("src/Module/AliasedMultiBinderModule.php", ALIASED_MULTI_BINDER_MODULE);
+
+        JsonObject envelope = envelope(lookup("ClockInterface", null, null));
+
+        assertEquals(1, envelope.getAsJsonArray("unresolved").size(), envelope::toString);
+        assertEquals(
+            "multibinder-not-read",
+            envelope.getAsJsonArray("unresolved").get(0).getAsJsonObject().get("reason").getAsString()
+        );
+    }
+
+    /** A class of the project's own, spelled the same, is not Ray.Di's. */
+    @Test
+    void doesNotReadAMultiBinderOfAnotherNamespace() {
+        addFile("src/Module/OwnMultiBinderModule.php", OWN_MULTI_BINDER_MODULE);
+
+        JsonObject envelope = envelope(lookup("ClockInterface", null, null));
+
+        assertTrue(envelope.getAsJsonArray("unresolved").isEmpty(), envelope::toString);
     }
 
     /**

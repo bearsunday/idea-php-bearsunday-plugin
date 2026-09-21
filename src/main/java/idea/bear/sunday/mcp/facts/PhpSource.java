@@ -22,6 +22,13 @@ final class PhpSource {
     }
 
     /**
+     * Long enough for every chain in bear/* and ray/*; a toConstructor argument map can exceed it.
+     * Source text quoted back in an answer is cut to this, so one tool does not hand a caller a
+     * screenful where another hands a line.
+     */
+    static final int MAX_TEXT = 300;
+
+    /**
      * The string a literal stands for, or {@code null} when the element is not a literal whose
      * value the source states. An interpolated string states a template, not a value: its text is
      * {@code "{$this->qualifier}_dsn"} while the value is whatever the property held. Escapes are

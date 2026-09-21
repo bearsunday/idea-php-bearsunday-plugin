@@ -76,7 +76,7 @@ final class ModuleTreeDiagram {
             JsonObject segment = element.getAsJsonObject();
             String id = "u" + nextId++;
             nodes.append("  ").append(id)
-                .append("[\"").append(escape(string(segment, "segment"))).append(" · segment unresolved\"]\n");
+                .append("[\"").append(MermaidLabel.escape(string(segment, "segment"))).append(" · segment unresolved\"]\n");
         }
     }
 
@@ -89,7 +89,7 @@ final class ModuleTreeDiagram {
                 // A thick arrow for override, because override() is the edge that changes which
                 // binding wins, and a reader skimming the picture should not have to read labels
                 // to see one.
-                .append(override ? " ==>|" : " -->|").append(escape(edgeLabel(edge))).append("| ")
+                .append(override ? " ==>|" : " -->|").append(MermaidLabel.escape(edgeLabel(edge))).append("| ")
                 .append(toId).append('\n');
             walk(edge, toId);
         }
@@ -130,7 +130,7 @@ final class ModuleTreeDiagram {
             idsByClass.put(moduleClass.toLowerCase(Locale.ROOT), id);
             nodeFacts.add(id, facts(module, moduleClass, note));
         }
-        nodes.append("  ").append(id).append("[\"").append(escape(label(module, note))).append("\"]\n");
+        nodes.append("  ").append(id).append("[\"").append(label(module, note)).append("\"]\n");
 
         return id;
     }
@@ -154,23 +154,30 @@ final class ModuleTreeDiagram {
         return facts;
     }
 
+    /**
+     * The label of a module box. The {@code <br/>} between the lines is markup this diagram writes
+     * and must reach the renderer as markup, so each piece that came from the answer is escaped as
+     * it goes in rather than the whole label afterwards. The text of an install that could not be
+     * read is the piece that makes this matter: it is source, and source carries angle brackets.
+     */
     private static String label(JsonObject module, @Nullable String note) {
         StringBuilder label = new StringBuilder();
         String moduleClass = string(module, "moduleClass");
-        label.append(moduleClass == null ? "module not named" : shortName(moduleClass));
+        label.append(moduleClass == null ? "module not named" : MermaidLabel.escape(shortName(moduleClass)));
         if (note != null) {
-            label.append("<br/>").append(note);
+            label.append("<br/>").append(MermaidLabel.escape(note));
         }
         // Every mark the answer carries is drawn, because a box that hides one reads as a module
         // that was read whole.
         if (module.has("moduleUnreadable")) {
-            label.append("<br/>").append(string(module, "text"));
+            label.append("<br/>").append(MermaidLabel.escape(String.valueOf(string(module, "text"))));
         }
         if (module.has("classUnresolved")) {
             label.append("<br/>class unresolved");
         }
         if (module.has("baseClassUnresolved")) {
-            label.append("<br/>base unread: ").append(shortName(string(module, "baseClassUnresolved")));
+            label.append("<br/>base unread: ")
+                .append(MermaidLabel.escape(shortName(string(module, "baseClassUnresolved"))));
         }
         if (module.has("skipped")) {
             label.append("<br/>cut by node cap");
@@ -189,19 +196,6 @@ final class ModuleTreeDiagram {
 
     private static String shortName(@Nullable String fqn) {
         return fqn == null ? "?" : fqn.substring(fqn.lastIndexOf('\\') + 1);
-    }
-
-    /**
-     * Mermaid reads {@code "} as the end of a label and {@code #} as the start of an entity, and a
-     * label is one line. An install this could not read carries source text, which is where all
-     * three turn up.
-     */
-    private static String escape(String text) {
-        return text.replace("#", "#35;")
-            .replace("\"", "#quot;")
-            // A pipe ends an edge label as a quote ends a node one.
-            .replace("|", "#124;")
-            .replace("\n", " ");
     }
 
     private static JsonArray array(JsonObject json, String key) {
