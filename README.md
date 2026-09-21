@@ -288,6 +288,32 @@ class.
 * PhpStorm 2025.2 or later (the MCP tools use the MCP server bundled from that release)
 * JDK 21 for building
 
+## Setup
+
+### Install JDK 21
+
+Run the automated setup script:
+
+```sh
+./setup-java.sh
+```
+
+This downloads and installs JDK 21 (Temurin) to `~/java-installs/jdk-21.0.5+11/`.
+
+### Configure JAVA_HOME
+
+Before building, set the `JAVA_HOME` environment variable:
+
+```sh
+export JAVA_HOME=$HOME/java-installs/jdk-21.0.5+11/Contents/Home
+```
+
+Or add it to your shell profile (`~/.zshrc` or `~/.bash_profile`) for persistence:
+
+```sh
+export JAVA_HOME=$HOME/java-installs/jdk-21.0.5+11/Contents/Home
+```
+
 ## Libraries
 
 * URI-Template Library (`com.damnhandy:handy-uri-templates:2.1.8`)
