@@ -104,6 +104,42 @@ class JsonSchemaBodyCompletionFixtureTest {
         assertTrue(keys.isEmpty());
     }
 
+    /**
+     * The generated schema of a method that assigns {@code $this->body} more than once is an
+     * {@code anyOf} with no {@code properties} of its own. It named no keys here until issue #54.
+     */
+    @Test
+    void completesBodyKeysFromAUnionSchema() {
+        fixture.addFileToProject("src/Resource/App/User.php", """
+            <?php
+            namespace MyVendor\\Todo\\Resource\\App;
+
+            class User
+            {
+                #[JsonSchema('user.json')]
+                public function onGet(int $id): array
+                {
+                    return [];
+                }
+            }
+            """);
+        fixture.addFileToProject("var/json_schema/user.json", """
+            {
+              "anyOf": [
+                {"type": "object", "properties": {"name": {"type": "string"}}},
+                {"type": "object", "properties": {"status": {"type": "string"}}}
+              ]
+            }
+            """);
+
+        List<String> keys = keysAtCaret("""
+            <?php
+            $resource->get('app://self/user', ['id' => 1])->body['<caret>'];
+            """);
+
+        assertEquals(List.of("name", "status"), keys);
+    }
+
     private void addUserResource(String jsonSchemaAttribute) {
         fixture.addFileToProject("src/Resource/App/User.php", """
             <?php
