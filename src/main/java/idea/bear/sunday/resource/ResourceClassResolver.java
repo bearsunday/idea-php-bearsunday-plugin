@@ -170,7 +170,7 @@ public final class ResourceClassResolver {
      * enum before it, and none of those answers to a resource URI, so the first class-like node
      * is not necessarily the one.
      */
-    private static Optional<PhpClass> concreteClassIn(@Nullable PsiFile psiFile) {
+    public static Optional<PhpClass> concreteClassIn(@Nullable PsiFile psiFile) {
         if (psiFile == null) {
             return Optional.empty();
         }
@@ -188,7 +188,8 @@ public final class ResourceClassResolver {
         return !phpClass.isInterface() && !phpClass.isTrait() && !phpClass.isEnum() && !phpClass.isAbstract();
     }
 
-    private static boolean isSelfUri(String normalizedUri) {
+    /** Only this project's own resources are here to answer; {@code app://payments/user} is not. */
+    public static boolean isSelfUri(String normalizedUri) {
         return normalizedUri.startsWith("app://self/") || normalizedUri.startsWith("page://self/");
     }
 
