@@ -366,10 +366,6 @@ public final class AopPointcutLookupService {
         return methods;
     }
 
-    private static List<PhpClass> traitsOf(PhpClass phpClass) {
-        return PhpMembers.traitsOf(phpClass);
-    }
-
     /** Every {@code bindInterceptor()}/{@code bindPriorityInterceptor()} call written in a file. */
     private List<Pointcut> readPointcuts(VirtualFile file, @Nullable Reach reach) {
         PsiFile psiFile = PsiManager.getInstance(project).findFile(file);

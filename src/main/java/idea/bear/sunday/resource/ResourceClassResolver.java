@@ -183,8 +183,9 @@ public final class ResourceClassResolver {
         return Optional.empty();
     }
 
+    /** An abstract class is not the resource a URI names any more than an interface is. */
     private static boolean isConcrete(PhpClass phpClass) {
-        return !phpClass.isInterface() && !phpClass.isTrait() && !phpClass.isEnum();
+        return !phpClass.isInterface() && !phpClass.isTrait() && !phpClass.isEnum() && !phpClass.isAbstract();
     }
 
     private static boolean isSelfUri(String normalizedUri) {

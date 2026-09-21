@@ -44,15 +44,17 @@ class McpProjectContextTest {
      */
     @Test
     void doesNotLeakTheReflectionDetourWhenTheAccessorFails() {
-        try {
-            McpProjectContext.INSTANCE.of(EmptyCoroutineContext.INSTANCE);
-        } catch (Throwable thrown) {
-            // The accessor's own failure (or the local IllegalStateException) is the contract.
-            assertFalse(
-                thrown instanceof InvocationTargetException,
-                () -> "the reflection detour leaked: " + thrown
-            );
-        }
+        Throwable thrown = assertThrows(
+            Throwable.class,
+            () -> McpProjectContext.INSTANCE.of(EmptyCoroutineContext.INSTANCE),
+            "an empty context names no project, so the accessor is expected to fail"
+        );
+
+        // The accessor's own failure (or the local IllegalStateException) is the contract.
+        assertFalse(
+            thrown instanceof InvocationTargetException,
+            () -> "the reflection detour leaked: " + thrown
+        );
     }
 
     @Test

@@ -93,9 +93,6 @@ public final class DiBindingLookupService {
     private static final String REASON_CHAIN = "chain-unreadable";
     private static final String REASON_RENAME = "rename-not-applied";
 
-    /** Long enough for every chain in bear/* and ray/*; a toConstructor argument map can exceed it. */
-    private static final int MAX_TEXT = 300;
-
     /** Well past any project's src; reached only by a root such as "vendor", and then reported. */
     private static final int MAX_FILES = 2000;
 
@@ -692,7 +689,7 @@ public final class DiBindingLookupService {
 
     /** Source text on one line. A chain spans several lines and may carry a docblock between them. */
     private static String text(PsiElement element) {
-        return PhpSource.oneLine(element, MAX_TEXT);
+        return PhpSource.oneLine(element, PhpSource.MAX_TEXT);
     }
 
     /**

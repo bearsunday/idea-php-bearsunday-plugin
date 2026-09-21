@@ -763,7 +763,9 @@ class DiModuleTreeServiceFixtureTest {
 
         String mermaid = diagram("dynamic-nowhere");
 
-        assertTrue(mermaid.contains("module not named<br/>$this->install($module)"), mermaid);
+        // The arrow of `$this->install(...)` is source, so it is escaped; the <br/> is the
+        // diagram's own markup and is not.
+        assertTrue(mermaid.contains("module not named<br/>$this-#62;install($module)"), mermaid);
         assertTrue(mermaid.contains("nowhere \u00b7 segment unresolved"), mermaid);
     }
 

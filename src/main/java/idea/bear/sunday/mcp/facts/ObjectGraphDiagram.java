@@ -120,11 +120,13 @@ final class ObjectGraphDiagram {
     }
 
     /**
-     * Mermaid reads a quoted label as text but still takes the quote and the backslash for its own,
-     * and a PHP name is nothing but backslashes.
+     * The shared escape, plus the backslash doubling this diagram has always done. A PHP name is
+     * nothing but backslashes, and whether Mermaid needs them doubled inside a quoted label is not
+     * something the tests here can answer -- {@link ModuleTreeDiagram} renders the same names
+     * without it. Left as it was rather than changed on a guess.
      */
     private static String escape(String text) {
-        return text.replace("\\", "\\\\").replace("\"", "#quot;");
+        return MermaidLabel.escape(text.replace("\\", "\\\\"));
     }
 
     private static JsonArray array(JsonObject json, String name) {
