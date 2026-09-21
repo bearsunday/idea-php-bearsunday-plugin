@@ -118,7 +118,7 @@
             class="idea.bear.sunday.aop.GoToBoundInterceptorAction"
             text="Go to Bound Interceptor"
             description="Navigate from a Ray.Aop attribute to the interceptor bound to it"
-            icon="/icons/ray-aop.png">
+            icon="/icons/ray-aop.svg">
       <add-to-group group-id="EditorPopupMenu" anchor="last"/>
       <add-to-group group-id="GoToMenu" anchor="last"/>
     </action>
@@ -127,7 +127,7 @@
             class="idea.bear.sunday.template.GoToTemplateOrResourceAction"
             text="Go to Related Template or Resource"
             description="Navigate between a BEAR.Resource class and its template (Twig/Qiq)"
-            icon="/icons/bear.png">
+            icon="/icons/bear.svg">
       <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
       <add-to-group group-id="EditorPopupMenu" anchor="last"/>
       <add-to-group group-id="EditorTabPopupMenu" anchor="last"/>
