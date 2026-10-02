@@ -29,10 +29,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Answers which contexts an application actually runs under, read from the places its own code
- * names one. Every other tool that takes a context -- the module tree, the binding lookup, the
- * pointcut lookup -- asks for a string no file states in one place, so the caller has been left to
- * guess it from a convention; this is where the app says it.
+ * Answers which contexts an application's source entry points and tests request, read from the places its own code
+ * names one. Every other tool that takes a context -- the module tree, binding lookup, source
+ * object graph and pointcut lookup -- asks for a string no file states in one place, so the caller
+ * has been left to guess it from a convention; this is where the app's source says it.
  *
  * <p>A context is written as an argument, and in two shapes:
  * {@code (new Bootstrap())('prod-hal-app', $GLOBALS, $_SERVER)}, which is how an entry point boots
@@ -97,7 +97,7 @@ public final class AppContextListService {
                 scanJson.addProperty("filesSkipped", scan.filesSkipped);
             }
             // A call that names its context with a variable is reported rather than dropped: the
-            // app runs under a context this did not read, and a list that stayed silent about it
+            // app may request a context this did not read, and a list that stayed silent about it
             // would read as the whole list.
             if (scan.unreadable > 0) {
                 scanJson.addProperty("argumentsUnreadable", scan.unreadable);

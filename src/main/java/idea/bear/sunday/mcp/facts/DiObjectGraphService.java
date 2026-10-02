@@ -35,8 +35,8 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Answers what a class is actually built out of in a given context: the object graph Ray.Di would
- * assemble, resolved from the source rather than from a running application.
+ * Derives a candidate object graph from PHP source for a given context. It does not observe the
+ * composed Ray.Di container and therefore is not the application's resolved graph.
  *
  * <p>This is the question {@code print_o} answers at runtime, and it needs a booted application and
  * an assembled object to answer it. The same question asked of the source has no such cost -- and
@@ -48,9 +48,8 @@ import java.util.Set;
  *
  * <p>A node is a container key, spelled the way Ray.Di spells it: {@code "{type}-{name}"}, the very
  * string {@code Container::getDependency()} is given. An edge is one injection point that leads to
- * another key. Which binding of a key wins is decided here, by Ray.Di's own merge rules, and the
- * ones that lost are named on the node rather than dropped -- a graph that shows one implementation
- * and stays silent about the module that nearly supplied another has answered half the question.
+ * another key. The static model selects a candidate using the merge rules it can derive from the
+ * source; other candidates are named on the node rather than dropped.
  *
  * <p>A context is required. Nearly every binding a BEAR application relies on lives in a framework
  * package, so a graph read from a default directory would confidently report an unbound dependency
@@ -567,7 +566,7 @@ public final class DiObjectGraphService {
                 for (DiBindingLookupService.Bound loser : shadowed) {
                     json.add(shadowedJson(loser));
                 }
-                node.add("shadowedBy", json);
+                node.add("alternatives", json);
             }
 
             DiBindingLookupService.Binding binding = bound.binding();
@@ -601,13 +600,13 @@ public final class DiObjectGraphService {
          * A key nothing binds. Ray.Di answers this differently depending on where the key is asked
          * for: {@code Injector::getInstance()} catches {@code Untargeted} and binds a concrete class
          * on the spot, while {@code Arguments::getParameter()} -- every key below the entry -- lets
-         * {@code Unbound} out. So an unbound dependency in the middle of a graph is not a gap in
-         * this answer; it is what the application would throw.
+         * {@code Unbound} out. So an unbound dependency in the middle of this source model means
+         * the model expects that path to throw; it is not an observation of a runtime failure.
          */
         private Resolved unbound(String type, @Nullable PhpClass declared, boolean isEntry) {
             if (type.isEmpty()) {
                 // A key with no type names no class to build, so there is no class to fall back to
-                // either: what Ray.Di does with it is throw, which is what unbound says. That the
+                // either: under the model Ray.Di throws, which is what unbound says. That the
                 // key wants a value rather than an object is what its empty "type" already says.
                 return new Resolved(RESOLUTION_UNBOUND, null, null);
             }

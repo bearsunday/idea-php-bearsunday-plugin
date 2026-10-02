@@ -38,7 +38,8 @@ import java.util.List;
 /**
  * Draws the module tree of a BEAR.Sunday context. The tree, and the picture of it, are the ones
  * {@code DiModuleTreeService} answers with -- this panel adds no facts of its own, so what is drawn
- * here and what an AI is told through {@code bear_di_module_tree_read} cannot disagree.
+ * here and what an AI is told through {@code bear_di_module_tree_read} cannot disagree. Both are
+ * source-derived views; neither observes a composed Ray.Di container.
  */
 final class ModuleTreePanel extends JPanel implements Disposable {
 
@@ -126,7 +127,7 @@ final class ModuleTreePanel extends JPanel implements Disposable {
     /**
      * Offers the contexts the app's own entry points name. Read off the EDT, because it is a scan
      * of the project's files, and a default that guesses at a convention yields to the first
-     * context the app actually boots under.
+     * context the app's source entry points request.
      */
     private void offerContexts() {
         ReadAction.nonBlocking(() -> AppContextListService.getInstance(project).names())
