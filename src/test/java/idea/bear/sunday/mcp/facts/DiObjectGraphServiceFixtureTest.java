@@ -639,8 +639,7 @@ class DiObjectGraphServiceFixtureTest {
      * Ray.Di binds an unbound concrete class on the spot only where {@code Injector::getInstance()}
      * catches {@code Untargeted} -- at the entry. Below it, {@code Arguments::getParameter()} lets
      * {@code Unbound} out, and {@code Ray\\Compiler\\InstanceScript::addArg()} throws the same. So an
-     * unbound node in the middle of a graph is not a gap in this answer; it is what the application
-     * would throw.
+     * unbound node in the middle of a graph means the source model expects that path to throw.
      */
     @Test
     void bindsAnUnboundConcreteClassAtTheEntryAndNowhereBelowIt() {
@@ -785,10 +784,10 @@ class DiObjectGraphServiceFixtureTest {
         JsonObject timer = node(envelope, "\\MyVendor\\MyProject\\TimerInterface-");
 
         assertEquals("\\MyVendor\\MyProject\\UtcClock", timer.get("implementation").getAsString(), timer::toString);
-        assertEquals(1, timer.getAsJsonArray("shadowedBy").size(), timer::toString);
+        assertEquals(1, timer.getAsJsonArray("alternatives").size(), timer::toString);
         assertEquals(
             "\\MyVendor\\MyProject\\SystemClock",
-            timer.getAsJsonArray("shadowedBy").get(0).getAsJsonObject().get("implementation").getAsString()
+            timer.getAsJsonArray("alternatives").get(0).getAsJsonObject().get("implementation").getAsString()
         );
     }
 
@@ -936,10 +935,10 @@ class DiObjectGraphServiceFixtureTest {
         // The loser is named rather than dropped: a reader whose second array is not taking effect
         // has no other way to find out why. It is the LATER of the two lines, which is the whole
         // rule: what the first install put in the container, the second one does not replace.
-        assertEquals(1, retries.getAsJsonArray("shadowedBy").size(), retries::toString);
+        assertEquals(1, retries.getAsJsonArray("alternatives").size(), retries::toString);
         assertTrue(
             retries.get("line").getAsInt()
-                < retries.getAsJsonArray("shadowedBy").get(0).getAsJsonObject().get("line").getAsInt(),
+                < retries.getAsJsonArray("alternatives").get(0).getAsJsonObject().get("line").getAsInt(),
             retries::toString
         );
         // The second install is walked as well, or the name only it binds would be unbound.
@@ -983,7 +982,7 @@ class DiObjectGraphServiceFixtureTest {
         JsonObject retries = node(envelope, "-retries");
 
         assertEquals("instance", retries.get("resolution").getAsString(), retries::toString);
-        assertEquals(1, retries.getAsJsonArray("shadowedBy").size(), retries::toString);
+        assertEquals(1, retries.getAsJsonArray("alternatives").size(), retries::toString);
     }
 
     /**

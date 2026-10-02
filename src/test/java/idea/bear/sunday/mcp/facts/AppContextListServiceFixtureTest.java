@@ -116,7 +116,7 @@ class AppContextListServiceFixtureTest {
      * a context has had to guess one from the naming convention.
      */
     @Test
-    void namesTheContextsTheAppBootsUnder() {
+    void namesTheContextsTheAppsSourceRequests() {
         addFile("public/index.php", INDEX);
         addFile("bin/app.php", CONSOLE);
         addFile("tests/IndexTest.php", TEST);

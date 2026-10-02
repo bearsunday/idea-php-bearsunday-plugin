@@ -101,7 +101,7 @@ class BearSundayMcpToolset : McpToolset {
 
     @McpTool
     @McpDescription(
-        "Read-only. Finds the Ray.Di bindings a project's modules declare, as JSON: which implementation an " +
+        "Read-only. Reads the Ray.Di binding DECLARATIONS in PHP source, as JSON: which implementation an " +
             "interface is bound to, and the module file and line that binds it. This is what a text search " +
             "cannot follow -- an injected \"#[Named('category')] SurrogateKeyInterface\" names neither the " +
             "implementation class nor anything the implementation contains, so grepping for either misses the " +
@@ -154,9 +154,10 @@ class BearSundayMcpToolset : McpToolset {
             "index, so this answers status=index_not_ready while the index builds, and whole files are read, " +
             "so a file that also declares a class the context does not install contributes its bindings too " +
             "-- each binding's \"moduleClass\" is what settles that. Which binding of several wins is still " +
-            "not decided here. MultiBinder entries are not read, but the newInstance() that binds them is " +
-            "reported under \"unresolved\"; bindInterceptor()/bindPriorityInterceptor() are not read at all " +
-            "(bear_aop_pointcut_lookup reads those)."
+            "not decided here. This never boots the application or observes the composed Container; the answer " +
+            "is source-derived and is not Ray.Di's resolved truth. MultiBinder entries are not read, but the " +
+            "newInstance() that binds them is reported under \"unresolved\"; bindInterceptor()/" +
+            "bindPriorityInterceptor() are not read at all (bear_aop_pointcut_lookup reads those)."
     )
     suspend fun bear_di_binding_lookup(
         interfaceName: String? = null,
@@ -167,8 +168,9 @@ class BearSundayMcpToolset : McpToolset {
 
     @McpTool
     @McpDescription(
-        "Read-only. Resolves a BEAR.Sunday context string (\"prod-hal-api-app\") to the module tree it installs, " +
-            "as JSON -- the wiring a context selects, which no single file states. Each hyphen-separated segment " +
+        "Read-only. Statically derives from PHP source the module tree declared for a BEAR.Sunday context " +
+            "string (\"prod-hal-api-app\"), as JSON -- wiring no single file states. It does not boot the " +
+            "application or observe the composed Container. Each hyphen-separated segment " +
             "names {AppName}\\Module\\{Segment}Module when the app declares one (\"origin\": \"app\") and " +
             "\\BEAR\\Package\\Context\\{Segment}Module otherwise (\"origin\": \"framework\"), exactly as " +
             "BEAR\\Package\\Module's class_exists fallback tries them; a segment neither names is listed under " +
@@ -212,16 +214,17 @@ class BearSundayMcpToolset : McpToolset {
             "answers status=index_not_ready while the index is building. Pass diagram=true to also get " +
             "\"diagram\": a Mermaid flowchart of the same tree, one box per module class and one arrow per " +
             "install (thick for override), carrying every mark the JSON carries, for showing the wiring to a " +
-            "human. It is a rendering of this answer, never a second opinion about the project."
+            "human. It is a rendering of this source-derived JSON answer, never a second opinion about the project."
     )
     suspend fun bear_di_module_tree_read(context: String, diagram: Boolean = false): String =
         DiModuleTreeService.getInstance(project()).read(context, diagram)
 
     @McpTool
     @McpDescription(
-        "Read-only. Resolves the OBJECT GRAPH a class is built from in one context, as JSON: what Ray.Di " +
-            "would actually construct, answered from the source instead of from a running application. This " +
-            "is print_o's question without booting anything -- and it sees a different thing: print_o walks " +
+        "Read-only. Statically derives a CANDIDATE OBJECT GRAPH from PHP source for one context, as JSON. " +
+            "It does not boot the application or observe Ray.Di's composed Container, so it is source-derived " +
+            "analysis, not the resolved graph. Use Ray.Di/Ray.Bindings output when the actual composed result " +
+            "is required. This asks a source-side counterpart of print_o's question, and sees a different thing: print_o walks " +
             "the properties of a live object, so a property assigned inside onGet() is in its picture, while " +
             "this walks INJECTION POINTS, so only what Ray.Di puts there is in this one. " +
             "Start from className or uri; with neither it starts from the application class itself, " +
@@ -244,8 +247,8 @@ class BearSundayMcpToolset : McpToolset {
             "Injector::__construct binds after the modules have run, and InjectionPointInterface), " +
             "\"class-unresolved\", \"entry-untargeted\" (nothing binds " +
             "the entry, which Ray.Di alone binds on the spot -- Injector::getInstance catches Untargeted) and " +
-            "\"unbound\", which is NOT a gap in this answer: below the entry Ray.Di has no such fallback, so " +
-            "an unbound key is what the application would throw, unless the edge carries " +
+            "\"unbound\", which means the static model found no binding below the entry, where Ray.Di has no " +
+            "untargeted fallback. If the reported source scan is complete, that path is expected to throw, unless the edge carries " +
             "\"defaultAvailable\" or \"optional\" -- or the node carries \"keysUnreadable\", which says how many " +
             "bindings in this context still state their qualifier in a variable, any of which may be this " +
             "very key. A module that binds the entries of an array it was constructed with -- " +
@@ -257,9 +260,9 @@ class BearSundayMcpToolset : McpToolset {
             "whose install() brought the two together. What the entry is bound TO stays unread -- this says " +
             "who sets a name, never what the value is. " +
             "A node also carries the binding's \"scope\", the module " +
-            "and file/line it was bound at, and \"shadowedBy\": the bindings of that key that LOST, so the " +
-            "module that nearly supplied another implementation is named rather than dropped. The winner is " +
-            "decided by Ray.Di's own merge -- a later bind() in one module replaces an earlier one, a " +
+            "and file/line it was bound at, and \"alternatives\": the other bindings the static model found " +
+            "for that key. The selected candidate is inferred with Ray.Di's merge rules that are readable " +
+            "from source -- a later bind() in one module replaces an earlier one, a " +
             "module's own bind beats one from a module it installs, and of two installed modules the one " +
             "installed first wins, with override() reversing the last of those. Two installs of ONE " +
             "array-binding module are two of that third case, not the first: the earlier install keeps the key. " +
@@ -289,9 +292,10 @@ class BearSundayMcpToolset : McpToolset {
 
     @McpTool
     @McpDescription(
-        "Read-only. Lists the contexts this application actually runs under, as JSON, with the file " +
-            "and line each one is written at. Call this FIRST whenever another bear_* tool wants a " +
-            "context (bear_di_module_tree_read, bear_di_binding_lookup, bear_aop_pointcut_lookup): a " +
+        "Read-only. Lists the contexts this application's source entry points and tests request, as JSON, with the file " +
+            "and line each one is written at. This does not prove a context was booted. Call this FIRST whenever another bear_* tool wants a " +
+            "context (bear_di_module_tree_read, bear_di_binding_lookup, bear_di_object_graph, " +
+            "bear_aop_pointcut_lookup): a " +
             "context is a string no file declares in one place, so guessing it from the naming " +
             "convention answers for an app that may never boot that way. It reads the two shapes an app " +
             "names one in -- (new Bootstrap())('prod-hal-app', \$GLOBALS, \$_SERVER), which is how an " +
@@ -327,7 +331,8 @@ class BearSundayMcpToolset : McpToolset {
             "\"methodMatcher\" as Ray.Aop spells them, the module class, file and line, \"priority\": true when " +
             "bindPriorityInterceptor bound it -- Ray.Aop binds those first, so they are listed first -- and, " +
             "under context, the \"segment\" that reached the module. " +
-            "UNLIKE the other bear_* tools this one EVALUATES rather than reports: it decides whether a matcher " +
+            "This is still source-derived and does not observe runtime weaving. UNLIKE the other bear_* tools " +
+            "this one EVALUATES rather than reports: it decides whether a matcher " +
             "matches. It evaluates only the seven matchers Ray\\Aop\\Matcher declares (any, annotatedWith, " +
             "subclassesOf, startsWith, logicalOr, logicalAnd, logicalNot) exactly as Ray.Aop's own matcher " +
             "classes do -- annotatedWith matches an attribute that EXTENDS the named class, as " +
