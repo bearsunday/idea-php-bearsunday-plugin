@@ -300,6 +300,58 @@ class JsonSchemaBodyCompletionFixtureTest {
         assertTrue(keys.isEmpty());
     }
 
+    /**
+     * An expression is read whole or not at all: taking the one literal out of
+     * {@code self::DIR . 'user.json'} would name a file the method does not use. The fact tools
+     * read no file from it either.
+     */
+    @Test
+    void doesNotReadAFileNameOutOfAnExpression() {
+        fixture.addFileToProject("src/Resource/App/User.php", """
+            <?php
+            namespace MyVendor\\Todo\\Resource\\App;
+
+            class User
+            {
+                private const DIR = 'admin/';
+
+                #[JsonSchema(schema: self::DIR . 'user.json')]
+                public function onGet(int $id): array
+                {
+                    return [];
+                }
+            }
+            """);
+        fixture.addFileToProject("var/json_schema/user.json", """
+            {
+              "type": "object",
+              "properties": {"name": {"type": "string"}}
+            }
+            """);
+
+        List<String> keys = keysAtCaret("""
+            <?php
+            $resource->get('app://self/user', ['id' => 1])->body['<caret>'];
+            """);
+
+        assertTrue(keys.isEmpty());
+    }
+
+    /**
+     * BEAR's JsonSchemaInterceptor treats a falsy {@code schema} as naming no file, and so does
+     * completion: a blank literal is not a declaration the convention must yield to.
+     */
+    @Test
+    void completesBodyKeysFromTheConventionWhenTheAttributeNamesABlankFile() {
+        addUserResource("#[JsonSchema('')]");
+        List<String> keys = keysAtCaret("""
+            <?php
+            $resource->get('app://self/user', ['id' => 1])->body['<caret>'];
+            """);
+
+        assertEquals(List.of("name", "age"), keys);
+    }
+
     /** The boundary is the schema directory, as for the MCP fact tools, not the whole project. */
     @Test
     void returnsNothingForAnAttributeLeavingTheSchemaDirectory() {

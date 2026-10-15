@@ -431,6 +431,71 @@ class SchemaFactsServiceFixtureTest {
         assertEquals(0, envelope.getAsJsonArray("matches").size(), envelope::toString);
     }
 
+    /**
+     * An expression is read whole or not at all: taking the one literal out of
+     * {@code self::DIR . 'point.json'} would name a file the method does not use. Body key
+     * completion reads it the same way.
+     */
+    @Test
+    void doesNotReadAFileNameOutOfAnExpression() {
+        addPhysicalFile("src/Resource/App/Point.php", """
+            <?php
+            namespace MyVendor\\MyProject\\Resource\\App;
+
+            use BEAR\\Resource\\Annotation\\JsonSchema;
+            use BEAR\\Resource\\ResourceObject;
+
+            final class Point extends ResourceObject
+            {
+                private const DIR = 'shapes/';
+
+                #[JsonSchema(schema: self::DIR . 'point.json')]
+                public function onGet(int $x = 0): static
+                {
+                    return $this;
+                }
+            }
+            """);
+        addPhysicalFile("var/json_schema/point.json", POINT_SCHEMA);
+
+        JsonObject envelope = envelope(facts().lookup("app://self/point", null, null, null));
+
+        assertEquals(0, envelope.getAsJsonArray("matches").size(), envelope::toString);
+    }
+
+    /**
+     * BEAR's JsonSchemaInterceptor treats a falsy {@code schema} as naming no file: a blank
+     * literal is not a declaration the convention must yield to.
+     */
+    @Test
+    void fallsBackToTheConventionWhenTheDeclaredSchemaFileIsBlank() {
+        addPhysicalFile("src/Resource/App/Point.php", """
+            <?php
+            namespace MyVendor\\MyProject\\Resource\\App;
+
+            use BEAR\\Resource\\Annotation\\JsonSchema;
+            use BEAR\\Resource\\ResourceObject;
+
+            final class Point extends ResourceObject
+            {
+                #[JsonSchema(schema: '')]
+                public function onGet(int $x = 0): static
+                {
+                    return $this;
+                }
+            }
+            """);
+        addPhysicalFile("var/json_schema/point.json", POINT_SCHEMA);
+
+        JsonObject envelope = envelope(facts().lookup("app://self/point", null, null, null));
+        JsonArray matches = envelope.getAsJsonArray("matches");
+
+        assertEquals(1, matches.size(), envelope::toString);
+        JsonObject match = matches.get(0).getAsJsonObject();
+        assertEquals("var/json_schema/point.json", match.get("path").getAsString());
+        assertEquals("convention", match.get("source").getAsString());
+    }
+
     /** A method the resource does not declare is not answered for with the class's own schema. */
     @Test
     void doesNotFallBackToTheConventionForAMethodTheResourceDoesNotDeclare() {

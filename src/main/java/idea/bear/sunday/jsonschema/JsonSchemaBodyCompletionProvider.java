@@ -259,13 +259,14 @@ public class JsonSchemaBodyCompletionProvider extends CompletionProvider<Complet
             if (argument == null) {
                 continue;
             }
-            String file = stringContents(argument);
-            if (file == null) {
+            if (!(argument instanceof StringLiteralExpression literal)) {
                 // A constant or an expression names a file this reader cannot read; the method
-                // has still said which file it means.
+                // has still said which file it means. The fact tools read the argument the same way.
                 declared = true;
-            } else if (!file.isBlank()) {
-                return new SchemaDeclaration(true, file);
+                continue;
+            }
+            if (!literal.getContents().isBlank()) {
+                return new SchemaDeclaration(true, literal.getContents());
             }
         }
         return new SchemaDeclaration(declared, null);
@@ -284,18 +285,6 @@ public class JsonSchemaBodyCompletionProvider extends CompletionProvider<Complet
     private static String shortName(@NotNull String fqn) {
         int index = fqn.lastIndexOf('\\');
         return index >= 0 ? fqn.substring(index + 1) : fqn;
-    }
-
-    @Nullable
-    private static String stringContents(@Nullable PsiElement element) {
-        if (element == null) {
-            return null;
-        }
-        if (element instanceof StringLiteralExpression literal) {
-            return literal.getContents();
-        }
-        StringLiteralExpression literal = PsiTreeUtil.findChildOfType(element, StringLiteralExpression.class);
-        return literal == null ? null : literal.getContents();
     }
 
     /**
