@@ -8,7 +8,6 @@ import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectUtil;
-import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
@@ -29,6 +28,7 @@ import idea.bear.sunday.resource.ResourceClassResolver;
 import idea.bear.sunday.util.AttributeArguments;
 import idea.bear.sunday.util.JsonSchemaProperties;
 import idea.bear.sunday.util.UriUtil;
+import idea.bear.sunday.util.VirtualFiles;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -282,10 +282,9 @@ public class JsonSchemaBodyCompletionProvider extends CompletionProvider<Complet
     /**
      * The contents of the schema file, from the first configured directory that holds it.
      *
-     * <p>The settings path is the user's to edit and {@code findFileByRelativePath} follows a
-     * {@code ..} segment out of the tree, so the file has to be inside the project: the MCP fact
-     * tools apply the same check, and a completion popup listing the keys of a file the project
-     * does not contain would be an answer about somebody else's schema.
+     * <p>{@code findFileByRelativePath} follows a {@code ..} segment and a symbolic link, so the
+     * file has to stay inside the schema directory it was looked up under -- the boundary the MCP
+     * fact tools apply, so both answer for the same files.
      */
     @Nullable
     private static String loadSchemaFile(@NotNull Project project, @NotNull String schemaFile,
@@ -298,8 +297,10 @@ public class JsonSchemaBodyCompletionProvider extends CompletionProvider<Complet
         Settings settings = Settings.getInstance(project);
         for (String path : settings.jsonSchemaPath) {
             String basePath = path.endsWith("/") ? path : path + "/";
+            VirtualFile schemaDir = projectDir.findFileByRelativePath(basePath);
             VirtualFile targetFile = projectDir.findFileByRelativePath(basePath + schemaFile);
-            if (targetFile == null || targetFile.isDirectory() || !VfsUtilCore.isAncestor(projectDir, targetFile, true)) {
+            if (schemaDir == null || targetFile == null || targetFile.isDirectory()
+                || !VirtualFiles.isInside(projectDir, schemaDir) || !VirtualFiles.isInside(schemaDir, targetFile)) {
                 continue;
             }
             try {

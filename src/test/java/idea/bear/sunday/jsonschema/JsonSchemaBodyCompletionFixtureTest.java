@@ -263,6 +263,25 @@ class JsonSchemaBodyCompletionFixtureTest {
         assertTrue(keys.isEmpty());
     }
 
+    /** The boundary is the schema directory, as for the MCP fact tools, not the whole project. */
+    @Test
+    void returnsNothingForAnAttributeLeavingTheSchemaDirectory() {
+        addUserResource("#[JsonSchema('../json_validate/user.json')]");
+        fixture.addFileToProject("var/json_validate/user.json", """
+            {
+              "type": "object",
+              "properties": {"secret": {"type": "string"}}
+            }
+            """);
+
+        List<String> keys = keysAtCaret("""
+            <?php
+            $resource->get('app://self/user', ['id' => 1])->body['<caret>'];
+            """);
+
+        assertTrue(keys.isEmpty());
+    }
+
     @Test
     void returnsNothingWhenUriDoesNotResolve() {
         addUserResource("#[JsonSchema('user.json')]");

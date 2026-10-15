@@ -21,6 +21,7 @@ import idea.bear.sunday.body.BodyJsonSchemaPath;
 import idea.bear.sunday.resource.ResourceClassResolver;
 import idea.bear.sunday.util.AttributeArguments;
 import idea.bear.sunday.util.UriUtil;
+import idea.bear.sunday.util.VirtualFiles;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -228,7 +229,7 @@ public final class SchemaFactsService {
             String directoryPath = directory.endsWith("/") ? directory.substring(0, directory.length() - 1) : directory;
             VirtualFile directoryFile = FactsFiles.find(project, directoryPath);
             VirtualFile file = FactsFiles.find(project, directoryPath + "/" + fileName);
-            if (directoryFile != null && file != null && !file.isDirectory() && FactsFiles.isInside(directoryFile, file)) {
+            if (directoryFile != null && file != null && !file.isDirectory() && VirtualFiles.isInside(directoryFile, file)) {
                 matches.computeIfAbsent(file, found -> parse(found, source, kind));
             }
         }
