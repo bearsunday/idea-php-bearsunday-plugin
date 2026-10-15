@@ -11,7 +11,7 @@ public final class BearSundayBundle extends DynamicBundle {
     private static final BearSundayBundle INSTANCE = new BearSundayBundle();
 
     private BearSundayBundle() {
-        super(BUNDLE);
+        super(BearSundayBundle.class, BUNDLE);
     }
 
     public static @NotNull String message(
