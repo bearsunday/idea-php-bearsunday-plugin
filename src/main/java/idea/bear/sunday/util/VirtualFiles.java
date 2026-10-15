@@ -14,15 +14,16 @@ public final class VirtualFiles {
      * -- the configured schema directories, say -- ask here too, so containment means the same
      * thing everywhere. Both sides are compared as the paths they finally name, so a symbolic
      * link is judged by where it points, and a project that itself lives behind one
-     * (/tmp -> /private/tmp on macOS) is not mistaken for somewhere else.
+     * (/tmp -> /private/tmp on macOS) is not mistaken for somewhere else. A link whose target
+     * the VFS does not hold cannot be placed, and is not inside.
      */
     public static boolean isInside(@NotNull VirtualFile directory, @NotNull VirtualFile file) {
-        return VfsUtilCore.isAncestor(canonical(directory), canonical(file), false);
-    }
+        VirtualFile canonicalDirectory = directory.getCanonicalFile();
+        VirtualFile canonicalFile = file.getCanonicalFile();
+        if (canonicalDirectory == null || canonicalFile == null) {
+            return false;
+        }
 
-    private static VirtualFile canonical(VirtualFile file) {
-        VirtualFile canonical = file.getCanonicalFile();
-
-        return canonical == null ? file : canonical;
+        return VfsUtilCore.isAncestor(canonicalDirectory, canonicalFile, false);
     }
 }
