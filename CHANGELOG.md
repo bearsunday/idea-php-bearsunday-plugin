@@ -10,6 +10,9 @@
 - MCP tool `bear_aop_pointcut_lookup` returns which Ray.Aop interceptors wrap a class's methods, and the pointcut that binds each one, evaluated as Ray.Aop's own matchers evaluate it.
 - MCP tool `bear_di_object_graph` returns what a class is actually built out of in one context — the object graph Ray.Di would assemble, resolved from the source rather than by booting anything — and, with `diagram=true`, a Mermaid drawing of the same graph.
 
+### Changed
+- Replaced the deprecated `DynamicBundle(String)` constructor, which the plugin verifier reports against IntelliJ IDEA 2026.3 EAP, with `DynamicBundle(Class, String)`
+
 ### Fixed
 - `ResourceClassResolver`, which every MCP resource tool reads through, could answer with a class the URI does not name: a `.`/`..` path segment could disclose a PHP file outside the project, a non-self authority (`app://payments/user`) silently answered with this project's class, and an interface, trait or enum declared before the resource class in a file could answer in its place.
 - Body key completion after `->body['` reads the file the resource-class naming convention names (`admin/user.json` for `Resource\App\Admin\User`), under every configured schema directory, when the resource method declares no `#[JsonSchema]` attribute. **Generate BEAR body JSON Schema** writes that file and adds no attribute, so the schema the plugin had just generated named no keys, while the MCP fact tools already answered for it (#58).
