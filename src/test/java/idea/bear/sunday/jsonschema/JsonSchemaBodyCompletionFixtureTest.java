@@ -263,6 +263,43 @@ class JsonSchemaBodyCompletionFixtureTest {
         assertTrue(keys.isEmpty());
     }
 
+    /**
+     * A constant names a file this reader does not resolve, and the resource has still said which
+     * file it means: offering the conventional file's keys would describe a schema the method does
+     * not use.
+     */
+    @Test
+    void doesNotFallBackToTheConventionWhenAnAttributeNamesTheFileThroughAConstant() {
+        fixture.addFileToProject("src/Resource/App/User.php", """
+            <?php
+            namespace MyVendor\\Todo\\Resource\\App;
+
+            class User
+            {
+                private const SCHEMA = 'profile.json';
+
+                #[JsonSchema(schema: self::SCHEMA)]
+                public function onGet(int $id): array
+                {
+                    return [];
+                }
+            }
+            """);
+        fixture.addFileToProject("var/json_schema/user.json", """
+            {
+              "type": "object",
+              "properties": {"name": {"type": "string"}}
+            }
+            """);
+
+        List<String> keys = keysAtCaret("""
+            <?php
+            $resource->get('app://self/user', ['id' => 1])->body['<caret>'];
+            """);
+
+        assertTrue(keys.isEmpty());
+    }
+
     /** The boundary is the schema directory, as for the MCP fact tools, not the whole project. */
     @Test
     void returnsNothingForAnAttributeLeavingTheSchemaDirectory() {

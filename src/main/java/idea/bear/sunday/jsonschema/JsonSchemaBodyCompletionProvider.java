@@ -112,10 +112,12 @@ public class JsonSchemaBodyCompletionProvider extends CompletionProvider<Complet
             return List.of();
         }
 
-        String schemaFile = responseSchemaFile(method);
-        if (schemaFile == null) {
-            // Only when the method declares none: a resource naming a file that is not on disk
-            // has said which file it means, and the convention is not it.
+        SchemaDeclaration declaration = responseSchema(method);
+        String schemaFile = declaration.fileName();
+        if (schemaFile == null && !declaration.declared()) {
+            // Only when the method declares none: a resource naming a file, whether one that is
+            // not on disk or one this reader cannot read, has said which file it means, and the
+            // convention is not it.
             schemaFile = BodyJsonSchemaPath.conventionalFileName(resourceClass);
         }
         if (schemaFile == null) {
@@ -235,21 +237,38 @@ public class JsonSchemaBodyCompletionProvider extends CompletionProvider<Complet
     }
 
     /**
-     * Returns the response schema file name declared on the method via a {@code #[JsonSchema]}
-     * attribute — the {@code schema:} named argument, or the first positional argument.
+     * What the method's {@code #[JsonSchema]} attribute says about the response schema file.
+     * {@code fileName} is {@code null} both when no attribute names one and when one is named in a
+     * form this reader cannot read; {@code declared} tells the two apart.
      */
-    @Nullable
-    private static String responseSchemaFile(@NotNull Method method) {
+    private record SchemaDeclaration(boolean declared, @Nullable String fileName) {
+    }
+
+    /**
+     * Reads the response schema file from the method's {@code #[JsonSchema]} attribute — the
+     * {@code schema:} named argument, or the first positional argument.
+     */
+    @NotNull
+    private static SchemaDeclaration responseSchema(@NotNull Method method) {
+        boolean declared = false;
         for (PhpAttribute attribute : method.getAttributes()) {
             if (!"JsonSchema".equals(attributeShortName(attribute))) {
                 continue;
             }
-            String file = stringContents(AttributeArguments.of(attribute, "schema", 0));
-            if (file != null && !file.isBlank()) {
-                return file;
+            PsiElement argument = AttributeArguments.of(attribute, "schema", 0);
+            if (argument == null) {
+                continue;
+            }
+            String file = stringContents(argument);
+            if (file == null) {
+                // A constant or an expression names a file this reader cannot read; the method
+                // has still said which file it means.
+                declared = true;
+            } else if (!file.isBlank()) {
+                return new SchemaDeclaration(true, file);
             }
         }
-        return null;
+        return new SchemaDeclaration(declared, null);
     }
 
     @Nullable

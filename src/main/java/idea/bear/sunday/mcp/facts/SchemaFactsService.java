@@ -88,16 +88,17 @@ public final class SchemaFactsService {
         Map<String, SchemaMatch> matches = new LinkedHashMap<>();
         boolean declared = false;
         for (Method resourceMethod : targets) {
-            for (String fileName : declaredSchemaFiles(resourceMethod, kind)) {
-                declared = true;
+            SchemaDeclaration declaration = declaredSchema(resourceMethod, kind);
+            declared |= declaration.declared();
+            for (String fileName : declaration.fileNames()) {
                 for (SchemaMatch match : byFileName(fileName, kind, SOURCE_ATTRIBUTE)) {
                     matches.putIfAbsent(match.path(), match);
                 }
             }
         }
         // The convention answers for a resource that declares no schema at all. A resource that
-        // declares one naming a file that is not on disk has said which file it means, and the
-        // convention is not it.
+        // declares one naming a file that is not on disk, or one this reader cannot read, has said
+        // which file it means, and the convention is not it.
         if (!matches.isEmpty() || declared || !KIND_RESPONSE.equals(kind)) {
             return List.copyOf(matches.values());
         }
@@ -194,24 +195,38 @@ public final class SchemaFactsService {
         return method.length() > 2 && method.regionMatches(true, 0, "on", 0, 2) ? method : "on" + method;
     }
 
-    /** The {@code schema} (response) or {@code params} (request) file names a method declares. */
-    private static List<String> declaredSchemaFiles(Method method, String kind) {
+    /**
+     * Reads the {@code schema} (response) or {@code params} (request) file names from a method's
+     * {@code #[JsonSchema]} attributes.
+     */
+    private static SchemaDeclaration declaredSchema(Method method, String kind) {
         boolean request = KIND_REQUEST.equals(kind);
         String argumentName = request ? "params" : "schema";
         // #[JsonSchema] constructor order is (schema, key, params, target): params sits at index 2.
         int argumentIndex = request ? 2 : 0;
+        boolean declared = false;
         List<String> fileNames = new ArrayList<>();
         for (PhpAttribute attribute : method.getAttributes()) {
             if (!JSON_SCHEMA.equals(Attributes.shortName(attribute))) {
                 continue;
             }
-            PsiElement parameter = AttributeArguments.of(attribute, argumentName, argumentIndex);
-            if (parameter instanceof StringLiteralExpression literal && !literal.getContents().isBlank()) {
-                fileNames.add(literal.getContents());
+            PsiElement argument = AttributeArguments.of(attribute, argumentName, argumentIndex);
+            if (argument == null) {
+                continue;
             }
+            if (argument instanceof StringLiteralExpression literal) {
+                if (!literal.getContents().isBlank()) {
+                    declared = true;
+                    fileNames.add(literal.getContents());
+                }
+                continue;
+            }
+            // A constant or an expression names a file this reader cannot read; the method has
+            // still said which file it means.
+            declared = true;
         }
 
-        return fileNames;
+        return new SchemaDeclaration(declared, fileNames);
     }
 
     /**
@@ -370,6 +385,14 @@ public final class SchemaFactsService {
         @Nullable JsonObject raw,
         @Nullable String error
     ) {
+    }
+
+    /**
+     * What a method's {@code #[JsonSchema]} attributes say about its schema file. {@code declared}
+     * is also true for a value this reader cannot read, such as a class constant, which then names
+     * no file in {@code fileNames}.
+     */
+    private record SchemaDeclaration(boolean declared, List<String> fileNames) {
     }
 
     /**

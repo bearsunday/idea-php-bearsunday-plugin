@@ -399,6 +399,38 @@ class SchemaFactsServiceFixtureTest {
         assertEquals(0, envelope.getAsJsonArray("matches").size(), envelope::toString);
     }
 
+    /**
+     * A constant names a file this reader does not resolve, and the resource has still said which
+     * file it means. Answering with the conventional file would describe a schema the method does
+     * not use, under a source of "convention" the resource never chose.
+     */
+    @Test
+    void doesNotFallBackToTheConventionWhenTheDeclaredSchemaFileIsAConstant() {
+        addPhysicalFile("src/Resource/App/Point.php", """
+            <?php
+            namespace MyVendor\\MyProject\\Resource\\App;
+
+            use BEAR\\Resource\\Annotation\\JsonSchema;
+            use BEAR\\Resource\\ResourceObject;
+
+            final class Point extends ResourceObject
+            {
+                private const SCHEMA = 'coordinates.json';
+
+                #[JsonSchema(self::SCHEMA)]
+                public function onGet(int $x = 0): static
+                {
+                    return $this;
+                }
+            }
+            """);
+        addPhysicalFile("var/json_schema/point.json", POINT_SCHEMA);
+
+        JsonObject envelope = envelope(facts().lookup("app://self/point", null, null, null));
+
+        assertEquals(0, envelope.getAsJsonArray("matches").size(), envelope::toString);
+    }
+
     /** A method the resource does not declare is not answered for with the class's own schema. */
     @Test
     void doesNotFallBackToTheConventionForAMethodTheResourceDoesNotDeclare() {
