@@ -58,6 +58,25 @@ class SchemaFactsServiceFixtureTest {
         }
         """;
 
+    /** {@code key} names the body slot the schema describes, not a file. */
+    private static final String POINT_WITH_KEY_ONLY = """
+        <?php
+
+        namespace MyVendor\\MyProject\\Resource\\App;
+
+        use BEAR\\Resource\\Annotation\\JsonSchema;
+        use BEAR\\Resource\\ResourceObject;
+
+        final class Point extends ResourceObject
+        {
+            #[JsonSchema(key: 'point')]
+            public function onGet(int $x = 0): static
+            {
+                return $this;
+            }
+        }
+        """;
+
     private static final String POINT_SCHEMA = """
         {
           "type": "object",
@@ -210,6 +229,58 @@ class SchemaFactsServiceFixtureTest {
         assertEquals("convention", match.get("source").getAsString());
     }
 
+    /**
+     * The convention names a file and {@code jsonSchemaPath} says where the project keeps them.
+     * Reading only {@code var/json_schema} answered nothing for a project that keeps them in the
+     * other configured directory, while body key completion answered from it.
+     */
+    @Test
+    void fallsBackToTheConventionInADirectoryOtherThanTheGeneratorsOwn() {
+        addPhysicalFile("src/Resource/App/Point.php", POINT);
+        addPhysicalFile("var/schema/response/point.json", POINT_SCHEMA);
+
+        JsonObject match = envelope(facts().lookup("app://self/point", null, null, null))
+            .getAsJsonArray("matches").get(0).getAsJsonObject();
+
+        assertEquals("var/schema/response/point.json", match.get("path").getAsString());
+        assertEquals("convention", match.get("source").getAsString());
+    }
+
+    /**
+     * A project keeping the conventional file in both configured directories has two schemas, and
+     * the settings order decides which one a reader that takes the first gets.
+     */
+    @Test
+    void answersWithEveryConfiguredDirectoryHoldingTheConventionalFile() {
+        addPhysicalFile("src/Resource/App/Point.php", POINT);
+        addPhysicalFile("var/json_schema/point.json", POINT_SCHEMA);
+        addPhysicalFile("var/schema/response/point.json", POINT_SCHEMA);
+
+        JsonArray matches = envelope(facts().lookup("app://self/point", null, null, null))
+            .getAsJsonArray("matches");
+
+        assertEquals(2, matches.size(), matches::toString);
+        assertEquals("var/json_schema/point.json", matches.get(0).getAsJsonObject().get("path").getAsString());
+        assertEquals("var/schema/response/point.json", matches.get(1).getAsJsonObject().get("path").getAsString());
+    }
+
+    /**
+     * A {@code key}-only attribute names no schema file, so the convention answers. It had named
+     * the file instead: {@code PhpAttribute#getParameter} answers with the argument at the index
+     * whatever parameter wrote it, so {@code key: 'point'} was read as the file {@code point}.
+     */
+    @Test
+    void readsNoSchemaFileFromAnAttributeThatNamesOnlyAKey() {
+        addPhysicalFile("src/Resource/App/Point.php", POINT_WITH_KEY_ONLY);
+        addPhysicalFile("var/json_schema/point.json", POINT_SCHEMA);
+
+        JsonObject match = envelope(facts().lookup("app://self/point", null, null, null))
+            .getAsJsonArray("matches").get(0).getAsJsonObject();
+
+        assertEquals("var/json_schema/point.json", match.get("path").getAsString());
+        assertEquals("convention", match.get("source").getAsString());
+    }
+
     @Test
     void looksASchemaUpByFileName() {
         addPhysicalFile("var/json_schema/point.json", POINT_SCHEMA);
@@ -326,6 +397,103 @@ class SchemaFactsServiceFixtureTest {
         JsonObject envelope = envelope(facts().lookup("app://self/missing-schema", null, null, null));
 
         assertEquals(0, envelope.getAsJsonArray("matches").size(), envelope::toString);
+    }
+
+    /**
+     * A constant names a file this reader does not resolve, and the resource has still said which
+     * file it means. Answering with the conventional file would describe a schema the method does
+     * not use, under a source of "convention" the resource never chose.
+     */
+    @Test
+    void doesNotFallBackToTheConventionWhenTheDeclaredSchemaFileIsAConstant() {
+        addPhysicalFile("src/Resource/App/Point.php", """
+            <?php
+            namespace MyVendor\\MyProject\\Resource\\App;
+
+            use BEAR\\Resource\\Annotation\\JsonSchema;
+            use BEAR\\Resource\\ResourceObject;
+
+            final class Point extends ResourceObject
+            {
+                private const SCHEMA = 'coordinates.json';
+
+                #[JsonSchema(self::SCHEMA)]
+                public function onGet(int $x = 0): static
+                {
+                    return $this;
+                }
+            }
+            """);
+        addPhysicalFile("var/json_schema/point.json", POINT_SCHEMA);
+
+        JsonObject envelope = envelope(facts().lookup("app://self/point", null, null, null));
+
+        assertEquals(0, envelope.getAsJsonArray("matches").size(), envelope::toString);
+    }
+
+    /**
+     * An expression is read whole or not at all: taking the one literal out of
+     * {@code self::DIR . 'point.json'} would name a file the method does not use. Body key
+     * completion reads it the same way.
+     */
+    @Test
+    void doesNotReadAFileNameOutOfAnExpression() {
+        addPhysicalFile("src/Resource/App/Point.php", """
+            <?php
+            namespace MyVendor\\MyProject\\Resource\\App;
+
+            use BEAR\\Resource\\Annotation\\JsonSchema;
+            use BEAR\\Resource\\ResourceObject;
+
+            final class Point extends ResourceObject
+            {
+                private const DIR = 'shapes/';
+
+                #[JsonSchema(schema: self::DIR . 'point.json')]
+                public function onGet(int $x = 0): static
+                {
+                    return $this;
+                }
+            }
+            """);
+        addPhysicalFile("var/json_schema/point.json", POINT_SCHEMA);
+
+        JsonObject envelope = envelope(facts().lookup("app://self/point", null, null, null));
+
+        assertEquals(0, envelope.getAsJsonArray("matches").size(), envelope::toString);
+    }
+
+    /**
+     * BEAR's JsonSchemaInterceptor treats a falsy {@code schema} as naming no file: a blank
+     * literal is not a declaration the convention must yield to.
+     */
+    @Test
+    void fallsBackToTheConventionWhenTheDeclaredSchemaFileIsBlank() {
+        addPhysicalFile("src/Resource/App/Point.php", """
+            <?php
+            namespace MyVendor\\MyProject\\Resource\\App;
+
+            use BEAR\\Resource\\Annotation\\JsonSchema;
+            use BEAR\\Resource\\ResourceObject;
+
+            final class Point extends ResourceObject
+            {
+                #[JsonSchema(schema: '')]
+                public function onGet(int $x = 0): static
+                {
+                    return $this;
+                }
+            }
+            """);
+        addPhysicalFile("var/json_schema/point.json", POINT_SCHEMA);
+
+        JsonObject envelope = envelope(facts().lookup("app://self/point", null, null, null));
+        JsonArray matches = envelope.getAsJsonArray("matches");
+
+        assertEquals(1, matches.size(), envelope::toString);
+        JsonObject match = matches.get(0).getAsJsonObject();
+        assertEquals("var/json_schema/point.json", match.get("path").getAsString());
+        assertEquals("convention", match.get("source").getAsString());
     }
 
     /** A method the resource does not declare is not answered for with the class's own schema. */

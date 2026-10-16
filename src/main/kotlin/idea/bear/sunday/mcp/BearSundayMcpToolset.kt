@@ -365,7 +365,7 @@ class BearSundayMcpToolset : McpToolset {
     @McpDescription(
         "Read-only. Finds the JSON Schema files of a resource as JSON, with their property names, required " +
             "list and full contents. Give resourceUri (optionally method, e.g. \"get\" or \"onGet\") to follow " +
-            "the #[JsonSchema] attribute (source \"attribute\") or the var/json_schema naming convention " +
+            "the #[JsonSchema] attribute (source \"attribute\") or the resource-class naming convention " +
             "(source \"convention\"), or schemaFile to look a file up by name (source \"file\"). kind is " +
             "\"response\" (default) or \"request\", which reads the params schema. Files that exist but cannot " +
             "be parsed are reported with an error instead of properties."

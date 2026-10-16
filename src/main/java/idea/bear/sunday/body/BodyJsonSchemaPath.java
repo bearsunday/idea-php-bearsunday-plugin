@@ -20,24 +20,36 @@ public final class BodyJsonSchemaPath {
 
     public static @Nullable Path fromClass(Project project, PhpClass phpClass) {
         String basePath = project.getBasePath();
-        if (basePath == null) {
-            return null;
-        }
-
-        List<String> segments = resourceSegments(phpClass);
-        if (segments.isEmpty()) {
+        List<String> segments = kebabSegments(phpClass);
+        if (basePath == null || segments.isEmpty()) {
             return null;
         }
 
         Path path = Path.of(basePath, "var", "json_schema");
         for (int i = 0; i < segments.size(); i++) {
-            String segment = kebabCase(segments.get(i));
-            path = i == segments.size() - 1
-                ? path.resolve(segment + ".json")
-                : path.resolve(segment);
+            String segment = segments.get(i);
+            path = path.resolve(i == segments.size() - 1 ? segment + ".json" : segment);
         }
 
         return path;
+    }
+
+    /**
+     * The file the convention names for a resource class, relative to the schema directory:
+     * {@code ...\Resource\App\Admin\User} is {@code admin/user.json}, and a class whose namespace
+     * names no {@code Resource\App} or {@code Resource\Page} is the class name alone. Both readers
+     * reach the class through its path under {@code src/Resource}, so that last form is what a
+     * namespace which does not match the directory resolves to, not a refusal. {@code null} only
+     * when the class has no name to give.
+     *
+     * <p>Separate from {@link #fromClass} because the readers resolve the name under the
+     * {@code jsonSchemaPath} directories, while {@code fromClass} answers where this generator
+     * writes.
+     */
+    public static @Nullable String conventionalFileName(PhpClass phpClass) {
+        List<String> segments = kebabSegments(phpClass);
+
+        return segments.isEmpty() ? null : String.join("/", segments) + ".json";
     }
 
     static String relativeDisplayPath(Project project, Path path) {
@@ -49,21 +61,21 @@ public final class BodyJsonSchemaPath {
         return Path.of(basePath).relativize(path).toString();
     }
 
-    private static List<String> resourceSegments(PhpClass phpClass) {
+    private static List<String> kebabSegments(PhpClass phpClass) {
         String namespace = Objects.requireNonNullElse(phpClass.getNamespaceName(), "");
         List<String> segments = new ArrayList<>();
         String resourceNamespace = resourceSubNamespace(namespace);
         if (resourceNamespace != null && !resourceNamespace.isBlank()) {
             for (String segment : resourceNamespace.split("\\\\")) {
                 if (!segment.isBlank()) {
-                    segments.add(segment);
+                    segments.add(kebabCase(segment));
                 }
             }
         }
 
         String className = phpClass.getName();
         if (className != null && !className.isBlank()) {
-            segments.add(className);
+            segments.add(kebabCase(className));
         }
 
         return segments;

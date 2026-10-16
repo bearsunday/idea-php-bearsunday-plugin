@@ -10,8 +10,16 @@
 - MCP tool `bear_aop_pointcut_lookup` returns which Ray.Aop interceptors wrap a class's methods, and the pointcut that binds each one, evaluated as Ray.Aop's own matchers evaluate it.
 - MCP tool `bear_di_object_graph` returns what a class is actually built out of in one context — the object graph Ray.Di would assemble, resolved from the source rather than by booting anything — and, with `diagram=true`, a Mermaid drawing of the same graph.
 
+### Changed
+- Replaced the deprecated `DynamicBundle(String)` constructor, which the plugin verifier reports against IntelliJ IDEA 2026.3 EAP, with `DynamicBundle(Class, String)`
+
 ### Fixed
 - `ResourceClassResolver`, which every MCP resource tool reads through, could answer with a class the URI does not name: a `.`/`..` path segment could disclose a PHP file outside the project, a non-self authority (`app://payments/user`) silently answered with this project's class, and an interface, trait or enum declared before the resource class in a file could answer in its place.
+- Body key completion after `->body['` reads the file the resource-class naming convention names (`admin/user.json` for `Resource\App\Admin\User`), under every configured schema directory, when the resource method declares no `#[JsonSchema]` attribute. **Generate BEAR body JSON Schema** writes that file and adds no attribute, so the schema the plugin had just generated named no keys, while the MCP fact tools already answered for it (#58).
+- `bear_schema_lookup` and `bear_contract_compare` looked for the conventional schema file only under `var/json_schema`, so a project that configures `jsonSchemaPath` got a different answer from them than from body key completion. Both now resolve the conventional name under every configured schema directory (#58).
+- Body key completion answered with this project's resource for a URI naming another application (`app://payments/user`), and could answer from an interface, trait or enum declared before the resource class in the file — the two holes closed for the MCP tools in this release. It now applies the same rules, and, like the MCP tools, no longer reads a schema from outside the schema directory, whether through a `..` segment or a symbolic link (#58).
+- A `#[JsonSchema]` attribute naming only a key had that key read as its schema file: `#[JsonSchema(key: 'point')]` made body key completion, `bear_schema_lookup` and `bear_contract_compare` look for a file called `point`, find none, and — because the attribute looked like it had named one — not fall back to the conventional file either. An argument now counts towards a parameter's position only when it is written without a name (#58).
+- `bear_schema_lookup` and `bear_contract_compare` answered with the conventional schema file for a resource whose `#[JsonSchema]` gives `schema` a constant or an expression (`schema: self::SCHEMA`), reading the attribute as naming no file. A resource that gives `schema` a value has said which file it means, so they now answer nothing for it rather than the convention, as body key completion does; in both, the file itself is read only when the argument is a string literal (#58).
 
 ## [0.10]
 

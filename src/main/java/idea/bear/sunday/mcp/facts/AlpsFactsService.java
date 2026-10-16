@@ -19,6 +19,7 @@ import idea.bear.sunday.alps.ResolvedLink;
 import idea.bear.sunday.relation.ResourceRelation;
 import idea.bear.sunday.relation.ResourceRelationIndex;
 import idea.bear.sunday.util.UriUtil;
+import idea.bear.sunday.util.VirtualFiles;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.InvalidPathException;
@@ -507,7 +508,7 @@ public final class AlpsFactsService {
             return null;
         }
 
-        return file != null && FactsFiles.isInside(baseDir, file) ? file : null;
+        return file != null && VirtualFiles.isInside(baseDir, file) ? file : null;
     }
 
     private AlpsProfile parse(VirtualFile file) {

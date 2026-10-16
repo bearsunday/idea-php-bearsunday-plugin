@@ -82,9 +82,287 @@ class JsonSchemaBodyCompletionFixtureTest {
         assertTrue(Set.copyOf(keys).containsAll(Set.of("name", "age")));
     }
 
+    /**
+     * "Generate BEAR body JSON Schema" writes the conventional file and adds no attribute, so a
+     * schema the plugin had just generated named no keys here until issue #58, while the MCP fact
+     * tools already answered for it.
+     */
     @Test
-    void returnsNothingWhenResourceHasNoJsonSchema() {
+    void completesBodyKeysFromTheConventionalSchemaWhenNoAttributeNamesIt() {
         addUserResource("");
+        List<String> keys = keysAtCaret("""
+            <?php
+            $resource->get('app://self/user', ['id' => 1])->body['<caret>'];
+            """);
+
+        assertEquals(List.of("name", "age"), keys);
+    }
+
+    /** A nested resource namespace names a subdirectory of the schema directory. */
+    @Test
+    void completesBodyKeysFromAConventionalSchemaInASubdirectory() {
+        fixture.addFileToProject("src/Resource/App/Admin/User.php", """
+            <?php
+            namespace MyVendor\\Todo\\Resource\\App\\Admin;
+
+            class User
+            {
+                public function onGet(int $id): array
+                {
+                    return [];
+                }
+            }
+            """);
+        fixture.addFileToProject("var/json_schema/admin/user.json", """
+            {
+              "type": "object",
+              "properties": {"role": {"type": "string"}}
+            }
+            """);
+
+        List<String> keys = keysAtCaret("""
+            <?php
+            $resource->get('app://self/admin/user', ['id' => 1])->body['<caret>'];
+            """);
+
+        assertEquals(List.of("role"), keys);
+    }
+
+    /** jsonSchemaPath names more than one directory, and the convention is looked for in each. */
+    @Test
+    void completesBodyKeysFromAConventionalSchemaInAnotherConfiguredDirectory() {
+        fixture.addFileToProject("src/Resource/App/User.php", """
+            <?php
+            namespace MyVendor\\Todo\\Resource\\App;
+
+            class User
+            {
+                public function onGet(int $id): array
+                {
+                    return [];
+                }
+            }
+            """);
+        fixture.addFileToProject("var/schema/response/user.json", """
+            {
+              "type": "object",
+              "properties": {"nickname": {"type": "string"}}
+            }
+            """);
+
+        List<String> keys = keysAtCaret("""
+            <?php
+            $resource->get('app://self/user', ['id' => 1])->body['<caret>'];
+            """);
+
+        assertEquals(List.of("nickname"), keys);
+    }
+
+    /**
+     * {@code #[JsonSchema(key: 'user')]} names no schema file, so the convention still answers.
+     * This is the one attribute shape where "declares no file" and "declares no attribute" differ.
+     */
+    @Test
+    void completesBodyKeysFromTheConventionWhenTheAttributeNamesOnlyAKey() {
+        addUserResource("#[JsonSchema(key: 'user')]");
+        List<String> keys = keysAtCaret("""
+            <?php
+            $resource->get('app://self/user', ['id' => 1])->body['<caret>'];
+            """);
+
+        assertEquals(List.of("name", "age"), keys);
+    }
+
+    /**
+     * The authority names which application answers, and only this project's resources are here:
+     * completing this project's keys for another application's URI answers a question nobody
+     * asked. The MCP tools apply the same rule through ResourceClassResolver.
+     */
+    @Test
+    void returnsNothingForAUriNamingAnotherApplication() {
+        addUserResource("");
+        List<String> keys = keysAtCaret("""
+            <?php
+            $resource->get('app://payments/user', ['id' => 1])->body['<caret>'];
+            """);
+
+        assertTrue(keys.isEmpty());
+    }
+
+    /** A file may declare an interface before the resource class; the interface is not the resource. */
+    @Test
+    void completesBodyKeysFromTheClassRatherThanAnInterfaceDeclaredFirst() {
+        fixture.addFileToProject("src/Resource/App/User.php", """
+            <?php
+            namespace MyVendor\\Todo\\Resource\\App;
+
+            interface UserInterface
+            {
+                public function onGet(int $id): array;
+            }
+
+            class User
+            {
+                public function onGet(int $id): array
+                {
+                    return [];
+                }
+            }
+            """);
+        fixture.addFileToProject("var/json_schema/user.json", """
+            {
+              "type": "object",
+              "properties": {"name": {"type": "string"}}
+            }
+            """);
+
+        List<String> keys = keysAtCaret("""
+            <?php
+            $resource->get('app://self/user', ['id' => 1])->body['<caret>'];
+            """);
+
+        assertEquals(List.of("name"), keys);
+    }
+
+    /** The convention names a file, not any file: nothing on disk still completes nothing. */
+    @Test
+    void returnsNothingWhenNeitherAnAttributeNorTheConventionalFileExists() {
+        fixture.addFileToProject("src/Resource/App/User.php", """
+            <?php
+            namespace MyVendor\\Todo\\Resource\\App;
+
+            class User
+            {
+                public function onGet(int $id): array
+                {
+                    return [];
+                }
+            }
+            """);
+
+        List<String> keys = keysAtCaret("""
+            <?php
+            $resource->get('app://self/user', ['id' => 1])->body['<caret>'];
+            """);
+
+        assertTrue(keys.isEmpty());
+    }
+
+    /**
+     * A resource naming a file that is not on disk has said which file it means, and the
+     * conventional one is not it -- the same rule SchemaFactsService.matchesForResource applies.
+     */
+    @Test
+    void doesNotFallBackToTheConventionWhenAnAttributeNamesAMissingFile() {
+        addUserResource("#[JsonSchema('does-not-exist.json')]");
+        List<String> keys = keysAtCaret("""
+            <?php
+            $resource->get('app://self/user', ['id' => 1])->body['<caret>'];
+            """);
+
+        assertTrue(keys.isEmpty());
+    }
+
+    /**
+     * A constant names a file this reader does not resolve, and the resource has still said which
+     * file it means: offering the conventional file's keys would describe a schema the method does
+     * not use.
+     */
+    @Test
+    void doesNotFallBackToTheConventionWhenAnAttributeNamesTheFileThroughAConstant() {
+        fixture.addFileToProject("src/Resource/App/User.php", """
+            <?php
+            namespace MyVendor\\Todo\\Resource\\App;
+
+            class User
+            {
+                private const SCHEMA = 'profile.json';
+
+                #[JsonSchema(schema: self::SCHEMA)]
+                public function onGet(int $id): array
+                {
+                    return [];
+                }
+            }
+            """);
+        fixture.addFileToProject("var/json_schema/user.json", """
+            {
+              "type": "object",
+              "properties": {"name": {"type": "string"}}
+            }
+            """);
+
+        List<String> keys = keysAtCaret("""
+            <?php
+            $resource->get('app://self/user', ['id' => 1])->body['<caret>'];
+            """);
+
+        assertTrue(keys.isEmpty());
+    }
+
+    /**
+     * An expression is read whole or not at all: taking the one literal out of
+     * {@code self::DIR . 'user.json'} would name a file the method does not use. The fact tools
+     * read no file from it either.
+     */
+    @Test
+    void doesNotReadAFileNameOutOfAnExpression() {
+        fixture.addFileToProject("src/Resource/App/User.php", """
+            <?php
+            namespace MyVendor\\Todo\\Resource\\App;
+
+            class User
+            {
+                private const DIR = 'admin/';
+
+                #[JsonSchema(schema: self::DIR . 'user.json')]
+                public function onGet(int $id): array
+                {
+                    return [];
+                }
+            }
+            """);
+        fixture.addFileToProject("var/json_schema/user.json", """
+            {
+              "type": "object",
+              "properties": {"name": {"type": "string"}}
+            }
+            """);
+
+        List<String> keys = keysAtCaret("""
+            <?php
+            $resource->get('app://self/user', ['id' => 1])->body['<caret>'];
+            """);
+
+        assertTrue(keys.isEmpty());
+    }
+
+    /**
+     * BEAR's JsonSchemaInterceptor treats a falsy {@code schema} as naming no file, and so does
+     * completion: a blank literal is not a declaration the convention must yield to.
+     */
+    @Test
+    void completesBodyKeysFromTheConventionWhenTheAttributeNamesABlankFile() {
+        addUserResource("#[JsonSchema('')]");
+        List<String> keys = keysAtCaret("""
+            <?php
+            $resource->get('app://self/user', ['id' => 1])->body['<caret>'];
+            """);
+
+        assertEquals(List.of("name", "age"), keys);
+    }
+
+    /** The boundary is the schema directory, as for the MCP fact tools, not the whole project. */
+    @Test
+    void returnsNothingForAnAttributeLeavingTheSchemaDirectory() {
+        addUserResource("#[JsonSchema('../json_validate/user.json')]");
+        fixture.addFileToProject("var/json_validate/user.json", """
+            {
+              "type": "object",
+              "properties": {"secret": {"type": "string"}}
+            }
+            """);
+
         List<String> keys = keysAtCaret("""
             <?php
             $resource->get('app://self/user', ['id' => 1])->body['<caret>'];

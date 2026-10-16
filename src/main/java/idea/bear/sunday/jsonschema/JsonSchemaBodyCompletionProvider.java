@@ -23,8 +23,12 @@ import com.jetbrains.php.lang.psi.elements.PhpAttribute;
 import com.jetbrains.php.lang.psi.elements.PhpClass;
 import com.jetbrains.php.lang.psi.elements.StringLiteralExpression;
 import idea.bear.sunday.Settings;
+import idea.bear.sunday.body.BodyJsonSchemaPath;
+import idea.bear.sunday.resource.ResourceClassResolver;
+import idea.bear.sunday.util.AttributeArguments;
 import idea.bear.sunday.util.JsonSchemaProperties;
 import idea.bear.sunday.util.UriUtil;
+import idea.bear.sunday.util.VirtualFiles;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -43,7 +47,8 @@ import java.util.Set;
  * resolved the same way goto does, the matching {@code on{Verb}} method's {@code #[JsonSchema]}
  * attribute is read for the <em>response</em> schema file (the {@code schema:} argument or the
  * first positional argument), and the top-level {@code properties} of that schema are offered as
- * completion keys.
+ * completion keys. A method that declares no schema falls back to the file name the resource-class
+ * convention gives, which is the one the body schema generator writes.
  *
  * <p>Supported call forms (the caret is inside the body subscript):
  * <ul>
@@ -107,7 +112,14 @@ public class JsonSchemaBodyCompletionProvider extends CompletionProvider<Complet
             return List.of();
         }
 
-        String schemaFile = responseSchemaFile(method);
+        SchemaDeclaration declaration = responseSchema(method);
+        String schemaFile = declaration.fileName();
+        if (schemaFile == null && !declaration.declared()) {
+            // Only when the method declares none: a resource naming a file, whether one that is
+            // not on disk or one this reader cannot read, has said which file it means, and the
+            // convention is not it.
+            schemaFile = BodyJsonSchemaPath.conventionalFileName(resourceClass);
+        }
         if (schemaFile == null) {
             return List.of();
         }
@@ -225,21 +237,39 @@ public class JsonSchemaBodyCompletionProvider extends CompletionProvider<Complet
     }
 
     /**
-     * Returns the response schema file name declared on the method via a {@code #[JsonSchema]}
-     * attribute — the {@code schema:} named argument, or the first positional argument.
+     * What the method's {@code #[JsonSchema]} attribute says about the response schema file.
+     * {@code fileName} is {@code null} both when no attribute names one and when one is named in a
+     * form this reader cannot read; {@code declared} tells the two apart.
      */
-    @Nullable
-    private static String responseSchemaFile(@NotNull Method method) {
+    private record SchemaDeclaration(boolean declared, @Nullable String fileName) {
+    }
+
+    /**
+     * Reads the response schema file from the method's {@code #[JsonSchema]} attribute — the
+     * {@code schema:} named argument, or the first positional argument.
+     */
+    @NotNull
+    private static SchemaDeclaration responseSchema(@NotNull Method method) {
+        boolean declared = false;
         for (PhpAttribute attribute : method.getAttributes()) {
             if (!"JsonSchema".equals(attributeShortName(attribute))) {
                 continue;
             }
-            String file = stringContents(attribute.getParameter("schema", 0));
-            if (file != null && !file.isBlank()) {
-                return file;
+            PsiElement argument = AttributeArguments.of(attribute, "schema", 0);
+            if (argument == null) {
+                continue;
+            }
+            if (!(argument instanceof StringLiteralExpression literal)) {
+                // A constant or an expression names a file this reader cannot read; the method
+                // has still said which file it means. The fact tools read the argument the same way.
+                declared = true;
+                continue;
+            }
+            if (!literal.getContents().isBlank()) {
+                return new SchemaDeclaration(true, literal.getContents());
             }
         }
-        return null;
+        return new SchemaDeclaration(declared, null);
     }
 
     @Nullable
@@ -257,18 +287,13 @@ public class JsonSchemaBodyCompletionProvider extends CompletionProvider<Complet
         return index >= 0 ? fqn.substring(index + 1) : fqn;
     }
 
-    @Nullable
-    private static String stringContents(@Nullable PsiElement element) {
-        if (element == null) {
-            return null;
-        }
-        if (element instanceof StringLiteralExpression literal) {
-            return literal.getContents();
-        }
-        StringLiteralExpression literal = PsiTreeUtil.findChildOfType(element, StringLiteralExpression.class);
-        return literal == null ? null : literal.getContents();
-    }
-
+    /**
+     * The contents of the schema file, from the first configured directory that holds it.
+     *
+     * <p>{@code findFileByRelativePath} follows a {@code ..} segment and a symbolic link, so the
+     * file has to stay inside the schema directory it was looked up under -- the boundary the MCP
+     * fact tools apply, so both answer for the same files.
+     */
     @Nullable
     private static String loadSchemaFile(@NotNull Project project, @NotNull String schemaFile,
                                          @Nullable PsiElement position) {
@@ -280,8 +305,10 @@ public class JsonSchemaBodyCompletionProvider extends CompletionProvider<Complet
         Settings settings = Settings.getInstance(project);
         for (String path : settings.jsonSchemaPath) {
             String basePath = path.endsWith("/") ? path : path + "/";
+            VirtualFile schemaDir = projectDir.findFileByRelativePath(basePath);
             VirtualFile targetFile = projectDir.findFileByRelativePath(basePath + schemaFile);
-            if (targetFile == null) {
+            if (schemaDir == null || targetFile == null || targetFile.isDirectory()
+                || !VirtualFiles.isInside(projectDir, schemaDir) || !VirtualFiles.isInside(schemaDir, targetFile)) {
                 continue;
             }
             try {
@@ -315,7 +342,12 @@ public class JsonSchemaBodyCompletionProvider extends CompletionProvider<Complet
                 && editorFile.getPath().startsWith(projectDir.getPath() + "/src/Resource/Page");
         }
 
-        String relPath = UriUtil.toResourceRelativePath(uri, pageContext);
+        String normalizedUri = UriUtil.normalizeSupportedResourceUri(uri, pageContext);
+        if (normalizedUri == null || !ResourceClassResolver.isSelfUri(normalizedUri)) {
+            return null;
+        }
+
+        String relPath = UriUtil.toResourceRelativePath(normalizedUri, pageContext);
         if (relPath == null) {
             return null;
         }
@@ -324,12 +356,9 @@ public class JsonSchemaBodyCompletionProvider extends CompletionProvider<Complet
         if (targetFile == null) {
             return null;
         }
-        PsiFile psiFile = PsiManager.getInstance(project).findFile(targetFile);
-        if (psiFile == null) {
-            return null;
-        }
 
-        return PsiTreeUtil.findChildOfType(psiFile, PhpClass.class);
+        return ResourceClassResolver.concreteClassIn(PsiManager.getInstance(project).findFile(targetFile))
+            .orElse(null);
     }
 
     /**

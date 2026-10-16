@@ -10,7 +10,6 @@ import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.IndexNotReadyException;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Computable;
-import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
 import com.jetbrains.php.lang.psi.elements.Method;
@@ -20,10 +19,11 @@ import com.jetbrains.php.lang.psi.elements.StringLiteralExpression;
 import idea.bear.sunday.Settings;
 import idea.bear.sunday.body.BodyJsonSchemaPath;
 import idea.bear.sunday.resource.ResourceClassResolver;
+import idea.bear.sunday.util.AttributeArguments;
 import idea.bear.sunday.util.UriUtil;
+import idea.bear.sunday.util.VirtualFiles;
 import org.jetbrains.annotations.Nullable;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -36,7 +36,8 @@ import java.util.Set;
 
 /**
  * Finds the JSON Schema files of a resource, either declared by a {@code #[JsonSchema]} attribute
- * or following the {@code var/json_schema} naming convention, and reports what they describe.
+ * or named by the resource-class convention, resolved under the configured schema directories,
+ * and reports what they describe.
  */
 @Service(Service.Level.PROJECT)
 public final class SchemaFactsService {
@@ -65,8 +66,8 @@ public final class SchemaFactsService {
     }
 
     /**
-     * Schemas of one resource, in declaration order: the attribute-declared ones, or the
-     * conventional {@code var/json_schema} file when the resource declares none.
+     * Schemas of one resource, in declaration order: the attribute-declared ones, or the file the
+     * naming convention names when the resource declares none.
      */
     List<SchemaMatch> matchesForResource(String resourceUri, @Nullable String method, String kind) {
         String normalizedUri = UriUtil.normalizeSupportedResourceUri(resourceUri.trim(), false);
@@ -87,22 +88,22 @@ public final class SchemaFactsService {
         Map<String, SchemaMatch> matches = new LinkedHashMap<>();
         boolean declared = false;
         for (Method resourceMethod : targets) {
-            for (String fileName : declaredSchemaFiles(resourceMethod, kind)) {
-                declared = true;
+            SchemaDeclaration declaration = declaredSchema(resourceMethod, kind);
+            declared |= declaration.declared();
+            for (String fileName : declaration.fileNames()) {
                 for (SchemaMatch match : byFileName(fileName, kind, SOURCE_ATTRIBUTE)) {
                     matches.putIfAbsent(match.path(), match);
                 }
             }
         }
         // The convention answers for a resource that declares no schema at all. A resource that
-        // declares one naming a file that is not on disk has said which file it means, and the
-        // convention is not it.
+        // declares one naming a file that is not on disk, or one this reader cannot read, has said
+        // which file it means, and the convention is not it.
         if (!matches.isEmpty() || declared || !KIND_RESPONSE.equals(kind)) {
             return List.copyOf(matches.values());
         }
-        SchemaMatch conventional = conventionMatch(phpClass);
 
-        return conventional == null ? List.of() : List.of(conventional);
+        return conventionMatches(phpClass);
     }
 
     private String lookupSchema(@Nullable String resourceUri, @Nullable String method, @Nullable String schemaFile, @Nullable String kind) {
@@ -194,44 +195,61 @@ public final class SchemaFactsService {
         return method.length() > 2 && method.regionMatches(true, 0, "on", 0, 2) ? method : "on" + method;
     }
 
-    /** The {@code schema} (response) or {@code params} (request) file names a method declares. */
-    private static List<String> declaredSchemaFiles(Method method, String kind) {
+    /**
+     * Reads the {@code schema} (response) or {@code params} (request) file names from a method's
+     * {@code #[JsonSchema]} attributes.
+     */
+    private static SchemaDeclaration declaredSchema(Method method, String kind) {
         boolean request = KIND_REQUEST.equals(kind);
         String argumentName = request ? "params" : "schema";
         // #[JsonSchema] constructor order is (schema, key, params, target): params sits at index 2.
         int argumentIndex = request ? 2 : 0;
+        boolean declared = false;
         List<String> fileNames = new ArrayList<>();
         for (PhpAttribute attribute : method.getAttributes()) {
             if (!JSON_SCHEMA.equals(Attributes.shortName(attribute))) {
                 continue;
             }
-            PsiElement parameter = attribute.getParameter(argumentName, argumentIndex);
-            if (parameter instanceof StringLiteralExpression literal && !literal.getContents().isBlank()) {
-                fileNames.add(literal.getContents());
+            PsiElement argument = AttributeArguments.of(attribute, argumentName, argumentIndex);
+            if (argument == null) {
+                continue;
             }
+            if (argument instanceof StringLiteralExpression literal) {
+                if (!literal.getContents().isBlank()) {
+                    declared = true;
+                    fileNames.add(literal.getContents());
+                }
+                continue;
+            }
+            // A constant or an expression names a file this reader cannot read; the method has
+            // still said which file it means.
+            declared = true;
         }
 
-        return fileNames;
+        return new SchemaDeclaration(declared, fileNames);
     }
 
-    /** Every configured schema directory that holds a file of this name. */
+    /**
+     * Every configured schema directory that holds a file of this name, once each: two settings
+     * entries that name one directory are one directory, not two answers.
+     */
     List<SchemaMatch> byFileName(String fileName, String kind, String source) {
         // The answer carries the file contents, so a name may never leave the schema directory
         // it is resolved under. Subpaths like "admin/user.json" are legitimate #[JsonSchema]
         // values, so "/" stays allowed and the boundary is checked against the file the name
         // reached: a ".." segment and a symbolic link are then the same question, and neither
         // is answered by reading the spelling of the path.
-        List<SchemaMatch> matches = new ArrayList<>();
+        Map<VirtualFile, SchemaMatch> matches = new LinkedHashMap<>();
         for (String directory : schemaDirectories(kind)) {
             String directoryPath = directory.endsWith("/") ? directory.substring(0, directory.length() - 1) : directory;
             VirtualFile directoryFile = FactsFiles.find(project, directoryPath);
             VirtualFile file = FactsFiles.find(project, directoryPath + "/" + fileName);
-            if (directoryFile != null && file != null && !file.isDirectory() && FactsFiles.isInside(directoryFile, file)) {
-                matches.add(parse(file, source, kind));
+            if (directoryFile != null && file != null && !file.isDirectory() && VirtualFiles.isInside(directoryFile, file)) {
+                matches.computeIfAbsent(file, found -> parse(found, source, kind));
             }
         }
 
-        return matches;
+        return List.copyOf(matches.values());
     }
 
     private Collection<String> schemaDirectories(String kind) {
@@ -240,15 +258,11 @@ public final class SchemaFactsService {
         return KIND_REQUEST.equals(kind) ? settings.jsonValidatePath : settings.jsonSchemaPath;
     }
 
-    @Nullable
-    private SchemaMatch conventionMatch(PhpClass phpClass) {
-        Path path = BodyJsonSchemaPath.fromClass(project, phpClass);
-        if (path == null) {
-            return null;
-        }
-        VirtualFile file = LocalFileSystem.getInstance().findFileByNioFile(path);
+    /** The file {@link BodyJsonSchemaPath#conventionalFileName} names, resolved like a declared one. */
+    private List<SchemaMatch> conventionMatches(PhpClass phpClass) {
+        String fileName = BodyJsonSchemaPath.conventionalFileName(phpClass);
 
-        return file == null ? null : parse(file, SOURCE_CONVENTION, KIND_RESPONSE);
+        return fileName == null ? List.of() : byFileName(fileName, KIND_RESPONSE, SOURCE_CONVENTION);
     }
 
     private SchemaMatch parse(VirtualFile file, String source, String kind) {
@@ -371,6 +385,14 @@ public final class SchemaFactsService {
         @Nullable JsonObject raw,
         @Nullable String error
     ) {
+    }
+
+    /**
+     * What a method's {@code #[JsonSchema]} attributes say about its schema file. {@code declared}
+     * is also true for a value this reader cannot read, such as a class constant, which then names
+     * no file in {@code fileNames}.
+     */
+    private record SchemaDeclaration(boolean declared, List<String> fileNames) {
     }
 
     /**

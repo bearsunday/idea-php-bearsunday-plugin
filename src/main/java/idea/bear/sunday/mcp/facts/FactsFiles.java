@@ -12,6 +12,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileVisitor;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
+import idea.bear.sunday.util.VirtualFiles;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -112,24 +113,7 @@ final class FactsFiles {
         }
         VirtualFile file = baseDir.findFileByRelativePath(relativePath);
 
-        return file != null && isInside(baseDir, file) ? file : null;
-    }
-
-    /**
-     * Whether a file lies under a directory. Callers with a narrower boundary than the project
-     * -- the configured schema directories, say -- ask here too, so containment means the same
-     * thing everywhere. Both sides are compared as the paths they finally name, so a symbolic
-     * link is judged by where it points, and a project that itself lives behind one
-     * (/tmp -> /private/tmp on macOS) is not mistaken for somewhere else.
-     */
-    static boolean isInside(VirtualFile directory, VirtualFile file) {
-        return VfsUtilCore.isAncestor(canonical(directory), canonical(file), false);
-    }
-
-    private static VirtualFile canonical(VirtualFile file) {
-        VirtualFile canonical = file.getCanonicalFile();
-
-        return canonical == null ? file : canonical;
+        return file != null && VirtualFiles.isInside(baseDir, file) ? file : null;
     }
 
     /** Project-relative path of a file, falling back to the absolute path when it lies outside. */
